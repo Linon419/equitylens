@@ -1,15 +1,30 @@
-from fastapi import APIRouter, Query
+from typing import Literal
 
-from app.api.deps import MarketDataProviderDep, SecDataProviderDep, SessionDep
+from fastapi import APIRouter, Query, Response, status
+
+from app.api.deps import (
+    AgentPrincipal,
+    JobBackendDep,
+    MarketDataProviderDep,
+    QuotaRepositoryDep,
+    SecDataProviderDep,
+    SessionDep,
+)
 from app.companies.schemas import (
     CompanyPublic,
     CompanySearchResponse,
 )
 from app.companies.service import get_or_create_company, search_companies
+from app.core.config import settings
+from app.filings.mapper import latest_10k
 from app.financials.schemas import FinancialsResponse
 from app.financials.service import get_financials
+from app.jobs.schemas import SyncResponse
+from app.jobs.service import SynchronizationServices, synchronize_company
 from app.market_data.schemas import MarketResponse
 from app.market_data.service import get_market_snapshot, refresh_company_profile
+from app.research.schemas import IntelligenceResponse
+from app.research.service import get_public_intelligence
 
 router = APIRouter(prefix="/companies")
 
@@ -59,3 +74,48 @@ async def get_company_financials(
 ) -> FinancialsResponse:
     company = await get_or_create_company(session, sec_provider, symbol)
     return await get_financials(session, company, sec_provider)
+
+
+@router.get("/{symbol}/intelligence", response_model=IntelligenceResponse)
+async def get_company_intelligence(
+    symbol: str,
+    session: SessionDep,
+    sec_provider: SecDataProviderDep,
+    locale: Literal["en", "zh"] = "en",
+) -> IntelligenceResponse:
+    company = await get_or_create_company(session, sec_provider, symbol)
+    return get_public_intelligence(session, company, locale)
+
+
+@router.post("/{symbol}/sync", response_model=SyncResponse)
+async def synchronize_company_intelligence(
+    symbol: str,
+    response: Response,
+    session: SessionDep,
+    principal: AgentPrincipal,
+    repository: QuotaRepositoryDep,
+    backend: JobBackendDep,
+    sec_provider: SecDataProviderDep,
+) -> SyncResponse:
+    company = await get_or_create_company(session, sec_provider, symbol)
+    submissions = await sec_provider.get_submissions(company.cik)
+    filing = latest_10k(company.cik, submissions)
+    result = await synchronize_company(
+        session,
+        company,
+        principal,
+        filing.accession_number,
+        SynchronizationServices(
+            quota_repository=repository,
+            job_backend=backend,
+            schema_version=settings.RESEARCH_SCHEMA_VERSION,
+            prompt_version=settings.RESEARCH_PROMPT_VERSION,
+            model_id=settings.RESEARCH_MODEL,
+            guest_limit=settings.GUEST_DAILY_ANALYSIS_LIMIT,
+            user_limit=settings.USER_DAILY_ANALYSIS_LIMIT,
+            ip_limit=settings.IP_DAILY_ANALYSIS_LIMIT,
+        ),
+    )
+    if result.status == "accepted":
+        response.status_code = status.HTTP_202_ACCEPTED
+    return result

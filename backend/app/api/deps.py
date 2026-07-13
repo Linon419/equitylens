@@ -15,6 +15,8 @@ from app.core.config import settings
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
 from app.filings.sec_client import SecClient
+from app.jobs.schemas import JobBackend
+from app.jobs.service import UnconfiguredJobBackend
 from app.market_data.yahoo import YahooMarketDataProvider
 from app.models.auth_model import AuthSession
 from app.models.user_model import User
@@ -147,6 +149,13 @@ QuotaRepositoryDep = Annotated[
     QuotaRepository,
     Depends(get_quota_repository),
 ]
+
+
+def get_job_backend() -> JobBackend:
+    return UnconfiguredJobBackend()
+
+
+JobBackendDep = Annotated[JobBackend, Depends(get_job_backend)]
 
 
 def get_current_active_superuser(current_user: CurrentUser) -> User:

@@ -16,8 +16,10 @@ from app.research.schemas import (
     EvidenceBundle,
     EvidenceSection,
     IntelligenceDraft,
+    IntelligenceResponse,
     Locale,
     LocalizedIntelligence,
+    PublicCitation,
     VerificationResult,
     VerifiedIntelligence,
 )
@@ -42,6 +44,61 @@ class IntelligenceGenerator(Protocol):
     ) -> LocalizedIntelligence: ...
 
 
+def get_public_intelligence(
+    session: Session,
+    company: Company,
+    locale: Locale,
+) -> IntelligenceResponse:
+    snapshot = session.exec(
+        select(CompanyIntelligenceSnapshot)
+        .where(
+            CompanyIntelligenceSnapshot.company_id == company.id,
+            CompanyIntelligenceSnapshot.status == "completed",
+        )
+        .order_by(CompanyIntelligenceSnapshot.generated_at.desc())
+    ).first()
+    if snapshot is None:
+        raise DomainError("INTELLIGENCE_NOT_FOUND", 404)
+    filing = session.get(Filing, snapshot.filing_id)
+    if filing is None:
+        raise DomainError("FILING_NOT_FOUND", 404)
+    payload = snapshot.content_en if locale == "en" else snapshot.content_zh
+    if payload is None:
+        raise DomainError("INTELLIGENCE_LOCALE_UNAVAILABLE", 404)
+    content = LocalizedIntelligence.model_validate(payload)
+    rows = session.exec(
+        select(FilingSection).where(FilingSection.filing_id == filing.id)
+    ).all()
+    sections = {str(row.id): row for row in rows}
+    citations = []
+    for citation in content.citations:
+        section = sections.get(citation.section_id)
+        if section is None:
+            raise DomainError("INTELLIGENCE_CITATION_INVALID", 500)
+        citations.append(
+            PublicCitation(
+                id=citation.citation_id,
+                filing_date=filing.filed_at,
+                section=section.heading,
+                source_anchor=section.source_anchor,
+                excerpt=citation.excerpt,
+                source_url=f"{filing.source_url}#{section.source_anchor}",
+            )
+        )
+    return IntelligenceResponse(
+        snapshot_id=str(snapshot.id),
+        symbol=company.symbol,
+        filing_date=filing.filed_at,
+        filing_url=filing.source_url,
+        evidence_coverage=content.evidence_coverage,
+        overall_confidence=content.overall_confidence,
+        model_id=snapshot.model_id,
+        generated_at=snapshot.generated_at,
+        content=content,
+        citations=citations,
+    )
+
+
 async def generate_draft(
     session: Session,
     company: Company,
@@ -60,7 +117,11 @@ async def generate_draft(
         schema_version,
         prompt_version,
     )
-    if snapshot is not None and snapshot.status == "completed":
+    if (
+        snapshot is not None
+        and snapshot.status in {"drafted", "verified", "completed"}
+        and snapshot.content_en is not None
+    ):
         return snapshot
 
     current_time = now or datetime.now(UTC)
@@ -107,7 +168,7 @@ async def verify_snapshot(
     *,
     now: datetime | None = None,
 ) -> CompanyIntelligenceSnapshot:
-    if snapshot.status == "completed":
+    if snapshot.status in {"verified", "completed"}:
         return snapshot
     if snapshot.content_en is None:
         raise DomainError("INTELLIGENCE_DRAFT_MISSING", 409)

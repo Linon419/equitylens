@@ -15,10 +15,13 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.api.deps import (
     get_current_user,
     get_db,
+    get_job_backend,
     get_market_data_provider,
     get_sec_data_provider,
 )
 from app.auth.errors import AuthError
+from app.jobs.errors import JobDispatchError
+from app.jobs.schemas import JobSubmission
 from app.main import create_app
 from app.models.user_model import User
 from app.providers.market import CompanyProfile, QuoteSnapshot, SymbolMatch
@@ -92,12 +95,36 @@ class FakeSecProvider:
         )
         return json.loads(path.read_text())
 
+    async def get_submissions(self, cik: str) -> dict:
+        path = (
+            Path(__file__).parents[1]
+            / "fixtures"
+            / "sec"
+            / "aapl_submissions.json"
+        )
+        return json.loads(path.read_text())
+
+
+@dataclass
+class FakeJobBackend:
+    calls: list[str] = field(default_factory=list)
+    fail: bool = False
+
+    async def enqueue(self, *, job_type: str, payload: dict) -> JobSubmission:
+        job_id = str(payload["job_id"])
+        self.calls.append(job_id)
+        if self.fail:
+            raise JobDispatchError("fake timeout", retryable=True)
+        return JobSubmission(job_id=f"fake:{job_id}")
+
 
 @dataclass
 class Phase2ApiHarness:
     client: TestClient
     market: FakeMarketProvider
     sec: FakeSecProvider
+    jobs: FakeJobBackend
+    engine: object
 
 
 @pytest.fixture
@@ -110,6 +137,7 @@ def phase_2_api() -> Generator[Phase2ApiHarness, None, None]:
     SQLModel.metadata.create_all(engine)
     market = FakeMarketProvider()
     sec = FakeSecProvider()
+    jobs = FakeJobBackend()
     app = create_app()
 
     def override_db() -> Generator[Session, None, None]:
@@ -129,7 +157,14 @@ def phase_2_api() -> Generator[Phase2ApiHarness, None, None]:
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_market_data_provider] = lambda: market
     app.dependency_overrides[get_sec_data_provider] = lambda: sec
+    app.dependency_overrides[get_job_backend] = lambda: jobs
     app.dependency_overrides[get_current_user] = override_current_user
 
     with TestClient(app) as client:
-        yield Phase2ApiHarness(client=client, market=market, sec=sec)
+        yield Phase2ApiHarness(
+            client=client,
+            market=market,
+            sec=sec,
+            jobs=jobs,
+            engine=engine,
+        )

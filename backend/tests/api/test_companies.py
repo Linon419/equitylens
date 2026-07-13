@@ -1,3 +1,15 @@
+from datetime import date
+
+from sqlmodel import Session, select
+
+from app.models.company_model import Company
+from app.models.research_model import (
+    CompanyIntelligenceSnapshot,
+    Filing,
+    FilingSection,
+)
+
+
 def test_company_search_and_identity_are_public(phase_2_api) -> None:
     search = phase_2_api.client.get("/api/v1/companies/search?q=apple")
     assert search.status_code == 200
@@ -45,6 +57,89 @@ def test_company_financials_return_four_years_and_ttm(phase_2_api) -> None:
         "FY2025",
     ]
     assert revenue["ttm"]["value"] == "401000000000.0000"
+
+
+def test_company_intelligence_returns_localized_verified_citations(
+    phase_2_api,
+) -> None:
+    phase_2_api.client.get("/api/v1/companies/AAPL")
+    with Session(phase_2_api.engine) as session:
+        company = session.exec(
+            select(Company).where(Company.symbol == "AAPL")
+        ).one()
+        filing = Filing(
+            company_id=company.id,
+            accession_number="0000320193-25-000079",
+            form="10-K",
+            fiscal_period="FY2025",
+            filed_at=date(2025, 10, 31),
+            report_date=date(2025, 9, 27),
+            primary_document="aapl-20250927.htm",
+            source_url="https://www.sec.gov/example/aapl-20250927.htm",
+        )
+        session.add(filing)
+        session.commit()
+        session.refresh(filing)
+        section = FilingSection(
+            filing_id=filing.id,
+            heading="Item 1. Business",
+            source_anchor="item-1-business",
+            ordinal=0,
+            text="The Company designs and sells products and services.",
+        )
+        session.add(section)
+        session.commit()
+        session.refresh(section)
+        base = {
+            "core_businesses": [
+                {
+                    "claim_id": "business-1",
+                    "title": "Devices and services",
+                    "explanation": "Products anchor a services ecosystem.",
+                    "confidence": "High",
+                    "citation_ids": ["citation-1"],
+                }
+            ],
+            "revenue_engines": [],
+            "upstream": [],
+            "company_layer": [],
+            "downstream": [],
+            "competitors": [],
+            "material_dependencies": [],
+            "citations": [
+                {
+                    "citation_id": "citation-1",
+                    "section_id": str(section.id),
+                    "excerpt": "The Company designs and sells products and services.",
+                }
+            ],
+            "evidence_coverage": "complete",
+            "overall_confidence": "High",
+        }
+        snapshot = CompanyIntelligenceSnapshot(
+            company_id=company.id,
+            filing_id=filing.id,
+            status="completed",
+            evidence_coverage="complete",
+            schema_version="v1",
+            prompt_version="p1",
+            model_id="model-1",
+            content_en={**base, "locale": "en"},
+            content_zh={**base, "locale": "zh"},
+            overall_confidence="High",
+        )
+        session.add(snapshot)
+        session.commit()
+
+    response = phase_2_api.client.get(
+        "/api/v1/companies/AAPL/intelligence?locale=en"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["content"]["core_businesses"][0]["claim_id"] == "business-1"
+    assert payload["citations"][0]["filing_type"] == "10-K"
+    assert payload["citations"][0]["source_url"].endswith("#item-1-business")
 
 
 def test_company_search_rejects_short_queries_with_request_id(phase_2_api) -> None:

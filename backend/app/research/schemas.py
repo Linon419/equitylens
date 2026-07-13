@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Self
 
@@ -109,3 +110,27 @@ class VerifiedIntelligence(IntelligenceContent):
 
 class LocalizedIntelligence(VerifiedIntelligence):
     locale: Locale
+
+
+class PublicCitation(BaseModel):
+    id: str
+    filing_type: Literal["10-K"] = "10-K"
+    filing_date: date
+    section: str
+    source_anchor: str
+    excerpt: str
+    source_url: str
+
+
+class IntelligenceResponse(BaseModel):
+    snapshot_id: str
+    symbol: str
+    filing_type: Literal["10-K"] = "10-K"
+    filing_date: date
+    filing_url: str
+    evidence_coverage: EvidenceCoverage
+    overall_confidence: Confidence | None
+    model_id: str
+    generated_at: datetime
+    content: LocalizedIntelligence
+    citations: list[PublicCitation]
