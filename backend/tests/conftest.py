@@ -1,6 +1,5 @@
 import os
 
-
 TEST_ENV = {
     "SECRET_KEY_ACCESS_API": "test-secret-key-with-at-least-32-characters",
     "DATABASE_URL": "postgresql://app:app@localhost:5432/app",

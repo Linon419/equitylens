@@ -714,7 +714,7 @@ git commit -m "feat(backend): define deployment config and contracts"
 - Create: `backend/app/api/routes/health.py`
 - Create: `backend/tests/api/test_health.py`
 
-- [ ] **Step 1: Write failing health tests**
+- [x] **Step 1: Write failing health tests**
 
 Create `backend/tests/api/test_health.py`:
 
@@ -744,7 +744,7 @@ def test_readiness_exposes_active_profile() -> None:
     }
 ```
 
-- [ ] **Step 2: Run the test to verify failure**
+- [x] **Step 2: Run the test to verify failure**
 
 Run:
 
@@ -755,7 +755,7 @@ uv run pytest tests/api/test_health.py -v
 
 Expected: FAIL because `app.app` and the health routes do not exist.
 
-- [ ] **Step 3: Implement health routes**
+- [x] **Step 3: Implement health routes**
 
 Create `backend/app/api/routes/health.py`:
 
@@ -804,7 +804,7 @@ api_router.include_router(login.router, tags=["login"])
 api_router.include_router(qa.router, prefix="/qa", tags=["qa"])
 ```
 
-- [ ] **Step 4: Implement the application factory and ASGI entry point**
+- [x] **Step 4: Implement the application factory and ASGI entry point**
 
 Replace `backend/app/main.py` with:
 
@@ -849,7 +849,7 @@ from app.main import create_app
 app = create_app()
 ```
 
-- [ ] **Step 5: Remove the unused NextAuth import path**
+- [x] **Step 5: Remove the unused NextAuth import path**
 
 Replace `backend/app/api/deps.py` with:
 
@@ -916,7 +916,7 @@ def get_current_active_superuser(current_user: CurrentUser) -> User:
     return current_user
 ```
 
-- [ ] **Step 6: Run the focused and backend suites**
+- [x] **Step 6: Run the focused and backend suites**
 
 Run:
 
@@ -928,7 +928,7 @@ uv run ruff check app/app.py app/main.py app/core/config.py app/providers app/ap
 
 Expected: health tests pass and Ruff reports no violations in the Phase 0 files.
 
-- [ ] **Step 7: Commit the application baseline**
+- [x] **Step 7: Commit the application baseline**
 
 ```bash
 git add backend/app/app.py backend/app/main.py backend/app/api backend/tests/api
