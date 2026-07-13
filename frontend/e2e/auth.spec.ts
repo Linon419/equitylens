@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, request }) => {
+  await request.post("http://127.0.0.1:8001/__e2e__/reset");
   await page.route("https://accounts.google.com/gsi/client", (route) =>
     route.fulfill({
       body: "",
@@ -39,7 +40,7 @@ test("signs in, refreshes, changes locale, and signs out", async ({
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page).toHaveURL(/\/en-US\/dashboard$/);
   await expect(
-    page.getByRole("heading", { name: "Your research starts here." }),
+    page.getByRole("heading", { name: "Understand the company behind the ticker." }),
   ).toBeVisible();
 
   const refreshStatus = await page.evaluate(async () =>
@@ -71,9 +72,9 @@ test("redirects a signed-out user from a protected route", async ({
 }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("/en-US/dashboard");
+  await page.goto("/en-US/settings");
   await expect(page).toHaveURL(
-    /\/en-US\/login\?returnTo=%2Fen-US%2Fdashboard$/,
+    /\/en-US\/login\?returnTo=%2Fen-US%2Fsettings$/,
   );
   await context.close();
 });

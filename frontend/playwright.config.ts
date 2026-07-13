@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   retries: 0,
+  workers: 1,
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
@@ -19,7 +20,7 @@ export default defineConfig({
     },
     {
       command:
-        "BACKEND_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:3000 NEXT_PUBLIC_GOOGLE_CLIENT_ID=e2e-client COOKIE_SECURE=false corepack pnpm dev --hostname 127.0.0.1",
+        "BACKEND_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:3000 NEXT_PUBLIC_GOOGLE_CLIENT_ID=e2e-client COOKIE_SECURE=false GUEST_SIGNING_SECRET=gggggggggggggggggggggggggggggggg INTERNAL_JOB_SECRET=iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii corepack pnpm dev --hostname 127.0.0.1",
       url: "http://127.0.0.1:3000/api/health",
       reuseExistingServer: false,
       timeout: 120_000,

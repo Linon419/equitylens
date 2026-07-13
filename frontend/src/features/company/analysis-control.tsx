@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { analysisCopy } from "./copy";
 import type { AnalysisCopy } from "./copy";
+import { useSession } from "@/components/session-provider";
 import type { Locale } from "@/lib/i18n";
 import {
   parseResearchResponse,
@@ -28,6 +29,7 @@ export function AnalysisControl({
   onCompleted: (intelligence: IntelligenceResponse, quota: QuotaStatus) => void;
   symbol: string;
 }) {
+  const { user } = useSession();
   const [quota, setQuota] = useState(initialQuota);
   const [job, setJob] = useState<IngestionJob | null>(null);
   const [activity, setActivity] = useState<"idle" | "retrying">("idle");
@@ -128,9 +130,11 @@ export function AnalysisControl({
       {limitReached ? (
         <div className="analysis-control__limit" role="alert">
           <p>{copy.limit}. {copy.reset}: {formatReset(quota.resets_at, locale)}</p>
-          <a href={`/${locale}/login?returnTo=${encodeURIComponent(`/${locale}/companies/${symbol}`)}`}>
-            {copy.signIn}
-          </a>
+          {user ? null : (
+            <a href={`/${locale}/login?returnTo=${encodeURIComponent(`/${locale}/companies/${symbol}`)}`}>
+              {copy.signIn}
+            </a>
+          )}
         </div>
       ) : null}
       {requestError ? <p role="alert">{copy.failed}</p> : null}

@@ -1,6 +1,10 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/components/session-provider", () => ({
+  useSession: () => ({ user: null, loading: false }),
+}));
+
 import { AnalysisControl, analysisCopy } from "./analysis-control";
 import {
   intelligenceFixture,
