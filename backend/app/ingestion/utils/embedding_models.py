@@ -1,12 +1,12 @@
-from typing import List, Optional, Union
 
 from langchain.embeddings import CacheBackedEmbeddings
 from langchain_openai import OpenAIEmbeddings
+
 from app.init_db import logger
 
 
 class CacheBackedEmbeddingsExtended(CacheBackedEmbeddings):
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """
         Embed query text.
 
@@ -18,14 +18,16 @@ class CacheBackedEmbeddingsExtended(CacheBackedEmbeddings):
         Returns:
             The embedding for the given text.
         """
-        vectors: List[Union[List[float], None]] = self.document_embedding_store.mget(
+        vectors: list[list[float] | None] = self.document_embedding_store.mget(
             [text]
         )
         text_embeddings = vectors[0]
 
         if text_embeddings is None:
             text_embeddings = self.underlying_embeddings.embed_query(text)
-            self.document_embedding_store.mset(list(zip([text], [text_embeddings])))
+            self.document_embedding_store.mset(
+                list(zip([text], [text_embeddings], strict=True))
+            )
 
         return text_embeddings
 

@@ -1,26 +1,25 @@
-import sys
 import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from pathlib import Path
-import yaml
 import json
-from typing import Any, List
-from langchain.schema import Document
+from pathlib import Path
+
+import yaml
 from dotenv import load_dotenv
-from langchain.vectorstores.pgvector import PGVector
-from langchain.embeddings import CacheBackedEmbeddings
-from app.core.config import logger
-from app.schemas.ingestion_schema import LOADER_DICT
 from fastapi.encoders import jsonable_encoder
-from app.utils.general_helpers import find_project_root
-from utils.embedding_models import get_embedding_model
+from langchain.embeddings import CacheBackedEmbeddings
+from langchain.schema import Document
 from langchain.text_splitter import TokenTextSplitter
-from app.init_db import engine
+from langchain.vectorstores.pgvector import PGVector
 from langchain_community.document_loaders import UnstructuredFileLoader
 from unstructured.cleaners.core import clean_extra_whitespace
+from utils.embedding_models import get_embedding_model
 
+from app.core.config import logger
+from app.schemas.ingestion_schema import LOADER_DICT
+from app.utils.general_helpers import find_project_root
 
 load_dotenv()
 
@@ -31,7 +30,11 @@ project_root = find_project_root(current_script_path)
 # Correctly construct the path to the config file relative to the project root
 ingestion_config_path = project_root / "app" / "config" / "ingestion.yml"
 
-ingestion_config = yaml.load(open(ingestion_config_path, "r"), Loader=yaml.FullLoader)
+with ingestion_config_path.open() as ingestion_config_file:
+    ingestion_config = yaml.load(
+        ingestion_config_file,
+        Loader=yaml.FullLoader,
+    )
 
 # Correctly construct the path to the data/raw directory relative to the project root
 path_input_folder = project_root.parent / ingestion_config.get(
@@ -133,7 +136,7 @@ class PDFExtractionPipeline:
     def _load_docs(
         self,
         dir_path: str,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Using specified PDF miner to convert PDF documents to raw text chunks.
 

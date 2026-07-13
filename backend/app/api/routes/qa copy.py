@@ -1,34 +1,27 @@
 import os
-import yaml
-
-from app.core.config import logger, settings
-
-
 from operator import itemgetter
 
+import yaml
+from dotenv import load_dotenv
+from fastapi import APIRouter
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts.prompt import PromptTemplate
+from langchain_community.vectorstores.pgvector import PGVector
+from langchain_core.messages import get_buffer_string
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, format_document
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.messages import get_buffer_string
-from langchain_core.prompts import format_document
 
-from langchain_community.vectorstores.pgvector import PGVector
-from langchain.memory import ConversationBufferMemory
-
-from langchain.prompts.prompt import PromptTemplate
+from app.api.deps import CurrentUser
+from app.core.config import logger, settings
 from app.schemas.chat_schema import ChatBody
-from fastapi import APIRouter, Depends
-from app.api.deps import CurrentUser, get_current_user
-from app.models.user_model import User
-
-from dotenv import load_dotenv
 
 load_dotenv()
 router = APIRouter()
 
 config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config/chat.yml")
-with open(config_path, "r") as config_file:
+with open(config_path) as config_file:
     config = yaml.load(config_file, Loader=yaml.FullLoader)
 
 chat_config = config.get("CHAT_CONFIG", None)
@@ -39,7 +32,7 @@ logger.info(f"Chat config: {chat_config}")
 @router.post("/chat")
 async def chat_action(
     request: ChatBody,
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser,
     # request: ChatBody,
 ):
 

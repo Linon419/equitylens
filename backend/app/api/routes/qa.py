@@ -1,39 +1,27 @@
 import os
+
 import yaml
-
-from app.core.config import logger, settings
-
-
-from operator import itemgetter
-
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.messages import get_buffer_string
-from langchain_core.prompts import format_document
-
-from langchain_community.vectorstores.pgvector import PGVector
-from langchain.memory import ConversationBufferMemory
-
-from langchain.prompts.prompt import PromptTemplate
-from app.schemas.chat_schema import ChatBody
-from fastapi import APIRouter, Depends
-from app.api.deps import CurrentUser, get_current_user
-from app.models.user_model import User
-
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from dotenv import load_dotenv
+from fastapi import APIRouter
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from langchain_community.vectorstores.pgvector import PGVector
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+)
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+from app.api.deps import CurrentUser
+from app.core.config import logger, settings
+from app.schemas.chat_schema import ChatBody
 
 load_dotenv()
 router = APIRouter()
 
 config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config/chat.yml")
-with open(config_path, "r") as config_file:
+with open(config_path) as config_file:
     config = yaml.load(config_file, Loader=yaml.FullLoader)
 
 chat_config = config.get("CHAT_CONFIG", None)
@@ -55,7 +43,8 @@ def get_context_retriever_chain(vector_store):
             ("user", "{input}"),
             (
                 "user",
-                "Given the above conversation, generate a search query to look up in order to get information relevant to the conversation",
+                "Given the above conversation, generate a search query to look up "
+                "in order to get information relevant to the conversation",
             ),
         ]
     )
@@ -88,7 +77,7 @@ def get_conversational_rag_chain(retriever_chain):
 @router.post("/chat")
 async def chat_action(
     request: ChatBody,
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser,
 ):
     global chat_history
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from enum import Enum
 
 from langchain.document_loaders.base import BaseLoader

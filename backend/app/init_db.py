@@ -5,16 +5,15 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import asyncpg
+import psycopg2
+from dotenv import load_dotenv
+from loguru import logger
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import Session, SQLModel, create_engine, select
+
 from app.core.config import settings
 from app.crud import user_crud
 from app.models.user_model import User, UserCreate
-from dotenv import load_dotenv
-from loguru import logger
-import psycopg2
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.future import select
-from sqlmodel import SQLModel, Session, create_engine, select
-
 
 engine = create_async_engine(str(settings.ASYNC_DATABASE_URI), echo=True)
 
