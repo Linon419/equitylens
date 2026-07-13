@@ -177,7 +177,7 @@ when the visitor is signed out.
   normalization, and freshness calculation
 - `financials`: SEC Company Facts mapping and financial-period selection
 - `filings`: SEC submissions, latest-10-K selection, HTML retrieval, section
-  extraction, and filing persistence
+  extraction, compressed artifact persistence, and filing persistence
 - `research`: structured company-intelligence generation, localization, citation
   validation, and snapshot persistence
 - `jobs`: durable job records, state transitions, deduplication, dispatch, and retry
@@ -266,7 +266,17 @@ quarters when the required facts exist.
 date, report date, primary-document name, SEC source URL, content hash, and
 retrieval timestamp. `(company_id, accession_number)` is unique.
 
-### 6.6 `CompanyIntelligenceSnapshot`
+### 6.6 `FilingArtifact` and `FilingSection`
+
+`FilingArtifact` stores one gzip-compressed SEC HTML body per filing with its
+content type, compressed size, uncompressed size, and SHA-256 hash. A 15 MB
+uncompressed limit bounds database and parser usage. `FilingSection` stores the
+bounded text, filing heading, stable source anchor, and ordinal for each section
+selected by the Phase 2 parser. These internal records let Vercel Workflow and
+RQ resume at durable step boundaries without moving filing bodies through queue
+payloads.
+
+### 6.7 `CompanyIntelligenceSnapshot`
 
 The snapshot stores:
 
@@ -295,14 +305,14 @@ Every item contains a concise title, explanation, confidence, and one or more
 `citation_ids`. A revenue share appears only when a cited filing passage supports
 the number and period.
 
-### 6.7 `EvidenceCitation`
+### 6.8 `EvidenceCitation`
 
 A citation stores `snapshot_id`, `filing_id`, section label, source anchor,
 bounded excerpt, source URL, and verification verdict. Excerpts are limited to
 1,000 characters. Public API responses expose the excerpt and SEC URL; logs
 exclude filing excerpts.
 
-### 6.8 `IngestionJob`
+### 6.9 `IngestionJob`
 
 The job stores job type, company, requesting principal, deduplication key,
 state, current step, provider run ID, attempt count, retry eligibility, stable
@@ -314,7 +324,7 @@ The unique active deduplication key is:
 company_id + accession_number + schema_version + prompt_version + model_id
 ```
 
-### 6.9 `AgentDailyUsage`
+### 6.10 `AgentDailyUsage`
 
 The usage row stores principal type, keyed principal hash, UTC date, accepted
 count, limit, and timestamps. Database constraints prevent negative values and
@@ -343,8 +353,8 @@ enter `failed` with a stable error code and retry metadata.
 2. Fetch SEC submissions with an identifiable `User-Agent`.
 3. Select the latest filed 10-K.
 4. Persist its accession metadata.
-5. Download the primary HTML document from SEC Archives.
-6. Record the content hash and source URL.
+5. Download the primary HTML document from SEC Archives with a 15 MB limit.
+6. Persist the gzip-compressed artifact, content hash, and source URL.
 
 ### 7.2 Parsing
 
@@ -355,8 +365,9 @@ The parser extracts the filing headings and bounded content needed for Phase 2:
 - relevant revenue-disaggregation and segment notes
 - customer, supplier, competition, and concentration passages
 
-The parser preserves source anchors and section labels so each extracted passage
-can become a citation.
+The parser reads the persisted artifact and stores bounded `FilingSection`
+records. It preserves source anchors and section labels so each extracted
+passage can become a citation.
 
 ### 7.3 Analyzing
 
