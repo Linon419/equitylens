@@ -1,9 +1,12 @@
 from typing import Any
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.main import api_router
+from app.auth.errors import AuthError
 from app.core.config import settings
 
 
@@ -20,6 +23,26 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @application.middleware("http")
+    async def request_id_middleware(request: Request, call_next):
+        request.state.request_id = request.headers.get("x-request-id") or str(uuid4())
+        response = await call_next(request)
+        response.headers["x-request-id"] = request.state.request_id
+        return response
+
+    @application.exception_handler(AuthError)
+    async def auth_error_handler(
+        request: Request,
+        error: AuthError,
+    ) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", str(uuid4()))
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"code": error.code, "request_id": request_id},
+            headers={"x-request-id": request_id},
+        )
+
     application.include_router(api_router, prefix=settings.API_V1_STR)
 
     @application.get("/")

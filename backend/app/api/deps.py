@@ -1,20 +1,22 @@
 from collections.abc import Generator
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from pydantic import ValidationError
-from sqlmodel import Session, create_engine
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
+from sqlmodel import Session, create_engine, select
 
-from app.core import security
+from app.auth.contracts import GoogleVerifier
+from app.auth.errors import AuthError
+from app.auth.google import GoogleTokenVerifier
 from app.core.config import settings
-from app.models.user_model import TokenPayload, User
+from app.core.security import decode_access_token
+from app.models.auth_model import AuthSession
+from app.models.user_model import User
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
-reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
-)
+bearer = HTTPBearer(auto_error=False)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -23,27 +25,36 @@ def get_db() -> Generator[Session, None, None]:
 
 
 SessionDep = Annotated[Session, Depends(get_db)]
-TokenDep = Annotated[str, Depends(reusable_oauth2)]
+
+
+def get_google_verifier() -> GoogleVerifier:
+    return GoogleTokenVerifier(settings.GOOGLE_CLIENT_ID)
+
+
+GoogleVerifierDep = Annotated[GoogleVerifier, Depends(get_google_verifier)]
+TokenDep = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
 
 
 def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    if token is None:
+        raise AuthError("AUTH_REQUIRED", 401)
     try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY_ACCESS_API,
-            algorithms=[security.ALGORITHM],
+        claims = decode_access_token(token.credentials)
+    except (JWTError, KeyError, TypeError, ValueError) as error:
+        raise AuthError("AUTH_REQUIRED", 401) from error
+
+    active_session = session.exec(
+        select(AuthSession.id).where(
+            AuthSession.token_family_id == claims.session_id,
+            AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > datetime.now(UTC),
         )
-        token_data = TokenPayload(**payload)
-    except (JWTError, ValidationError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
-        ) from error
-    user = session.get(User, token_data.sub)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+    ).first()
+    user = session.get(User, claims.user_id)
+    if active_session is None or user is None:
+        raise AuthError("AUTH_REQUIRED", 401)
     if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise AuthError("AUTH_ACCOUNT_DISABLED", 403)
     return user
 
 
@@ -52,8 +63,5 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 def get_current_active_superuser(current_user: CurrentUser) -> User:
     if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=400,
-            detail="The user doesn't have enough privileges",
-        )
+        raise AuthError("AUTH_REQUIRED", 403)
     return current_user

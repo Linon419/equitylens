@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.auth.account_service import authenticate_google
 from app.auth.contracts import GoogleIdentity
 from app.auth.errors import AuthError
+from app.crud import user_crud
 from app.models.auth_model import ExternalIdentity
 from app.models.user_model import User
 
@@ -99,3 +100,22 @@ def test_disabled_google_account_is_rejected(db_session: Session) -> None:
         )
 
     assert error.value.status_code == 403
+
+
+def test_password_authentication_safely_ignores_google_user(
+    db_session: Session,
+) -> None:
+    authenticate_google(
+        db_session,
+        FakeVerifier(IDENTITY),
+        "credential",
+        "en-US",
+    )
+
+    result = user_crud.authenticate(
+        session=db_session,
+        email=IDENTITY.email,
+        password="irrelevant",
+    )
+
+    assert result is None
