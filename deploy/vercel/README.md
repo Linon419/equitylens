@@ -1,13 +1,22 @@
-# Vercel deployment profile
+# Vercel deployment
 
-Create two Vercel Projects from this Git repository:
+EquityLens deploys from one Git repository into two Vercel Projects.
 
-| Project | Root directory | Framework |
-|---|---|---|
-| `equity-research-web` | `frontend` | Next.js |
-| `equity-research-api` | `backend` | FastAPI |
+| Deployment order | Project | Root directory | Framework |
+|---|---|---|---|
+| 1 | `equitylens-api` | `backend` | FastAPI |
+| 2 | `equitylens-web` | `frontend` | Next.js |
 
-Set the backend environment variables for the Vercel profile:
+Deploy the API Project first so its production URL can be supplied to the Web
+Project.
+
+## 1. Deploy the API
+
+Use the API Deploy Button in the root [`README.md`](../../README.md), or import
+the repository through the Vercel dashboard and choose `backend` as the Root
+Directory.
+
+Set the public deployment profile values:
 
 ```dotenv
 DEPLOYMENT_TARGET=vercel
@@ -16,29 +25,76 @@ JOB_BACKEND=vercel_workflow
 DOCUMENT_PARSER=managed
 ```
 
-Add these values through Vercel Environment Variables:
+Provide the required secrets and service addresses through Vercel Environment
+Variables:
 
 - `DATABASE_URL`
 - `SECRET_KEY_ACCESS_API`
-- `OPENAI_API_KEY` and `OPENAI_ORGANIZATION`
-- `FIRST_SUPERUSER` and `FIRST_SUPERUSER_PASSWORD`
+- `OPENAI_API_KEY`
+- `OPENAI_ORGANIZATION`
+- `FIRST_SUPERUSER`
+- `FIRST_SUPERUSER_PASSWORD`
 - `BLOB_READ_WRITE_TOKEN`
 - `MANAGED_PARSER_API_KEY`
-- `CORS_ORIGINS` with the deployed frontend origin
+- `CORS_ORIGINS`
 
-The frontend project needs `NEXT_PUBLIC_API_BASE_URL` set to the deployed API
-origin.
+Use a temporary trusted origin for `CORS_ORIGINS` during the first deployment.
+The production Web origin is applied in step 3.
 
-Pull project settings and run local builds with Vercel CLI 48.1.8 or newer:
+## 2. Deploy the Web app
 
-```bash
-pnpm dlx vercel@latest pull --cwd frontend --yes --environment=preview
-pnpm dlx vercel@latest build --cwd frontend
-pnpm dlx vercel@latest pull --cwd backend --yes --environment=preview
-pnpm dlx vercel@latest build --cwd backend
+Use the Web Deploy Button in the root [`README.md`](../../README.md), or import
+the repository and choose `frontend` as the Root Directory.
+
+Set:
+
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=https://equitylens-api.example.com
 ```
 
-Vercel currently recognizes `app/app.py` as a FastAPI entrypoint and supports
-Python 3.12 from the project runtime files. See the official
-[FastAPI guide](https://vercel.com/docs/frameworks/backend/fastapi) and
-[Python runtime guide](https://vercel.com/docs/functions/runtimes/python).
+Use the API production origin and omit a trailing slash.
+
+## 3. Connect both origins
+
+Set the API Project's `CORS_ORIGINS` to the Web production origin, then redeploy
+the API:
+
+```dotenv
+CORS_ORIGINS=https://equitylens-web.example.com
+```
+
+## 4. Verify production
+
+```bash
+WEB_BASE_URL=https://equitylens-web.example.com \
+API_BASE_URL=https://equitylens-api.example.com \
+./scripts/smoke.sh
+```
+
+The expected endpoints are:
+
+- Web health: `GET /api/health`
+- API liveness: `GET /api/v1/health/live`
+- API readiness: `GET /api/v1/health/ready`
+
+## Local Vercel builds
+
+Use Vercel CLI 20.1.0 or newer:
+
+```bash
+pnpm dlx vercel@latest pull --cwd backend --yes --environment=preview
+pnpm dlx vercel@latest build --cwd backend
+pnpm dlx vercel@latest pull --cwd frontend --yes --environment=preview
+pnpm dlx vercel@latest build --cwd frontend
+```
+
+Vercel recognizes `app/app.py` as the FastAPI entry point. Runtime configuration
+is defined in [`backend/vercel.json`](../../backend/vercel.json) and
+[`backend/runtime.txt`](../../backend/runtime.txt).
+
+References:
+
+- [FastAPI on Vercel](https://vercel.com/docs/frameworks/backend/fastapi)
+- [Vercel Python runtime](https://vercel.com/docs/functions/runtimes/python)
+- [Vercel monorepos](https://vercel.com/docs/monorepos)
+- [Deploy Button parameters](https://vercel.com/docs/deploy-button)

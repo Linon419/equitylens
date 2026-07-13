@@ -103,3 +103,14 @@ def test_api_button_defaults_only_public_profile_values() -> None:
         "JOB_BACKEND": "vercel_workflow",
         "DOCUMENT_PARSER": "managed",
     }
+
+
+def test_supporting_docs_use_equitylens_project_names() -> None:
+    vercel = (ROOT / "deploy" / "vercel" / "README.md").read_text()
+    frontend = (ROOT / "frontend" / "README.md").read_text()
+
+    assert "`equitylens-api`" in vercel
+    assert "`equitylens-web`" in vercel
+    assert "API Project first" in vercel
+    assert "# EquityLens Web" in frontend
+    assert "../deploy/vercel/README.md" in frontend
