@@ -60,7 +60,11 @@ class MarketSnapshot(SQLModel, table=True):
     )
     fetched_at: datetime = Field(
         default_factory=utc_now,
-        sa_column=Column(DateTime(timezone=True), nullable=False),
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            index=True,
+        ),
     )
     missing_reasons: dict[str, str] = Field(
         default_factory=dict,

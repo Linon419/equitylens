@@ -189,3 +189,9 @@ def test_phase_2_constraints_are_named() -> None:
     assert "uq_agent_daily_usage_principal_date" in usage_constraints
     assert "ck_agent_usage_nonnegative" in usage_constraints
     assert "ck_agent_usage_limit" in usage_constraints
+
+
+def test_market_cache_lookup_index_is_in_metadata() -> None:
+    indexes = {index.name for index in MarketSnapshot.__table__.indexes}
+
+    assert "ix_market_snapshot_fetched_at" in indexes
