@@ -1177,6 +1177,9 @@ git commit -m "feat(backend): manage schema with Alembic"
 
 ## Task 6: Scaffold and test the Next.js frontend
 
+The implemented baseline also includes localized `en-US` and `zh-CN` routes,
+browser-language detection, a persistent language selector, and focused i18n tests.
+
 **Files:**
 
 - Create: `frontend/` through `create-next-app`
@@ -1189,7 +1192,7 @@ git commit -m "feat(backend): manage schema with Alembic"
 - Create: `frontend/src/test/setup.ts`
 - Create: `frontend/vitest.config.ts`
 
-- [ ] **Step 1: Generate the official scaffold**
+- [x] **Step 1: Generate the official scaffold**
 
 Run from the repository root:
 
@@ -1202,7 +1205,7 @@ pnpm add --save-dev vitest @vitejs/plugin-react jsdom @testing-library/react @te
 
 Expected: a TypeScript App Router application with `pnpm-lock.yaml`.
 
-- [ ] **Step 2: Add test scripts and Vitest configuration**
+- [x] **Step 2: Add test scripts and Vitest configuration**
 
 Add these scripts to `frontend/package.json` while preserving the generated dependency versions:
 
@@ -1246,7 +1249,7 @@ Create `frontend/src/test/setup.ts`:
 import "@testing-library/jest-dom/vitest";
 ```
 
-- [ ] **Step 3: Write failing frontend tests**
+- [x] **Step 3: Write failing frontend tests**
 
 Create `frontend/src/app/page.test.tsx`:
 
@@ -1285,7 +1288,7 @@ describe("GET /api/health", () => {
 });
 ```
 
-- [ ] **Step 4: Run the tests to verify failure**
+- [x] **Step 4: Run the tests to verify failure**
 
 Run:
 
@@ -1296,7 +1299,7 @@ pnpm test
 
 Expected: FAIL because the generated page has different content and the health route does not exist.
 
-- [ ] **Step 5: Implement the baseline page and health route**
+- [x] **Step 5: Implement the baseline page and health route**
 
 Replace `frontend/src/app/page.tsx` with:
 
@@ -1341,7 +1344,7 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-- [ ] **Step 6: Verify tests, lint, and production build**
+- [x] **Step 6: Verify tests, lint, and production build**
 
 Run:
 
@@ -1354,7 +1357,7 @@ pnpm build
 
 Expected: tests pass, ESLint reports no errors, and Next.js creates `.next/standalone`.
 
-- [ ] **Step 7: Commit the frontend baseline**
+- [x] **Step 7: Commit the frontend baseline**
 
 ```bash
 git add frontend
