@@ -1903,7 +1903,7 @@ git commit -m "docs: document dual-deployment workflows"
 - Verify: all files changed by Tasks 1–9
 - Update: this plan's checkboxes while execution proceeds
 
-- [ ] **Step 1: Verify repository state and migration head**
+- [x] **Step 1: Verify repository state and migration head**
 
 Run:
 
@@ -1918,7 +1918,7 @@ uv run ruff check app/app.py app/main.py app/core/config.py app/providers app/ap
 
 Expected: the lock is current, Alembic reports `20260713_0001 (head)`, tests pass at the coverage threshold, and Ruff reports no violations.
 
-- [ ] **Step 2: Verify the frontend artifact**
+- [x] **Step 2: Verify the frontend artifact**
 
 Run:
 
@@ -1935,11 +1935,16 @@ Expected: every command exits `0` and the standalone server exists.
 
 - [ ] **Step 3: Verify both deployment profiles**
 
+Configuration contracts, production dependency sets, and local health contracts
+pass. Docker runtime validation requires Docker CLI; Vercel Preview validation
+requires creating or linking the two external Projects under the authenticated
+Vercel account.
+
 Run the Docker commands from Task 9 and the two Vercel build commands from Task 8. Then run `scripts/smoke.sh` once against Docker and once against the actual Vercel Preview URLs.
 
 Expected: both profiles satisfy the same health contract.
 
-- [ ] **Step 4: Check the final diff**
+- [x] **Step 4: Check the final diff**
 
 Run:
 
@@ -1953,16 +1958,16 @@ Expected: no whitespace errors; the status contains only intentional Phase 0 cha
 
 ## Phase 0 exit criteria
 
-- Python 3.12 and Node.js 22 are pinned.
-- Backend dependencies resolve from `uv.lock`; Vercel installs only API dependencies and Docker can install the worker group.
-- Deployment/provider combinations are validated at startup.
-- FastAPI and Next.js expose stable health endpoints with unit tests.
-- Alembic has one initial migration head and creates the pgvector extension.
-- Backend tests and frontend tests exist and pass their configured gates.
-- The Next.js standalone artifact builds successfully.
-- Docker Compose reaches healthy status and passes shared smoke checks.
-- Both Vercel projects build and their Preview URLs pass the same shared smoke checks.
-- Phase 1 can begin from a reproducible dual-deployment baseline.
+- [x] Python 3.12 and Node.js 22 are pinned.
+- [x] Backend dependencies resolve from `uv.lock`; production and worker groups are independently verified.
+- [x] Deployment/provider combinations are validated at startup.
+- [x] FastAPI and Next.js expose stable health endpoints with unit tests.
+- [x] Alembic has one initial migration head and creates the pgvector extension.
+- [x] Backend and frontend tests pass their configured gates.
+- [x] The Next.js standalone artifact builds successfully.
+- [ ] Docker Compose reaches healthy status and passes shared smoke checks.
+- [ ] Both Vercel Projects build and their Preview URLs pass the shared smoke checks.
+- [x] Phase 1 can begin from the local reproducible dual-deployment baseline.
 
 ## Source references
 
