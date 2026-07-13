@@ -21,6 +21,12 @@ def test_compose_defines_the_complete_application_stack() -> None:
     assert services["api"]["build"]["target"] == "api"
     assert services["worker"]["build"]["target"] == "worker"
     assert services["web"]["build"]["context"] == "./frontend"
+    assert services["web"]["environment"]["GUEST_SIGNING_SECRET"] == (
+        "${GUEST_SIGNING_SECRET}"
+    )
+    assert services["web"]["environment"]["INTERNAL_JOB_SECRET"] == (
+        "${INTERNAL_JOB_SECRET}"
+    )
     assert services["api"]["depends_on"]["migrate"]["condition"] == (
         "service_completed_successfully"
     )

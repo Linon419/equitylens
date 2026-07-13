@@ -17,6 +17,11 @@ class ReadinessResponse(BaseModel):
     deployment_target: str
 
 
+@router.get("", response_model=LivenessResponse)
+async def health() -> LivenessResponse:
+    return LivenessResponse()
+
+
 @router.get("/live", response_model=LivenessResponse)
 async def liveness() -> LivenessResponse:
     return LivenessResponse()
