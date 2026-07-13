@@ -30,7 +30,7 @@ The company research page should answer five questions first:
 
 ### 2.2 MVP capabilities
 
-- Registration, email verification, login, session refresh, and logout
+- Google sign-in, application-session refresh, and logout
 - Symbol search and a personal watchlist
 - A company research dashboard
 - Share price, market capitalization, EPS, trailing P/E, and forward P/E when available
@@ -75,7 +75,7 @@ flowchart LR
     W --> AI[OpenAI]
 ```
 
-The application has one platform-neutral core and two supported deployment profiles: Vercel and Docker. Infrastructure-specific behavior stays behind storage, queue, document-parser, email, and market-data interfaces.
+The application has one platform-neutral core and two supported deployment profiles: Vercel and Docker. Infrastructure-specific behavior stays behind storage, queue, document-parser, and market-data interfaces.
 
 ### 4.1 Frontend
 
@@ -107,7 +107,7 @@ frontend/
 
 The existing `backend/` remains the business API and is divided into these modules:
 
-- `auth`: registration, email verification, login, refresh, and logout
+- `auth`: Google identity verification, application sessions, refresh, and logout
 - `companies`: symbol search, company records, and watchlists
 - `market_data`: quotes, financial metrics, and valuation metrics
 - `documents`: upload intents, downloads, and document management
@@ -116,7 +116,7 @@ The existing `backend/` remains the business API and is divided into these modul
 - `chat`: conversations, messages, retrieval, and citations
 - `jobs`: background-job status
 
-Email verification uses an `EmailSender` interface. The MVP adapter uses SMTP configured through environment variables.
+Phase 1 authentication follows `2026-07-13-phase-1-google-authentication-design.md`.
 
 ### 4.3 Background jobs
 
@@ -222,7 +222,6 @@ The first MVP adapter uses Alpha Vantage. Deployment configuration selects the d
 ## 6. Frontend Pages
 
 ```text
-/{lang}/register
 /{lang}/login
 /{lang}/dashboard
 /{lang}/stocks/[symbol]
@@ -265,7 +264,9 @@ The page presents:
 
 | Model | Responsibility |
 |---|---|
-| `User` | Account, email status, and language preference |
+| `User` | Account, external identity, and language preference |
+| `ExternalIdentity` | Provider subject and user relationship |
+| `AuthSession` | Refresh-token lifecycle and session revocation |
 | `Company` | Ticker, CIK, name, exchange, and industry |
 | `Watchlist` | User-to-company watchlist relationship |
 | `Document` | SEC or uploaded document metadata and access scope |
@@ -304,9 +305,7 @@ All endpoints use the `/api/v1` prefix.
 ### 8.1 Authentication
 
 ```text
-POST  /auth/register
-POST  /auth/verify-email
-POST  /auth/login
+POST  /auth/google
 POST  /auth/refresh
 POST  /auth/logout
 GET   /auth/me
@@ -441,12 +440,12 @@ On a first visit to `/`, Next.js Proxy reads `Accept-Language` and redirects to 
 
 ### 11.1 Authentication and sessions
 
-- Passwords use a strong adaptive password hash.
+- Google Identity Services supplies the federated identity credential.
 - Access tokens are short-lived, and refresh tokens rotate.
 - The Next.js BFF stores the session in a same-origin HttpOnly, Secure cookie.
 - FastAPI accepts authenticated BFF requests and authorized internal bearer tokens.
-- Registration and login endpoints use rate limits.
-- Registration includes email verification.
+- Google login and refresh endpoints expose rate-limit policies.
+- FastAPI verifies Google ID-token signature, audience, issuer, expiry, and email state.
 - Production CORS allows only configured frontend origins.
 
 ### 11.2 Upload security
@@ -500,7 +499,7 @@ The product organizes information and supports research. Every page shows data s
 
 Use `pytest` to cover:
 
-- Registration, login, tokens, and authorization
+- Google sign-in, sessions, tokens, and authorization
 - P/E and valuation formulas
 - SEC response mapping
 - Upload validation
@@ -514,7 +513,7 @@ Use `pytest` to cover:
 Use Vitest and React Testing Library to cover:
 
 - Price and P/E cards
-- Registration and login forms
+- Google login and protected application shell
 - Upload controls
 - Job-status components
 - Citation components
@@ -538,7 +537,7 @@ Core business modules target at least 80% statement and branch coverage.
 
 Use Playwright to cover:
 
-- Registration, verification, login, and logout
+- Google sign-in, refresh, and logout
 - Symbol search and company-page navigation
 - Automatic SEC retrieval
 - PDF upload and visible progress
@@ -550,7 +549,7 @@ Use Playwright to cover:
 ### 14.5 Deployment verification
 
 - `vercel build` succeeds for the Next.js and FastAPI projects.
-- A Vercel Preview deployment passes registration, upload, background-job, retrieval, and citation smoke tests.
+- A Vercel Preview deployment passes Google sign-in, upload, background-job, retrieval, and citation smoke tests.
 - `docker compose build` succeeds for every application image.
 - `docker compose up --wait` reaches healthy status and the same smoke tests pass against the Docker profile.
 - Database migrations run from a dedicated release command in both profiles.
@@ -562,7 +561,7 @@ Maintain at least 20 fixed questions covering revenue sources, value-chain posit
 
 ## 15. MVP Acceptance Criteria
 
-1. A user can register, verify an email address, log in, and log out.
+1. A user can sign in with Google, refresh an application session, and log out.
 2. A user can search for a US equity symbol and open its company page.
 3. The company page shows price, market capitalization, P/E, EPS, source, and timestamp.
 4. A user can upload a PDF filing.
@@ -585,7 +584,7 @@ Maintain at least 20 fixed questions covering revenue sources, value-chain posit
 | Phase | Deliverable |
 |---|---|
 | 0. Engineering baseline | Align Python, add Alembic and test frameworks, define provider contracts, and create Vercel and Docker environment profiles |
-| 1. Users and i18n | Registration, login, secure cookies, protected pages, and localized routes |
+| 1. Users and i18n | Google sign-in, secure cookies, protected pages, and localized routes |
 | 2. Company dashboard | Search, quote, P/E, company profile, and watchlist |
 | 3. Document center | PDF upload, storage and queue adapters, and job-status UI |
 | 4. SEC agent | 10-K/10-Q retrieval, parsing, XBRL, and deduplication |
