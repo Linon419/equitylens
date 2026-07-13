@@ -1374,7 +1374,7 @@ git commit -m "feat(frontend): create Next.js test baseline"
 - Create: `docker-compose.yml`
 - Create: `deploy/docker/README.md`
 
-- [ ] **Step 1: Replace the backend Dockerfile with API and worker targets**
+- [x] **Step 1: Replace the backend Dockerfile with API and worker targets**
 
 Use this complete `backend/Dockerfile`:
 
@@ -1409,7 +1409,7 @@ COPY --from=worker-build /app /app
 CMD ["rq", "worker", "--url", "redis://redis:6379/0", "ingestion"]
 ```
 
-- [ ] **Step 2: Add the Next.js standalone Dockerfile**
+- [x] **Step 2: Add the Next.js standalone Dockerfile**
 
 Create `frontend/Dockerfile`:
 
@@ -1443,7 +1443,7 @@ HEALTHCHECK --interval=10s --timeout=3s --retries=5 \
 CMD ["node", "server.js"]
 ```
 
-- [ ] **Step 3: Add the safe environment template**
+- [x] **Step 3: Add the safe environment template**
 
 Create `.env.example`:
 
@@ -1476,7 +1476,7 @@ CORS_ORIGINS=http://localhost:3000
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-- [ ] **Step 4: Define the Compose stack**
+- [x] **Step 4: Define the Compose stack**
 
 Create `docker-compose.yml`:
 
@@ -1582,6 +1582,9 @@ volumes:
 
 - [ ] **Step 5: Document and validate the Docker profile**
 
+Static Docker profile tests and production dependency checks pass. Image build,
+Compose startup, and container health verification require a local Docker CLI.
+
 Create `deploy/docker/README.md`:
 
 ````markdown
@@ -1621,7 +1624,7 @@ docker compose down
 
 Expected: all images build, migration completes, services become healthy, and both requests return `{"status":"ok"}`.
 
-- [ ] **Step 6: Commit the Docker profile**
+- [x] **Step 6: Commit the Docker profile**
 
 ```bash
 git add .env.example docker-compose.yml backend/Dockerfile frontend/Dockerfile deploy/docker

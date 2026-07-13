@@ -1,20 +1,29 @@
-FROM tiangolo/uvicorn-gunicorn-fastapi:python3.10
+# syntax=docker/dockerfile:1
+FROM python:3.12-slim AS api-build
 
-WORKDIR /app/
+COPY --from=ghcr.io/astral-sh/uv:0.11.3 /uv /uvx /bin/
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+WORKDIR /app
 
-# Install Poetry
-RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python && \
-    cd /usr/local/bin && \
-    ln -s /opt/poetry/bin/poetry && \
-    poetry config virtualenvs.create false
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY alembic.ini ./
+COPY app ./app
 
-# Copy poetry.lock* in case it doesn't exist in the repo
-COPY ./pyproject.toml ./poetry.lock* /app/
+FROM api-build AS worker-build
+RUN uv sync --frozen --no-dev --group worker
 
-# Allow installing dev dependencies to run tests
-ARG INSTALL_DEV=false
-RUN bash -c "if [ $INSTALL_DEV == 'true' ] ; then poetry install --no-root ; else poetry install --no-root --only main ; fi"
+FROM python:3.12-slim AS api
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY --from=api-build /app /app
+EXPOSE 8000
+HEALTHCHECK --interval=10s --timeout=3s --retries=5 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"
+CMD ["uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8000"]
 
-ENV PYTHONPATH=/app
-
-COPY ./app /app/app
+FROM python:3.12-slim AS worker
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY --from=worker-build /app /app
+CMD ["rq", "worker", "--url", "redis://redis:6379/0", "ingestion"]
