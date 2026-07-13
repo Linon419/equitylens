@@ -279,7 +279,7 @@ git commit -m "chore(backend): migrate to Python 3.12 and uv"
 - Create: `backend/tests/core/test_config.py`
 - Create: `backend/tests/providers/test_contracts.py`
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 Create `backend/tests/conftest.py`:
 
@@ -411,7 +411,7 @@ def test_job_state_has_stable_wire_values() -> None:
     ]
 ```
 
-- [ ] **Step 2: Run the tests to verify failure**
+- [x] **Step 2: Run the tests to verify failure**
 
 Run:
 
@@ -422,7 +422,7 @@ uv run pytest tests/core/test_config.py tests/providers/test_contracts.py -v
 
 Expected: FAIL because the deployment enums and provider contracts do not exist.
 
-- [ ] **Step 3: Implement provider contracts**
+- [x] **Step 3: Implement provider contracts**
 
 Create `backend/app/providers/contracts.py`:
 
@@ -516,7 +516,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Implement validated settings**
+- [x] **Step 4: Implement validated settings**
 
 Replace `backend/app/core/config.py` with:
 
@@ -684,7 +684,7 @@ LogConfig.configure_logging()
 settings = Settings()
 ```
 
-- [ ] **Step 5: Run tests and lint**
+- [x] **Step 5: Run tests and lint**
 
 Run:
 
@@ -696,7 +696,7 @@ uv run ruff check app/core/config.py app/providers tests/core tests/providers
 
 Expected: all tests pass and Ruff reports no violations.
 
-- [ ] **Step 6: Commit the contracts**
+- [x] **Step 6: Commit the contracts**
 
 ```bash
 git add backend/app/core/config.py backend/app/providers backend/tests
