@@ -1,7 +1,9 @@
+import json
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated
 
 import pytest
@@ -65,6 +67,7 @@ class FakeMarketProvider:
 @dataclass
 class FakeSecProvider:
     calls: list[str] = field(default_factory=list)
+    facts_calls: int = 0
 
     async def resolve_company(self, symbol: str) -> CompanyReference:
         self.calls.append(symbol)
@@ -78,6 +81,16 @@ class FakeSecProvider:
             name="Apple Inc." if symbol == "AAPL" else "Microsoft Corp",
             exchange="Nasdaq",
         )
+
+    async def get_company_facts(self, cik: str) -> dict:
+        self.facts_calls += 1
+        path = (
+            Path(__file__).parents[1]
+            / "fixtures"
+            / "sec"
+            / "aapl_companyfacts.json"
+        )
+        return json.loads(path.read_text())
 
 
 @dataclass

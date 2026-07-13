@@ -6,6 +6,8 @@ from app.companies.schemas import (
     CompanySearchResponse,
 )
 from app.companies.service import get_or_create_company, search_companies
+from app.financials.schemas import FinancialsResponse
+from app.financials.service import get_financials
 from app.market_data.schemas import MarketResponse
 from app.market_data.service import get_market_snapshot, refresh_company_profile
 
@@ -47,3 +49,13 @@ async def get_company_market(
         result.snapshot,
         result.freshness,
     )
+
+
+@router.get("/{symbol}/financials", response_model=FinancialsResponse)
+async def get_company_financials(
+    symbol: str,
+    session: SessionDep,
+    sec_provider: SecDataProviderDep,
+) -> FinancialsResponse:
+    company = await get_or_create_company(session, sec_provider, symbol)
+    return await get_financials(session, company, sec_provider)
