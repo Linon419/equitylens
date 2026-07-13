@@ -686,7 +686,7 @@ git add docs/superpowers/plans/2026-07-13-professional-readme.md
 git commit -m "docs: record README verification"
 ```
 
-- [ ] **Step 5: Inspect the final branch state**
+- [x] **Step 5: Inspect the final branch state**
 
 Run:
 
