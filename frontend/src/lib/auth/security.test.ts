@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { isSameOrigin, isValidCsrf, safeReturnPath } from "./security";
 
 describe("auth security", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it("allows internal return paths and rejects external paths", () => {
     expect(safeReturnPath("/zh-CN/dashboard", "/en-US/dashboard")).toBe(
       "/zh-CN/dashboard",
@@ -20,12 +22,13 @@ describe("auth security", () => {
   });
 
   it("requires matching request and application origins", () => {
+    vi.stubEnv("FRONTEND_URL", "https://equitylens.example");
     const request = new NextRequest(
-      "https://equitylens.example/api/auth/logout",
+      "http://internal-next-host:3000/api/auth/logout",
       { headers: { origin: "https://equitylens.example" } },
     );
     const crossOrigin = new NextRequest(
-      "https://equitylens.example/api/auth/logout",
+      "http://internal-next-host:3000/api/auth/logout",
       { headers: { origin: "https://evil.example" } },
     );
 

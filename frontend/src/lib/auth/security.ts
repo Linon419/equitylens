@@ -24,7 +24,15 @@ export function safeReturnPath(value: unknown, fallback: string): string {
 
 export function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
-  return origin === request.nextUrl.origin;
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!origin || !frontendUrl) {
+    return false;
+  }
+  try {
+    return new URL(origin).origin === new URL(frontendUrl).origin;
+  } catch {
+    return false;
+  }
 }
 
 export function isValidCsrf(
