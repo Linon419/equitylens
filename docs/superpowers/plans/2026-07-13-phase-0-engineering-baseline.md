@@ -945,7 +945,7 @@ git commit -m "feat(backend): add app factory and health checks"
 - Create: `backend/app/migrations/versions/20260713_0001_initial.py`
 - Create: `backend/tests/test_migrations.py`
 
-- [ ] **Step 1: Write a failing single-head test**
+- [x] **Step 1: Write a failing single-head test**
 
 Create `backend/tests/test_migrations.py`:
 
@@ -964,7 +964,7 @@ def test_migrations_have_one_expected_head() -> None:
     assert scripts.get_heads() == ["20260713_0001"]
 ```
 
-- [ ] **Step 2: Run the test to verify failure**
+- [x] **Step 2: Run the test to verify failure**
 
 Run:
 
@@ -975,7 +975,7 @@ uv run pytest tests/test_migrations.py -v
 
 Expected: FAIL because `alembic.ini` and the migration directory do not exist.
 
-- [ ] **Step 3: Add Alembic configuration**
+- [x] **Step 3: Add Alembic configuration**
 
 Create `backend/alembic.ini`:
 
@@ -1105,7 +1105,7 @@ def downgrade() -> None:
     ${downgrades if downgrades else "pass"}
 ```
 
-- [ ] **Step 4: Add the initial migration**
+- [x] **Step 4: Add the initial migration**
 
 Create `backend/app/migrations/versions/20260713_0001_initial.py`:
 
@@ -1154,7 +1154,7 @@ def downgrade() -> None:
     op.drop_table("user")
 ```
 
-- [ ] **Step 5: Verify migration metadata and SQL rendering**
+- [x] **Step 5: Verify migration metadata and SQL rendering**
 
 Run:
 
@@ -1168,7 +1168,7 @@ rg -n 'CREATE EXTENSION|CREATE TABLE|20260713_0001' /tmp/equity-research-migrati
 
 Expected: one head named `20260713_0001`; offline SQL contains the extension and both tables.
 
-- [ ] **Step 6: Commit migrations**
+- [x] **Step 6: Commit migrations**
 
 ```bash
 git add backend/alembic.ini backend/app/migrations backend/tests/test_migrations.py
