@@ -4,7 +4,8 @@ from typing import Any
 
 import yfinance as yf
 
-from app.providers.market import SymbolMatch
+from app.market_data.mapper import map_company_profile, map_quote
+from app.providers.market import CompanyProfile, QuoteSnapshot, SymbolMatch
 
 
 def map_search_results(
@@ -33,3 +34,15 @@ class YahooMarketDataProvider:
             lambda: yf.Search(query, max_results=8, news_count=0).quotes
         )
         return map_search_results(rows)
+
+    async def get_quote(self, symbol: str) -> QuoteSnapshot:
+        def load() -> tuple[dict[str, object], dict[str, object]]:
+            ticker = yf.Ticker(symbol)
+            return dict(ticker.fast_info), dict(ticker.info)
+
+        fast_info, info = await asyncio.to_thread(load)
+        return map_quote(symbol, fast_info=fast_info, info=info)
+
+    async def get_company_profile(self, symbol: str) -> CompanyProfile:
+        info = await asyncio.to_thread(lambda: dict(yf.Ticker(symbol).info))
+        return map_company_profile(symbol, info)

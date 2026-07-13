@@ -1,5 +1,7 @@
 from collections.abc import Generator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated
 
 import pytest
@@ -17,17 +19,47 @@ from app.api.deps import (
 from app.auth.errors import AuthError
 from app.main import create_app
 from app.models.user_model import User
-from app.providers.market import SymbolMatch
+from app.providers.market import CompanyProfile, QuoteSnapshot, SymbolMatch
 from app.providers.sec import CompanyReference
 
 
 @dataclass
 class FakeMarketProvider:
     queries: list[str] = field(default_factory=list)
+    quote_calls: int = 0
+    profile_calls: int = 0
 
     async def search_symbols(self, query: str) -> list[SymbolMatch]:
         self.queries.append(query)
         return [SymbolMatch(symbol="AAPL", name="Apple Inc.", exchange="NMS")]
+
+    async def get_quote(self, symbol: str) -> QuoteSnapshot:
+        self.quote_calls += 1
+        return QuoteSnapshot(
+            symbol=symbol,
+            price=Decimal("212.48"),
+            previous_close=Decimal("209.88"),
+            market_cap=Decimal("3170000000000"),
+            trailing_eps=Decimal("6.42"),
+            trailing_pe=Decimal("33.096573"),
+            forward_pe=Decimal("29.4"),
+            currency="USD",
+            observed_at=datetime(2026, 7, 13, 12, tzinfo=UTC),
+            provider="yahoo",
+            missing_reasons={},
+            price_change=Decimal("2.60"),
+            price_change_percent=Decimal("1.238803"),
+        )
+
+    async def get_company_profile(self, symbol: str) -> CompanyProfile:
+        self.profile_calls += 1
+        return CompanyProfile(
+            symbol=symbol,
+            name="Apple Inc.",
+            sector="Technology",
+            industry="Consumer Electronics",
+            description="Apple designs and sells devices and services.",
+        )
 
 
 @dataclass

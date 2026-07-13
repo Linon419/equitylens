@@ -6,6 +6,8 @@ from app.companies.schemas import (
     CompanySearchResponse,
 )
 from app.companies.service import get_or_create_company, search_companies
+from app.market_data.schemas import MarketResponse
+from app.market_data.service import get_market_snapshot, refresh_company_profile
 
 router = APIRouter(prefix="/companies")
 
@@ -23,7 +25,25 @@ async def search(
 async def get_company(
     symbol: str,
     session: SessionDep,
-    provider: SecDataProviderDep,
+    sec_provider: SecDataProviderDep,
+    market_provider: MarketDataProviderDep,
 ) -> CompanyPublic:
-    company = await get_or_create_company(session, provider, symbol)
+    company = await get_or_create_company(session, sec_provider, symbol)
+    company = await refresh_company_profile(session, company, market_provider)
     return CompanyPublic.model_validate(company)
+
+
+@router.get("/{symbol}/market", response_model=MarketResponse)
+async def get_company_market(
+    symbol: str,
+    session: SessionDep,
+    sec_provider: SecDataProviderDep,
+    market_provider: MarketDataProviderDep,
+) -> MarketResponse:
+    company = await get_or_create_company(session, sec_provider, symbol)
+    result = await get_market_snapshot(session, company, market_provider)
+    return MarketResponse.from_snapshot(
+        company.symbol,
+        result.snapshot,
+        result.freshness,
+    )

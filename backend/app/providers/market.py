@@ -33,6 +33,8 @@ class QuoteSnapshot:
     observed_at: datetime
     provider: str
     missing_reasons: dict[str, str]
+    price_change: Decimal | None = None
+    price_change_percent: Decimal | None = None
 
 
 class MarketDataProvider(Protocol):

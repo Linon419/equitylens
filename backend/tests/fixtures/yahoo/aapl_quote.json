@@ -1,0 +1,16 @@
+{
+  "fast_info": {
+    "lastPrice": 212.48,
+    "previousClose": 209.88,
+    "marketCap": 3170000000000,
+    "currency": "USD"
+  },
+  "info": {
+    "longName": "Apple Inc.",
+    "sector": "Technology",
+    "industry": "Consumer Electronics",
+    "longBusinessSummary": "Apple designs and sells devices and services.",
+    "trailingEps": 6.42,
+    "forwardPE": 29.4
+  }
+}

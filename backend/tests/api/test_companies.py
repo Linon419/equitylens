@@ -10,6 +10,22 @@ def test_company_search_and_identity_are_public(phase_2_api) -> None:
     assert company.status_code == 200
     assert company.json()["cik"] == "0000320193"
     assert company.json()["symbol"] == "AAPL"
+    assert company.json()["sector"] == "Technology"
+    assert company.json()["industry"] == "Consumer Electronics"
+
+
+def test_company_market_returns_compact_valuation_context(phase_2_api) -> None:
+    response = phase_2_api.client.get("/api/v1/companies/AAPL/market")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["symbol"] == "AAPL"
+    assert payload["price"] == {"value": "212.48000000", "missing_reason": None}
+    assert payload["trailing_eps"]["value"] == "6.42000000"
+    assert payload["trailing_pe"]["value"] == "33.09657300"
+    assert payload["forward_pe"]["value"] == "29.40000000"
+    assert payload["provider"] == "yahoo"
+    assert payload["freshness"] == "fresh"
 
 
 def test_company_search_rejects_short_queries_with_request_id(phase_2_api) -> None:
