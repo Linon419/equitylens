@@ -1,0 +1,105 @@
+import json
+import re
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+ROOT = Path(__file__).resolve().parents[2]
+README = ROOT / "README.md"
+DEPLOY_LINK = re.compile(
+    r"\[!\[Deploy (?P<label>API|Web) with Vercel\]"
+    r"\(https://vercel.com/button\)\]"
+    r"\((?P<url>https://vercel.com/new/clone\?[^)]+)\)"
+)
+LOCAL_LINK = re.compile(r"\[[^\]]+\]\((?!https?://|#)([^)]+)\)")
+
+EXPECTED_DEPLOYS = {
+    "API": {
+        "root-directory": "backend",
+        "project-name": "equitylens-api",
+        "env": {
+            "DATABASE_URL",
+            "SECRET_KEY_ACCESS_API",
+            "OPENAI_API_KEY",
+            "OPENAI_ORGANIZATION",
+            "FIRST_SUPERUSER",
+            "FIRST_SUPERUSER_PASSWORD",
+            "BLOB_READ_WRITE_TOKEN",
+            "MANAGED_PARSER_API_KEY",
+            "CORS_ORIGINS",
+            "DEPLOYMENT_TARGET",
+            "OBJECT_STORAGE_PROVIDER",
+            "JOB_BACKEND",
+            "DOCUMENT_PARSER",
+        },
+    },
+    "Web": {
+        "root-directory": "frontend",
+        "project-name": "equitylens-web",
+        "env": {"NEXT_PUBLIC_API_BASE_URL"},
+    },
+}
+
+
+def readme_text() -> str:
+    return README.read_text()
+
+
+def deploy_parameters() -> dict[str, dict[str, str]]:
+    links = {}
+    for match in DEPLOY_LINK.finditer(readme_text()):
+        query = parse_qs(urlparse(match.group("url")).query)
+        links[match.group("label")] = {
+            key: values[0] for key, values in query.items()
+        }
+    return links
+
+
+def test_readme_identifies_the_product_and_delivery_status() -> None:
+    content = readme_text()
+
+    assert content.startswith('<div align="center">\n\n# EquityLens')
+    assert "Early Development / Phase 0" in content
+    assert "US equity research" in content
+
+
+def test_readme_credits_the_upstream_foundation() -> None:
+    content = readme_text()
+
+    assert "## Acknowledgements" in content
+    assert "https://github.com/mazzasaverio/fastapi-langchain-rag" in content
+
+
+def test_readme_local_links_resolve() -> None:
+    missing = []
+    for target in LOCAL_LINK.findall(readme_text()):
+        path = target.split("#", maxsplit=1)[0]
+        if path and not (ROOT / path).exists():
+            missing.append(target)
+
+    assert missing == []
+
+
+def test_vercel_buttons_target_each_monorepo_application() -> None:
+    deploys = deploy_parameters()
+
+    assert set(deploys) == set(EXPECTED_DEPLOYS)
+    for label, expected in EXPECTED_DEPLOYS.items():
+        actual = deploys[label]
+        assert actual["repository-url"] == (
+            "https://github.com/Linon419/equitylens"
+        )
+        assert actual["root-directory"] == expected["root-directory"]
+        assert actual["project-name"] == expected["project-name"]
+        assert set(actual["env"].split(",")) == expected["env"]
+        assert actual["envLink"].endswith("deploy/vercel/README.md")
+
+
+def test_api_button_defaults_only_public_profile_values() -> None:
+    defaults = json.loads(deploy_parameters()["API"]["envDefaults"])
+
+    assert defaults == {
+        "DEPLOYMENT_TARGET": "vercel",
+        "OBJECT_STORAGE_PROVIDER": "vercel_blob",
+        "JOB_BACKEND": "vercel_workflow",
+        "DOCUMENT_PARSER": "managed",
+    }
