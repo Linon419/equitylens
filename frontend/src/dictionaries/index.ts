@@ -31,6 +31,25 @@ const dictionaries = {
         "This email belongs to an existing EquityLens account. Complete account linking before sign-in.",
       disabledError: "This EquityLens account is disabled.",
     },
+    app: {
+      nav: {
+        dashboard: "Dashboard",
+        settings: "Settings",
+        signOut: "Sign out",
+      },
+      loading: "Resolving your research workspace…",
+      dashboard: {
+        eyebrow: "Research workspace / Phase 1",
+        title: "Your research starts here.",
+        description:
+          "Company search, watchlists, filings, and valuation views arrive in the next delivery phase.",
+      },
+      settings: {
+        eyebrow: "Workspace preferences",
+        title: "Language and account",
+        language: "Interface language",
+      },
+    },
     coverage: "NYSE · NASDAQ · SEC EDGAR",
     frame: {
       kicker: "Research frame / 01",
@@ -80,6 +99,24 @@ const dictionaries = {
       genericError: "登录未完成，请重试。",
       accountLinkError: "该邮箱已属于现有 EquityLens 账户，请先完成账户绑定。",
       disabledError: "该 EquityLens 账户已停用。",
+    },
+    app: {
+      nav: {
+        dashboard: "研究台",
+        settings: "设置",
+        signOut: "退出登录",
+      },
+      loading: "正在载入你的研究工作台…",
+      dashboard: {
+        eyebrow: "研究工作台 / 第一阶段",
+        title: "从这里开始你的公司研究。",
+        description: "公司搜索、自选股、财报与估值视图将在下一阶段加入。",
+      },
+      settings: {
+        eyebrow: "工作台偏好",
+        title: "语言与账户",
+        language: "界面语言",
+      },
     },
     coverage: "纽交所 · 纳斯达克 · SEC EDGAR",
     frame: {

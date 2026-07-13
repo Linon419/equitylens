@@ -9,16 +9,28 @@ import {
 } from "@/lib/i18n";
 
 type LanguageSwitcherProps = {
+  authenticated?: boolean;
   locale: Locale;
   label: string;
 };
 
-export function LanguageSwitcher({ locale, label }: LanguageSwitcherProps) {
+export function LanguageSwitcher({
+  authenticated = false,
+  locale,
+  label,
+}: LanguageSwitcherProps) {
   const pathname = usePathname();
   const router = useRouter();
 
   function changeLocale(nextLocale: Locale) {
     document.cookie = `${localeCookieName}=${nextLocale}; path=/; max-age=31536000; samesite=lax`;
+    if (authenticated) {
+      void fetch("/api/auth/preferences", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ preferred_locale: nextLocale }),
+      });
+    }
     const segments = pathname.split("/");
     segments[1] = nextLocale;
     router.replace(segments.join("/") || `/${nextLocale}`);
