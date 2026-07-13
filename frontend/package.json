@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "equitylens-web",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.12.0",

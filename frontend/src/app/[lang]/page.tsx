@@ -20,8 +20,8 @@ export default async function Home({ params }: HomeProps) {
       <div className="ambient-grid" aria-hidden="true" />
       <header className="masthead">
         <a className="wordmark" href={`/${lang}`}>
-          <span className="wordmark__seal">L</span>
-          <span>Ledgerly</span>
+          <span className="wordmark__seal">E</span>
+          <span>EquityLens</span>
         </a>
         <nav aria-label="Primary navigation" className="desktop-nav">
           {copy.nav.map((item, index) => (

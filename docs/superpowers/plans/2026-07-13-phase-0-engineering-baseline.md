@@ -168,9 +168,9 @@ Use this complete file:
 
 ```toml
 [project]
-name = "us-equity-research-api"
+name = "equitylens-api"
 version = "0.1.0"
-description = "FastAPI backend for the US equity research knowledge base"
+description = "FastAPI backend for EquityLens"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "asyncpg>=0.30,<1",
@@ -289,7 +289,7 @@ import os
 
 TEST_ENV = {
     "SECRET_KEY_ACCESS_API": "test-secret-key-with-at-least-32-characters",
-    "DATABASE_URL": "postgresql://app:app@localhost:5432/app",
+    "DATABASE_URL": "postgresql://app:app@localhost:5432/equitylens",
     "OPENAI_API_KEY": "test-openai-key",
     "OPENAI_ORGANIZATION": "test-organization",
     "FIRST_SUPERUSER": "admin@example.com",
@@ -316,7 +316,7 @@ from app.core.config import Settings
 
 BASE = {
     "SECRET_KEY_ACCESS_API": "x" * 32,
-    "DATABASE_URL": "postgresql://app:app@localhost:5432/app",
+    "DATABASE_URL": "postgresql://app:app@localhost:5432/equitylens",
     "OPENAI_API_KEY": "test",
     "OPENAI_ORGANIZATION": "test",
     "FIRST_SUPERUSER": "admin@example.com",
@@ -572,7 +572,7 @@ class Settings(BaseSettings):
     )
 
     API_VERSION: str = "v1"
-    PROJECT_NAME: str = "us-equity-research"
+    PROJECT_NAME: str = "equitylens-api"
     CORS_ORIGINS: CorsOrigins = ["http://localhost:3000"]
 
     SECRET_KEY_ACCESS_API: str
@@ -1162,7 +1162,7 @@ Run:
 cd backend
 uv run pytest tests/test_migrations.py -v
 uv run alembic heads
-DATABASE_URL=postgresql://app:app@localhost:5432/app uv run alembic upgrade head --sql > /tmp/equity-research-migration.sql
+DATABASE_URL=postgresql://app:app@localhost:5432/equitylens uv run alembic upgrade head --sql > /tmp/equity-research-migration.sql
 rg -n 'CREATE EXTENSION|CREATE TABLE|20260713_0001' /tmp/equity-research-migration.sql
 ```
 
@@ -1454,10 +1454,10 @@ JOB_BACKEND=rq
 DOCUMENT_PARSER=local
 
 SECRET_KEY_ACCESS_API=replace-with-at-least-32-random-characters
-DATABASE_URL=postgresql://app:app@db:5432/app
+DATABASE_URL=postgresql://app:app@db:5432/equitylens
 REDIS_URL=redis://redis:6379/0
 
-POSTGRES_DB=app
+POSTGRES_DB=equitylens
 POSTGRES_USER=app
 POSTGRES_PASSWORD=app
 
@@ -1481,13 +1481,13 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 Create `docker-compose.yml`:
 
 ```yaml
-name: us-equity-research
+name: equitylens
 
 services:
   db:
     image: pgvector/pgvector:0.8.2-pg17-bookworm
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-equitylens}
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
     healthcheck:
@@ -1791,9 +1791,9 @@ chmod +x scripts/smoke.sh
 Write the repository README with these sections and commands:
 
 ````markdown
-# US Equity Research Knowledge Base
+# EquityLens — US Equity Research Knowledge Base
 
-This repository contains a Next.js frontend, FastAPI backend, PostgreSQL/pgvector database, and asynchronous document-processing foundation for US equity research.
+EquityLens contains a Next.js frontend, FastAPI backend, PostgreSQL/pgvector database, and asynchronous document-processing foundation for US equity research.
 
 ## Runtime profiles
 

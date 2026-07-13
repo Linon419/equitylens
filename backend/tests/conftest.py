@@ -2,10 +2,10 @@ import os
 
 TEST_ENV = {
     "SECRET_KEY_ACCESS_API": "test-secret-key-with-at-least-32-characters",
-    "DATABASE_URL": "postgresql://app:app@localhost:5432/app",
+    "DATABASE_URL": "postgresql://app:app@localhost:5432/equitylens",
     "DB_HOST": "localhost",
     "DB_PORT": "5432",
-    "DB_NAME": "app",
+    "DB_NAME": "equitylens",
     "DB_PASS": "app",
     "DB_USER": "app",
     "OPENAI_API_KEY": "test-openai-key",

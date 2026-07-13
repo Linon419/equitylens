@@ -1,7 +1,7 @@
 [project]
-name = "us-equity-research-api"
+name = "equitylens-api"
 version = "0.1.0"
-description = "FastAPI backend for the US equity research knowledge base"
+description = "FastAPI backend for EquityLens"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.16,<2",

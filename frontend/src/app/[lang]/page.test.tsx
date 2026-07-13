@@ -18,6 +18,7 @@ describe("localized home page", () => {
     expect(
       screen.getByRole("heading", { name: "See the business behind the ticker." }),
     ).toBeInTheDocument();
+    expect(screen.getByText("EquityLens")).toBeInTheDocument();
     expect(screen.getByText("US Equity Research")).toBeInTheDocument();
   });
 

@@ -1,6 +1,6 @@
-# Ledgerly — US Equity Research Knowledge Base
+# EquityLens — US Equity Research Knowledge Base
 
-Ledgerly is a full-stack foundation for evidence-backed US equity research. It
+EquityLens is a full-stack foundation for evidence-backed US equity research. It
 combines a localized Next.js interface, FastAPI, PostgreSQL with pgvector, and
 asynchronous filing-processing contracts in one repository.
 

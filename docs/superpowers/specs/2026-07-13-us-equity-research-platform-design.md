@@ -1,4 +1,4 @@
-# US Equity Research Knowledge Base: Full-Stack Design
+# EquityLens: Full-Stack Design
 
 - Status: Approved for implementation planning
 - Date: 2026-07-13
@@ -7,7 +7,7 @@
 
 ## 1. Product Goal
 
-Transform the existing FastAPI, LangChain, and PostgreSQL/pgvector backend prototype into a complete US equity research platform. Registered users can search for companies, inspect prices and valuations, understand each company's position in its value chain, upload filings, let a background agent retrieve SEC filings, and ask evidence-backed questions.
+Transform the existing FastAPI, LangChain, and PostgreSQL/pgvector backend prototype into EquityLens, a complete US equity research platform. Registered users can search for companies, inspect prices and valuations, understand each company's position in its value chain, upload filings, let a background agent retrieve SEC filings, and ask evidence-backed questions.
 
 The company research page should answer five questions first:
 

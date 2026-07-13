@@ -5,7 +5,7 @@ from app.core.config import Settings
 
 BASE = {
     "SECRET_KEY_ACCESS_API": "x" * 32,
-    "DATABASE_URL": "postgresql://app:app@localhost:5432/app",
+    "DATABASE_URL": "postgresql://app:app@localhost:5432/equitylens",
     "OPENAI_API_KEY": "test",
     "OPENAI_ORGANIZATION": "test",
     "FIRST_SUPERUSER": "admin@example.com",
@@ -37,6 +37,7 @@ def test_docker_profile_accepts_docker_providers() -> None:
     )
 
     assert settings.DEPLOYMENT_TARGET == "docker"
+    assert settings.PROJECT_NAME == "equitylens-api"
     assert settings.SYNC_DATABASE_URI.startswith("postgresql+psycopg2://")
     assert settings.ASYNC_DATABASE_URI.startswith("postgresql+asyncpg://")
     assert "app:app@" in settings.SYNC_DATABASE_URI

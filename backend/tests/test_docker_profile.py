@@ -1,3 +1,4 @@
+import json
 import tomllib
 from pathlib import Path
 
@@ -10,6 +11,10 @@ def test_compose_defines_the_complete_application_stack() -> None:
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
     services = compose["services"]
 
+    assert compose["name"] == "equitylens"
+    assert services["db"]["environment"]["POSTGRES_DB"] == (
+        "${POSTGRES_DB:-equitylens}"
+    )
     assert {"db", "redis", "minio", "migrate", "api", "worker", "web"} <= set(
         services
     )
@@ -37,7 +42,10 @@ def test_dockerfiles_use_pinned_runtimes_and_reproducible_installs() -> None:
 
 def test_migration_runtime_includes_alembic() -> None:
     pyproject = tomllib.loads((ROOT / "backend" / "pyproject.toml").read_text())
+    package = json.loads((ROOT / "frontend" / "package.json").read_text())
 
+    assert pyproject["project"]["name"] == "equitylens-api"
+    assert package["name"] == "equitylens-web"
     assert any(
         dependency.startswith("alembic")
         for dependency in pyproject["project"]["dependencies"]
@@ -57,6 +65,8 @@ def test_environment_template_contains_placeholders_only() -> None:
 def test_native_backend_template_uses_local_service_addresses() -> None:
     template = (ROOT / "backend" / ".env.example").read_text()
 
-    assert "DATABASE_URL=postgresql://app:app@localhost:5432/app" in template
+    assert (
+        "DATABASE_URL=postgresql://app:app@localhost:5432/equitylens" in template
+    )
     assert "REDIS_URL=redis://localhost:6379/0" in template
     assert "S3_ENDPOINT_URL=http://localhost:9000" in template

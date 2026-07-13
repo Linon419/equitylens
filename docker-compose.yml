@@ -1,10 +1,10 @@
-name: us-equity-research
+name: equitylens
 
 services:
   db:
     image: pgvector/pgvector:0.8.2-pg17-bookworm
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-equitylens}
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
     healthcheck:

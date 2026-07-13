@@ -3,7 +3,7 @@ import type { Locale } from "@/lib/i18n";
 const dictionaries = {
   "en-US": {
     metadata: {
-      title: "Ledgerly — US Equity Research",
+      title: "EquityLens — US Equity Research",
       description: "Traceable company, filing, financial, and valuation research.",
     },
     brand: "US Equity Research",
@@ -42,7 +42,7 @@ const dictionaries = {
   },
   "zh-CN": {
     metadata: {
-      title: "Ledgerly — 美股投研知识库",
+      title: "EquityLens — 美股投研知识库",
       description: "有据可查的公司、财报、财务与估值研究。",
     },
     brand: "美股投研知识库",

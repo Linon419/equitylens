@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     )
 
     API_VERSION: str = "v1"
-    PROJECT_NAME: str = "us-equity-research"
+    PROJECT_NAME: str = "equitylens-api"
     CORS_ORIGINS: CorsOrigins = ["http://localhost:3000"]
 
     SECRET_KEY_ACCESS_API: str
