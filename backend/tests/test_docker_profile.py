@@ -34,6 +34,10 @@ def test_dockerfiles_use_pinned_runtimes_and_reproducible_installs() -> None:
     assert "uv sync --frozen --no-dev" in backend
     assert "COPY alembic.ini ./" in backend
     assert 'CMD ["uvicorn", "app.app:app"' in backend
+    assert (
+        'CMD ["rq", "worker", "--url", "redis://redis:6379/0", '
+        '"company-intelligence"]' in backend
+    )
     assert "FROM node:22-alpine" in frontend
     assert "COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./" in frontend
     assert "pnpm install --frozen-lockfile" in frontend

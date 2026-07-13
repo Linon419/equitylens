@@ -640,6 +640,8 @@ dependencies = [
     { name = "python-jose", extra = ["cryptography"] },
     { name = "python-multipart" },
     { name = "pyyaml" },
+    { name = "redis" },
+    { name = "rq" },
     { name = "sqlalchemy" },
     { name = "sqlmodel" },
     { name = "uvicorn", extra = ["standard"] },
@@ -657,7 +659,6 @@ worker = [
     { name = "boto3" },
     { name = "pymupdf" },
     { name = "pypdf" },
-    { name = "rq" },
     { name = "unstructured", extra = ["pdf"] },
 ]
 
@@ -681,6 +682,8 @@ requires-dist = [
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5,<4" },
     { name = "python-multipart", specifier = ">=0.0.20,<1" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "redis", specifier = ">=6,<9" },
+    { name = "rq", specifier = ">=2.4,<3" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
     { name = "sqlmodel", specifier = ">=0.0.24,<0.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
@@ -698,7 +701,6 @@ worker = [
     { name = "boto3", specifier = ">=1.39,<2" },
     { name = "pymupdf", specifier = ">=1.26,<2" },
     { name = "pypdf", specifier = ">=5,<7" },
-    { name = "rq", specifier = ">=2.4,<3" },
     { name = "unstructured", extras = ["pdf"], specifier = ">=0.18,<1" },
 ]
 

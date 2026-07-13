@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
 from app.filings.sec_client import SecClient
+from app.jobs.rq_backend import RQJobBackend
 from app.jobs.schemas import JobBackend
 from app.jobs.service import UnconfiguredJobBackend
 from app.market_data.yahoo import YahooMarketDataProvider
@@ -152,6 +153,17 @@ QuotaRepositoryDep = Annotated[
 
 
 def get_job_backend() -> JobBackend:
+    if settings.JOB_BACKEND.value == "rq":
+        from redis import Redis
+        from rq import Queue
+
+        if settings.REDIS_URL is None:
+            raise RuntimeError("REDIS_URL is required for the RQ backend")
+        queue = Queue(
+            "company-intelligence",
+            connection=Redis.from_url(settings.REDIS_URL),
+        )
+        return RQJobBackend(queue)
     return UnconfiguredJobBackend()
 
 
