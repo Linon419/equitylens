@@ -151,7 +151,7 @@ git commit -m "chore: pin frontend and backend runtimes"
 - Delete: `backend/poetry.lock`
 - Create: `backend/uv.lock`
 
-- [ ] **Step 1: Record the current Python incompatibility**
+- [x] **Step 1: Record the current Python incompatibility**
 
 Run:
 
@@ -162,7 +162,7 @@ uv lock --check
 
 Expected: FAIL because the repository has no `uv.lock` and the current Poetry metadata restricts Python to `<3.12`.
 
-- [ ] **Step 2: Replace `backend/pyproject.toml` with a PEP 621 project**
+- [x] **Step 2: Replace `backend/pyproject.toml` with a PEP 621 project**
 
 Use this complete file:
 
@@ -232,7 +232,7 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ```
 
-- [ ] **Step 3: Replace the package-manager lock**
+- [x] **Step 3: Replace the package-manager lock**
 
 After the deletion is explicitly approved, remove `backend/poetry.lock` through the file-editing workflow. Then run:
 
@@ -245,7 +245,7 @@ uv sync --frozen --group worker
 
 Expected: `uv.lock` is created, Python 3.12 is selected, and both API and worker dependency sets resolve successfully.
 
-- [ ] **Step 4: Verify the API dependency set**
+- [x] **Step 4: Verify the API dependency set**
 
 Run:
 
@@ -261,7 +261,7 @@ Expected:
 backend-dependencies-ok
 ```
 
-- [ ] **Step 5: Commit the package migration**
+- [x] **Step 5: Commit the package migration**
 
 ```bash
 git add -A backend/pyproject.toml backend/poetry.lock backend/uv.lock
