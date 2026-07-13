@@ -91,7 +91,7 @@ The existing `User` table gains:
 | Field | Type | Purpose |
 |---|---|---|
 | `id` | UUID | Internal identity ID |
-| `user_id` | UUID FK | Owning user |
+| `user_id` | integer FK | Owning user |
 | `provider` | string | `google` |
 | `provider_subject` | string | Google `sub` claim |
 | `provider_email` | string | Last observed Google email |
@@ -109,7 +109,7 @@ Constraints:
 | Field | Type | Purpose |
 |---|---|---|
 | `id` | UUID | Session identifier |
-| `user_id` | UUID FK | Session owner |
+| `user_id` | integer FK | Session owner |
 | `token_hash` | fixed string | SHA-256 refresh-token digest |
 | `token_family_id` | UUID | Rotation family |
 | `expires_at` | datetime | Absolute expiry |
@@ -131,7 +131,7 @@ A new Alembic migration applies these schema changes. Existing migrations remain
 - JWT signed with the configured application secret
 - Lifetime: 15 minutes
 - Claims: `sub`, `sid`, `type=access`, `iat`, and `exp`
-- `sub` contains the internal EquityLens user UUID
+- `sub` contains the internal EquityLens integer user ID serialized as a string
 - `sid` contains the stable token-family UUID for the application session
 
 ### 5.2 Refresh token
