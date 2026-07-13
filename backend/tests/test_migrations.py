@@ -9,4 +9,4 @@ def test_migrations_have_one_expected_head() -> None:
     config = Config(root / "alembic.ini")
     scripts = ScriptDirectory.from_config(config)
 
-    assert scripts.get_heads() == ["20260713_0001"]
+    assert scripts.get_heads() == ["20260713_0002"]

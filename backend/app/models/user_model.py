@@ -1,4 +1,11 @@
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 # Shared properties
@@ -8,6 +15,8 @@ class UserBase(SQLModel):
     is_active: bool = True
     is_superuser: bool = False
     full_name: str | None = None
+    avatar_url: str | None = None
+    preferred_locale: str = Field(default="en-US", max_length=5)
 
 
 # Properties to receive via API on creation
@@ -43,13 +52,23 @@ class UpdatePassword(SQLModel):
 # Database model, database table inferred from class name
 class User(UserBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    hashed_password: str
+    hashed_password: str | None = None
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
     items: list["Item"] = Relationship(back_populates="owner")
 
 
 # Properties to return via API, id is always required
 class UserOut(UserBase):
     id: int
+    created_at: datetime
+    updated_at: datetime
 
 
 class UsersOut(SQLModel):

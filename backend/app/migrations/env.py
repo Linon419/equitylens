@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from app.core.config import settings
-from app.models import user_model  # noqa: F401
+from app.models import auth_model, user_model  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URI)
