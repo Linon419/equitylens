@@ -1,0 +1,64 @@
+import { notFound } from "next/navigation";
+
+import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { getDictionary } from "@/dictionaries";
+import { safeReturnPath } from "@/lib/auth/security";
+import { isLocale } from "@/lib/i18n";
+
+type Props = {
+  params: Promise<{ lang: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+};
+
+export default async function LoginPage({ params, searchParams }: Props) {
+  const { lang } = await params;
+  if (!isLocale(lang)) {
+    notFound();
+  }
+  const copy = getDictionary(lang);
+  const query = await searchParams;
+  const returnTo = safeReturnPath(query.returnTo, `/${lang}/dashboard`);
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID is required");
+  }
+
+  return (
+    <main className="auth-page">
+      <div className="ambient-grid" aria-hidden="true" />
+      <header className="auth-masthead">
+        <a className="wordmark" href={`/${lang}`}>
+          <span className="wordmark__seal">E</span>
+          <span>EquityLens</span>
+        </a>
+        <LanguageSwitcher locale={lang} label={copy.language} />
+      </header>
+      <section className="auth-panel">
+        <div className="auth-panel__copy">
+          <p className="eyebrow">{copy.auth.eyebrow}</p>
+          <h1>{copy.auth.title}</h1>
+          <p>{copy.auth.description}</p>
+        </div>
+        <div className="auth-panel__action">
+          <p className="auth-panel__index">AUTH / GOOGLE / 01</p>
+          <GoogleSignInButton
+            clientId={clientId}
+            errorMessages={{
+              accountLink: copy.auth.accountLinkError,
+              disabled: copy.auth.disabledError,
+              generic: copy.auth.genericError,
+            }}
+            label={copy.auth.google}
+            locale={lang}
+            returnTo={returnTo}
+          />
+          <p>{copy.auth.privacy}</p>
+          <a className="auth-panel__back" href={`/${lang}`}>
+            <span aria-hidden="true">←</span> {copy.auth.back}
+          </a>
+        </div>
+      </section>
+    </main>
+  );
+}

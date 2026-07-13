@@ -17,6 +17,20 @@ const dictionaries = {
       primaryAction: "Open company research",
       secondaryAction: "Upload a filing",
     },
+    auth: {
+      eyebrow: "Investor workspace / secure access",
+      title: "Start with the source.",
+      description:
+        "Sign in to save companies, filings, research notes, and evidence-backed conversations.",
+      google: "Continue with Google",
+      privacy:
+        "EquityLens stores an application session in a secure browser cookie.",
+      back: "Back to research overview",
+      genericError: "Sign-in could not be completed. Try again.",
+      accountLinkError:
+        "This email belongs to an existing EquityLens account. Complete account linking before sign-in.",
+      disabledError: "This EquityLens account is disabled.",
+    },
     coverage: "NYSE · NASDAQ · SEC EDGAR",
     frame: {
       kicker: "Research frame / 01",
@@ -55,6 +69,17 @@ const dictionaries = {
         "定位公司在产业链中的位置，阅读真正重要的财报，并结合证据理解股价与市盈率。",
       primaryAction: "开始公司研究",
       secondaryAction: "上传公司财报",
+    },
+    auth: {
+      eyebrow: "投资者工作台 / 安全访问",
+      title: "从原始资料开始研究。",
+      description: "登录后保存公司、财报、研究笔记和带有证据引用的对话。",
+      google: "使用 Google 继续",
+      privacy: "EquityLens 使用安全浏览器 Cookie 保存应用会话。",
+      back: "返回研究概览",
+      genericError: "登录未完成，请重试。",
+      accountLinkError: "该邮箱已属于现有 EquityLens 账户，请先完成账户绑定。",
+      disabledError: "该 EquityLens 账户已停用。",
     },
     coverage: "纽交所 · 纳斯达克 · SEC EDGAR",
     frame: {

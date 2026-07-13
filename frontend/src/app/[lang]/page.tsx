@@ -43,7 +43,7 @@ export default async function Home({ params }: HomeProps) {
             {copy.hero.description}
           </p>
           <div className="hero__actions reveal reveal--four">
-            <a className="button button--primary" href="#research-frame">
+            <a className="button button--primary" href={`/${lang}/login`}>
               {copy.hero.primaryAction}
               <span aria-hidden="true">↗</span>
             </a>

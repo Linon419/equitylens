@@ -20,6 +20,9 @@ describe("localized home page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("EquityLens")).toBeInTheDocument();
     expect(screen.getByText("US Equity Research")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Open company research/ }),
+    ).toHaveAttribute("href", "/en-US/login");
   });
 
   it("renders the Chinese research proposition", async () => {
