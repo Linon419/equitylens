@@ -6,6 +6,7 @@ import httpx
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from langchain_openai import ChatOpenAI
 from sqlmodel import Session, create_engine, select
 
 from app.auth.contracts import GoogleVerifier
@@ -15,9 +16,11 @@ from app.core.config import settings
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
 from app.filings.sec_client import SecClient
+from app.jobs.pipeline import CompanyIntelligencePipeline
 from app.jobs.rq_backend import RQJobBackend
 from app.jobs.schemas import JobBackend
 from app.jobs.service import UnconfiguredJobBackend
+from app.jobs.vercel_backend import VercelWorkflowBackend
 from app.market_data.yahoo import YahooMarketDataProvider
 from app.models.auth_model import AuthSession
 from app.models.user_model import User
@@ -29,6 +32,8 @@ from app.quota.repository import (
     QuotaRepository,
     SQLiteQuotaRepository,
 )
+from app.research.openai_generator import OpenAIIntelligenceGenerator
+from app.research.service import IntelligenceGenerator
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
@@ -152,7 +157,7 @@ QuotaRepositoryDep = Annotated[
 ]
 
 
-def get_job_backend() -> JobBackend:
+async def get_job_backend() -> AsyncIterator[JobBackend]:
     if settings.JOB_BACKEND.value == "rq":
         from redis import Redis
         from rq import Queue
@@ -163,11 +168,56 @@ def get_job_backend() -> JobBackend:
             "company-intelligence",
             connection=Redis.from_url(settings.REDIS_URL),
         )
-        return RQJobBackend(queue)
-    return UnconfiguredJobBackend()
+        yield RQJobBackend(queue)
+        return
+    if settings.JOB_BACKEND.value == "vercel_workflow":
+        if settings.WORKFLOW_TRIGGER_URL is None:
+            raise RuntimeError("WORKFLOW_TRIGGER_URL is required")
+        async with httpx.AsyncClient(timeout=15) as client:
+            yield VercelWorkflowBackend(
+                client,
+                settings.WORKFLOW_TRIGGER_URL,
+                settings.INTERNAL_JOB_SECRET,
+            )
+        return
+    yield UnconfiguredJobBackend()
 
 
 JobBackendDep = Annotated[JobBackend, Depends(get_job_backend)]
+
+
+def get_intelligence_generator() -> IntelligenceGenerator:
+    return OpenAIIntelligenceGenerator(
+        ChatOpenAI(model=settings.RESEARCH_MODEL),
+        settings.RESEARCH_MODEL,
+    )
+
+
+IntelligenceGeneratorDep = Annotated[
+    IntelligenceGenerator,
+    Depends(get_intelligence_generator),
+]
+
+
+def get_company_intelligence_pipeline(
+    session: SessionDep,
+    sec_provider: SecDataProviderDep,
+    generator: IntelligenceGeneratorDep,
+) -> CompanyIntelligencePipeline:
+    return CompanyIntelligencePipeline(
+        session,
+        sec_provider,
+        generator,
+        schema_version=settings.RESEARCH_SCHEMA_VERSION,
+        prompt_version=settings.RESEARCH_PROMPT_VERSION,
+        max_filing_bytes=settings.MAX_FILING_BYTES,
+    )
+
+
+CompanyIntelligencePipelineDep = Annotated[
+    CompanyIntelligencePipeline,
+    Depends(get_company_intelligence_pipeline),
+]
 
 
 def get_current_active_superuser(current_user: CurrentUser) -> User:

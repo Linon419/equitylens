@@ -17,3 +17,12 @@ def test_vercel_bundle_excludes_tests() -> None:
 
     assert "tests/**" in function["excludeFiles"]
     assert function["maxDuration"] == 300
+
+
+def test_vercel_docs_include_workflow_wiring() -> None:
+    root = Path(__file__).resolve().parents[2]
+    guide = (root / "deploy" / "vercel" / "README.md").read_text()
+
+    assert "INTERNAL_JOB_SECRET" in guide
+    assert "WORKFLOW_TRIGGER_URL" in guide
+    assert "/api/internal/workflows/company-intelligence" in guide

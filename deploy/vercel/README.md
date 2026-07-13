@@ -38,6 +38,8 @@ Variables:
 - `FRONTEND_URL`
 - `BLOB_READ_WRITE_TOKEN`
 - `MANAGED_PARSER_API_KEY`
+- `INTERNAL_JOB_SECRET`
+- `WORKFLOW_TRIGGER_URL`
 - `CORS_ORIGINS`
 
 Use a temporary trusted origin for `CORS_ORIGINS` during the first deployment.
@@ -56,7 +58,18 @@ BACKEND_URL=https://equitylens-api.example.com
 FRONTEND_URL=https://equitylens-web.example.com
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id
 COOKIE_SECURE=true
+INTERNAL_JOB_SECRET=replace-with-shared-32-character-secret
 ```
+
+Set the API Project's `WORKFLOW_TRIGGER_URL` to the Web Project trigger route:
+
+```dotenv
+WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/company-intelligence
+```
+
+Use the same `INTERNAL_JOB_SECRET` value in both Vercel Projects. The trigger
+starts a durable Workflow run, and each step calls a signed, idempotent FastAPI
+endpoint using only the database job ID.
 
 Use exact HTTPS origins and omit trailing slashes.
 
