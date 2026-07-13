@@ -10,8 +10,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 function Probe() {
-  const { user } = useSession();
-  return <span>{user?.email ?? "loading"}</span>;
+  const { loading, user } = useSession();
+  return <span>{loading ? "loading" : (user?.email ?? "guest")}</span>;
 }
 
 describe("SessionProvider", () => {
@@ -57,5 +57,20 @@ describe("SessionProvider", () => {
         "/en-US/login?returnTo=%2Fen-US%2Fdashboard",
       ),
     );
+  });
+
+  it("resolves an expired optional session as a guest", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ code: "AUTH_REQUIRED" }, { status: 401 }),
+    );
+
+    render(
+      <SessionProvider locale="en-US" required={false}>
+        <Probe />
+      </SessionProvider>,
+    );
+
+    expect(await screen.findByText("guest")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
   });
 });

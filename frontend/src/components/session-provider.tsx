@@ -26,9 +26,11 @@ export function useSession(): SessionValue {
 export function SessionProvider({
   children,
   locale,
+  required = true,
 }: {
   children: React.ReactNode;
   locale: Locale;
+  required?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -51,7 +53,12 @@ export function SessionProvider({
         }
         if (!response.ok) {
           if (active) {
-            router.replace(loginPath);
+            if (required) {
+              router.replace(loginPath);
+            } else {
+              setUser(null);
+              setLoading(false);
+            }
           }
           return;
         }
@@ -62,7 +69,12 @@ export function SessionProvider({
         }
       } catch {
         if (active) {
-          router.replace(loginPath);
+          if (required) {
+            router.replace(loginPath);
+          } else {
+            setUser(null);
+            setLoading(false);
+          }
         }
       }
     }
@@ -71,7 +83,7 @@ export function SessionProvider({
     return () => {
       active = false;
     };
-  }, [locale, pathname, router]);
+  }, [locale, pathname, required, router]);
 
   const value = useMemo(() => ({ user, loading }), [loading, user]);
   return (
