@@ -20,10 +20,17 @@ const monoFont = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
-export const metadata: Metadata = {
-  title: "Ledgerly — US Equity Research",
-  description: "Traceable company, filing, financial, and valuation research.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}): Promise<Metadata> {
+  const { lang } = await params;
+  if (!isLocale(lang)) {
+    notFound();
+  }
+  return getDictionary(lang).metadata;
+}
 
 export function generateStaticParams() {
   return locales.map((lang) => ({ lang }));
@@ -43,7 +50,7 @@ export default async function LocaleLayout({
   const dictionary = getDictionary(lang);
 
   return (
-    <html lang={lang}>
+    <html data-scroll-behavior="smooth" lang={lang}>
       <body
         className={`${bodyFont.variable} ${displayFont.variable} ${monoFont.variable}`}
       >
