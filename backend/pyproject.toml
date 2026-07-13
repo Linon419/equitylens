@@ -50,6 +50,9 @@ package = false
 addopts = "-q --strict-markers"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+  "postgres: integration tests requiring TEST_POSTGRES_URL",
+]
 
 [tool.coverage.run]
 branch = true

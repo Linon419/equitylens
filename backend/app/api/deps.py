@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlmodel import Session, create_engine, select
@@ -12,6 +12,7 @@ from app.auth.contracts import GoogleVerifier
 from app.auth.errors import AuthError
 from app.auth.google import GoogleTokenVerifier
 from app.core.config import settings
+from app.core.errors import DomainError
 from app.core.security import decode_access_token
 from app.filings.sec_client import SecClient
 from app.market_data.yahoo import YahooMarketDataProvider
@@ -19,6 +20,12 @@ from app.models.auth_model import AuthSession
 from app.models.user_model import User
 from app.providers.market import MarketDataProvider
 from app.providers.sec import SecDataProvider
+from app.quota.identity import RequestPrincipal, principal_from_assertion
+from app.quota.repository import (
+    PostgresQuotaRepository,
+    QuotaRepository,
+    SQLiteQuotaRepository,
+)
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
@@ -60,11 +67,9 @@ MarketDataProviderDep = Annotated[
 SecDataProviderDep = Annotated[SecDataProvider, Depends(get_sec_data_provider)]
 
 
-def get_current_user(session: SessionDep, token: TokenDep) -> User:
-    if token is None:
-        raise AuthError("AUTH_REQUIRED", 401)
+def resolve_user_from_token(session: Session, token: str) -> User:
     try:
-        claims = decode_access_token(token.credentials)
+        claims = decode_access_token(token)
     except (JWTError, KeyError, TypeError, ValueError) as error:
         raise AuthError("AUTH_REQUIRED", 401) from error
 
@@ -83,7 +88,65 @@ def get_current_user(session: SessionDep, token: TokenDep) -> User:
     return user
 
 
+def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    if token is None:
+        raise AuthError("AUTH_REQUIRED", 401)
+    return resolve_user_from_token(session, token.credentials)
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_optional_current_user(
+    session: SessionDep,
+    token: TokenDep,
+) -> User | None:
+    if token is None:
+        return None
+    return resolve_user_from_token(session, token.credentials)
+
+
+OptionalCurrentUser = Annotated[
+    User | None,
+    Depends(get_optional_current_user),
+]
+
+
+def get_agent_principal(
+    request: Request,
+    user: OptionalCurrentUser,
+) -> RequestPrincipal:
+    if user is not None:
+        return RequestPrincipal.user(user.id, settings.QUOTA_HASH_SECRET)
+    assertion = request.headers.get("x-guest-assertion")
+    if assertion is None:
+        raise DomainError("GUEST_ASSERTION_REQUIRED", 401)
+    try:
+        return principal_from_assertion(
+            assertion,
+            signing_secret=settings.GUEST_SIGNING_SECRET,
+            hash_secret=settings.QUOTA_HASH_SECRET,
+        )
+    except ValueError as error:
+        raise DomainError("GUEST_ASSERTION_INVALID", 401) from error
+
+
+AgentPrincipal = Annotated[
+    RequestPrincipal,
+    Depends(get_agent_principal),
+]
+
+
+def get_quota_repository(session: SessionDep) -> QuotaRepository:
+    if session.bind is not None and session.bind.dialect.name == "postgresql":
+        return PostgresQuotaRepository(session)
+    return SQLiteQuotaRepository(session)
+
+
+QuotaRepositoryDep = Annotated[
+    QuotaRepository,
+    Depends(get_quota_repository),
+]
 
 
 def get_current_active_superuser(current_user: CurrentUser) -> User:
