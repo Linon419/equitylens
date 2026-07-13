@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n";
+import { companyPageCopy } from "@/features/company/copy";
 
 const dictionaries = {
   "en-US": {
@@ -90,6 +91,7 @@ const dictionaries = {
           removed: "Company removed from your watchlist.",
         },
       },
+      company: companyPageCopy.en,
       settings: {
         eyebrow: "Workspace preferences",
         title: "Language and account",
@@ -205,6 +207,7 @@ const dictionaries = {
           removed: "公司已从自选股移除。",
         },
       },
+      company: companyPageCopy.zh,
       settings: {
         eyebrow: "工作台偏好",
         title: "语言与账户",
