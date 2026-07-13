@@ -32,6 +32,13 @@ EXPECTED_DEPLOYS = {
             "OBJECT_STORAGE_PROVIDER",
             "JOB_BACKEND",
             "DOCUMENT_PARSER",
+            "SEC_USER_AGENT",
+            "GUEST_SIGNING_SECRET",
+            "QUOTA_HASH_SECRET",
+            "INTERNAL_JOB_SECRET",
+            "WORKFLOW_TRIGGER_URL",
+            "MARKET_DATA_PROVIDER",
+            "RESEARCH_MODEL",
         },
     },
     "Web": {
@@ -42,6 +49,8 @@ EXPECTED_DEPLOYS = {
             "FRONTEND_URL",
             "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
             "COOKIE_SECURE",
+            "GUEST_SIGNING_SECRET",
+            "INTERNAL_JOB_SECRET",
         },
     },
 }
@@ -65,7 +74,7 @@ def test_readme_identifies_the_product_and_delivery_status() -> None:
     content = readme_text()
 
     assert content.startswith('<div align="center">\n\n# EquityLens')
-    assert "Early Development / Phase 1" in content
+    assert "Phase 2 Beta" in content
     assert "US equity research" in content
 
 

@@ -43,6 +43,9 @@ Variables:
 - `INTERNAL_JOB_SECRET`
 - `WORKFLOW_TRIGGER_URL`
 - `CORS_ORIGINS`
+- `SEC_USER_AGENT`
+- `MARKET_DATA_PROVIDER`
+- `RESEARCH_MODEL`
 
 Use a temporary trusted origin for `CORS_ORIGINS` during the first deployment.
 The production Web origin is applied in step 3.
@@ -77,7 +80,20 @@ idempotent FastAPI step request using only the database job ID.
 
 Use exact HTTPS origins and omit trailing slashes.
 
-## 3. Connect both origins
+## 3. Data and artifact constraints
+
+Set `SEC_USER_AGENT` to an application name and monitored contact email. SEC
+traffic follows the published [automated-access guidance](https://www.sec.gov/about/webmaster-frequently-asked-questions).
+
+The current Yahoo adapter supports research and evaluation. Complete a market
+data licensing review before public or commercial distribution.
+
+The compact 10-K pipeline persists compressed source bytes and integrity
+metadata in PostgreSQL. Workflow steps depend exclusively on durable database
+records. `BLOB_READ_WRITE_TOKEN`
+reserves the configured object-storage boundary for the larger artifact adapter.
+
+## 4. Connect both origins
 
 Set the API Project's `CORS_ORIGINS` to the Web production origin, then redeploy
 the API:
@@ -92,10 +108,10 @@ Set the same `GOOGLE_CLIENT_ID` value in the Backend project and
 
 | Project | Required authentication variables |
 |---|---|
-| Frontend | `BACKEND_URL`, `FRONTEND_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `COOKIE_SECURE=true` |
-| Backend | `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, `SECRET_KEY_ACCESS_API`, `DATABASE_URL` |
+| Frontend | `BACKEND_URL`, `FRONTEND_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `COOKIE_SECURE=true`, shared guest/job secrets |
+| Backend | `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, `SECRET_KEY_ACCESS_API`, `DATABASE_URL`, shared guest/job secrets |
 
-## 4. Verify production
+## 5. Verify production
 
 ```bash
 WEB_BASE_URL=https://equitylens-web.example.com \
@@ -106,6 +122,9 @@ API_BASE_URL=https://equitylens-api.example.com \
 The expected endpoints are:
 
 - Web health: `GET /api/health`
+- Public dashboard: `GET /en-US/dashboard`
+- Research BFF: `GET /api/research/companies/search?q=AAPL`
+- API smoke alias: `GET /api/v1/health`
 - API liveness: `GET /api/v1/health/live`
 - API readiness: `GET /api/v1/health/ready`
 
