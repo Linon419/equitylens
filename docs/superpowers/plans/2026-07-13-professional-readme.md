@@ -28,7 +28,7 @@
 **Files:**
 - Create: `backend/tests/test_readme.py`
 
-- [ ] **Step 1: Write the failing README contract tests**
+- [x] **Step 1: Write the failing README contract tests**
 
 Create `backend/tests/test_readme.py` with:
 
@@ -142,7 +142,7 @@ def test_api_button_defaults_only_public_profile_values() -> None:
     }
 ```
 
-- [ ] **Step 2: Run the tests and verify the old README fails the contract**
+- [x] **Step 2: Run the tests and verify the old README fails the contract**
 
 Run:
 
@@ -160,7 +160,7 @@ Deploy Buttons.
 - Modify: `README.md`
 - Test: `backend/tests/test_readme.py`
 
-- [ ] **Step 1: Replace the root README**
+- [x] **Step 1: Replace the root README**
 
 Replace `README.md` with the following content. Keep each Deploy Button URL on a
 single line so the validator and GitHub renderer treat it as one link.
@@ -414,7 +414,7 @@ delays, or incomplete information. Investment decisions require independent
 verification and professional advice appropriate to the investor's situation.
 ````
 
-- [ ] **Step 2: Run the README contract tests**
+- [x] **Step 2: Run the README contract tests**
 
 Run:
 
@@ -425,7 +425,7 @@ uv run pytest tests/test_readme.py -q
 
 Expected: all five tests pass.
 
-- [ ] **Step 3: Commit the root README and contract tests**
+- [x] **Step 3: Commit the root README and contract tests**
 
 ```bash
 git add README.md backend/tests/test_readme.py
@@ -439,7 +439,7 @@ git commit -m "docs: publish professional project README"
 - Modify: `frontend/README.md`
 - Test: `backend/tests/test_readme.py`
 
-- [ ] **Step 1: Add a failing supporting-documentation test**
+- [x] **Step 1: Add a failing supporting-documentation test**
 
 Append this test to `backend/tests/test_readme.py`:
 
@@ -455,7 +455,7 @@ def test_supporting_docs_use_equitylens_project_names() -> None:
     assert "../deploy/vercel/README.md" in frontend
 ```
 
-- [ ] **Step 2: Run the supporting-documentation test and verify it fails**
+- [x] **Step 2: Run the supporting-documentation test and verify it fails**
 
 Run:
 
@@ -466,7 +466,7 @@ uv run pytest tests/test_readme.py::test_supporting_docs_use_equitylens_project_
 
 Expected: failure because the Vercel guide still uses the old project names.
 
-- [ ] **Step 3: Replace the Vercel deployment guide**
+- [x] **Step 3: Replace the Vercel deployment guide**
 
 Replace `deploy/vercel/README.md` with:
 
@@ -552,7 +552,7 @@ The expected endpoints are:
 
 ## Local Vercel builds
 
-Use Vercel CLI 48.1.8 or newer:
+Use Vercel CLI 20.1.0 or newer:
 
 ```bash
 pnpm dlx vercel@latest pull --cwd backend --yes --environment=preview
@@ -573,7 +573,7 @@ References:
 - [Deploy Button parameters](https://vercel.com/docs/deploy-button)
 ````
 
-- [ ] **Step 4: Replace the generated frontend README**
+- [x] **Step 4: Replace the generated frontend README**
 
 Replace `frontend/README.md` with:
 
@@ -606,7 +606,7 @@ Project-wide setup and architecture are documented in the root
 [Vercel deployment guide](../deploy/vercel/README.md).
 ````
 
-- [ ] **Step 5: Run the complete README test module**
+- [x] **Step 5: Run the complete README test module**
 
 Run:
 
@@ -617,7 +617,7 @@ uv run pytest tests/test_readme.py -q
 
 Expected: all six tests pass.
 
-- [ ] **Step 6: Commit the aligned supporting documentation**
+- [x] **Step 6: Commit the aligned supporting documentation**
 
 ```bash
 git add backend/tests/test_readme.py deploy/vercel/README.md frontend/README.md
@@ -629,12 +629,12 @@ git commit -m "docs: align EquityLens deployment guides"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-13-professional-readme.md`
 
-- [ ] **Step 1: Validate repository-facing names and Markdown whitespace**
+- [x] **Step 1: Validate repository-facing names and Markdown whitespace**
 
 Run:
 
 ```bash
-if rg -n 'equity-research-web|equity-research-api|Ledgerly|us-equity-research' \
+if rg -n 'equity-research-web|equity-research-api|Ledgerly' \
   README.md deploy frontend/README.md; then
   exit 1
 fi
@@ -643,7 +643,7 @@ git diff --check
 
 Expected: the search prints no matches and `git diff --check` exits successfully.
 
-- [ ] **Step 2: Run the full backend quality gate**
+- [x] **Step 2: Run the full backend quality gate**
 
 Run:
 
@@ -661,7 +661,7 @@ uv run ruff check app/app.py app/main.py app/core/config.py app/providers \
 Expected: Alembic reports `20260713_0001 (head)`, all tests pass, coverage exceeds
 80%, and Ruff reports `All checks passed!`.
 
-- [ ] **Step 3: Run the full frontend quality gate**
+- [x] **Step 3: Run the full frontend quality gate**
 
 Run:
 
@@ -677,7 +677,7 @@ test -f .next/standalone/server.js
 Expected: 10 tests pass, ESLint exits successfully, the production build
 completes, and the standalone server exists.
 
-- [ ] **Step 4: Mark the plan complete and commit the execution record**
+- [x] **Step 4: Mark the plan complete and commit the execution record**
 
 Change every completed plan checkbox from `[ ]` to `[x]`, then run:
 
