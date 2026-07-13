@@ -1639,7 +1639,7 @@ git commit -m "feat(deploy): add Docker deployment profile"
 - Create: `backend/tests/test_vercel_config.py`
 - Create: `deploy/vercel/README.md`
 
-- [ ] **Step 1: Write a failing Vercel configuration test**
+- [x] **Step 1: Write a failing Vercel configuration test**
 
 Create `backend/tests/test_vercel_config.py`:
 
@@ -1665,7 +1665,7 @@ def test_vercel_bundle_excludes_tests() -> None:
     assert function["maxDuration"] == 300
 ```
 
-- [ ] **Step 2: Run the test to verify failure**
+- [x] **Step 2: Run the test to verify failure**
 
 Run:
 
@@ -1676,7 +1676,7 @@ uv run pytest tests/test_vercel_config.py -v
 
 Expected: the entry-point assertion passes and the configuration assertion fails because `vercel.json` is absent.
 
-- [ ] **Step 3: Add the Vercel function configuration**
+- [x] **Step 3: Add the Vercel function configuration**
 
 Create `backend/vercel.json`:
 
@@ -1692,7 +1692,7 @@ Create `backend/vercel.json`:
 }
 ```
 
-- [ ] **Step 4: Document the two-project layout**
+- [x] **Step 4: Document the two-project layout**
 
 Create `deploy/vercel/README.md`:
 
@@ -1729,6 +1729,9 @@ pnpm dlx vercel@latest build --cwd backend
 
 - [ ] **Step 5: Verify the Vercel profile**
 
+Local configuration tests pass with Vercel CLI 55.0.0. Both builds require
+project settings from the user's linked Vercel frontend and backend Projects.
+
 Run:
 
 ```bash
@@ -1743,7 +1746,7 @@ pnpm dlx vercel@latest build --cwd backend
 
 Expected: configuration tests pass and both Vercel builds complete. Account authentication and project linking happen through the Vercel account session.
 
-- [ ] **Step 6: Commit the Vercel profile**
+- [x] **Step 6: Commit the Vercel profile**
 
 ```bash
 git add backend/vercel.json backend/tests/test_vercel_config.py deploy/vercel
