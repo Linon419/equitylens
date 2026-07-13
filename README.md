@@ -1,132 +1,126 @@
-# Project Overview
+# Ledgerly — US Equity Research Knowledge Base
 
-The goal of developing this repository is to create a scalable project based on RAG operations of a vector database (Postgres with pgvector), and to expose a question-answering system developed with LangChain and FastAPI on a Next.js frontend.
+Ledgerly is a full-stack foundation for evidence-backed US equity research. It
+combines a localized Next.js interface, FastAPI, PostgreSQL with pgvector, and
+asynchronous filing-processing contracts in one repository.
 
-The entire system will be deployed in a serverless manner, both on the backend (a Terraform submodule for setting up a cloud run with CloudSQL and Redis) and on the frontend (deployment via Vercel).
+The current milestone is the Phase 0 engineering baseline. It delivers the
+runtimes, test frameworks, database migration authority, provider boundaries,
+health contracts, and Docker/Vercel deployment profiles. The product roadmap in
+[`docs/superpowers/specs`](docs/superpowers/specs) covers users, company data,
+SEC retrieval, valuation, document upload, and cited RAG research.
 
-Additionally, a layer will be added to limit the app's usage through a subscription plan via Stripe
+## Applications
 
-## Setting Up the Infrastructure
+| Directory | Purpose | Runtime |
+|---|---|---|
+| `frontend/` | React, Next.js App Router, English and Chinese UI | Node.js 22 |
+| `backend/` | FastAPI API, Alembic migrations, provider contracts | Python 3.12 |
+| `deploy/` | Docker and Vercel operating guides | Platform-specific |
+| `scripts/` | Shared deployment smoke checks | Bash and curl |
 
-### Import Terraform Submodule
+## Local development without Docker
 
-Refer to the following guide for adding and managing submodules:
-[Adding a Submodule and Committing Changes: Git, Terraform, FastAPI](https://medium.com/@saverio3107/adding-a-submodule-and-committing-changes-git-terraform-fastapi-6fe9cf7c9ba7?sk=595dafdaa36427a2d6efee8c08940ee9)
-
-**Steps to Initialize Terraform:**
-
-Navigate to the Terraform directory and initialize the configuration:
-
-```bash
-cd terraform
-terraform init
-terraform apply
-```
-
-## Configuring the Application
-
-### Set Environment Variables
-
-Duplicate the `.env.example` file and set the required variables:
+Create the backend environment file and replace the placeholder credentials:
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
-### Backend Setup
-
-- **Navigate to the backend directory:**
+Start the API:
 
 ```bash
 cd backend
+uv sync --frozen
+uv run uvicorn app.app:app --reload
 ```
 
-- **Install dependencies using Poetry:**
+The health endpoints start with the configured provider addresses. Database,
+queue, object-storage, authentication, and ingestion workflows use local
+PostgreSQL/pgvector, Redis, and S3-compatible services from that environment.
+
+Start the frontend in a second terminal:
 
 ```bash
-poetry install
-poetry shell
+cd frontend
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
 ```
 
-### Database Connection
+Open `http://localhost:3000`. Browser language detection selects `/en-US` or
+`/zh-CN`, and the language selector persists the user's choice in a cookie.
 
-Connect to the database using the Cloud SQL Proxy. Instructions are available in the Terraform README.
+## Database migrations
+
+With PostgreSQL and pgvector available at `DATABASE_URL`:
 
 ```bash
-./cloud-sql-proxy ...
+cd backend
+uv run alembic upgrade head
+uv run alembic heads
 ```
 
-### Initialize Database
+The Phase 0 schema head is `20260713_0001`.
 
-Run the initialization script to set up the database. This script adds the pgvector extension and creates a superuser:
+## Docker profile
 
 ```bash
-python app/init_db.py
+cp .env.example .env
+docker compose config
+docker compose build
+docker compose up --wait
+./scripts/smoke.sh
 ```
 
-### Data Ingestion
+The stack includes Next.js, FastAPI, an RQ worker, PostgreSQL/pgvector, Redis,
+and MinIO. Host ports can be changed through `API_PORT` and `WEB_PORT`. Detailed
+operations are in [`deploy/docker/README.md`](deploy/docker/README.md).
 
-Place your PDF files in `data/raw` and run the following script to populate the database:
+## Vercel profile
+
+Vercel uses two Projects connected to this repository:
+
+- `frontend/` with the Next.js framework preset
+- `backend/` with the FastAPI framework preset
+
+Project roots, environment variables, and Preview build commands are in
+[`deploy/vercel/README.md`](deploy/vercel/README.md).
+
+## Health and smoke checks
+
+- Frontend: `GET /api/health`
+- Backend liveness: `GET /api/v1/health/live`
+- Backend readiness: `GET /api/v1/health/ready`
+
+Run the same health contract against any deployment:
 
 ```bash
-python app/ingestion/run.py
+WEB_BASE_URL=https://web.example.com \
+API_BASE_URL=https://api.example.com \
+./scripts/smoke.sh
 ```
 
-## Accessing the Application
+## Quality checks
 
-### API Documentation
+```bash
+cd backend
+uv lock --check
+uv run pytest --cov=app.core.config --cov=app.providers --cov=app.api.routes.health --cov=app.main --cov-report=term-missing
+uv run ruff check app/app.py app/main.py app/core/config.py app/providers app/api/deps.py app/api/main.py app/api/routes/health.py app/migrations tests
 
-Access live-generated API documentation at:
+cd ../frontend
+corepack pnpm install --frozen-lockfile
+corepack pnpm test
+corepack pnpm lint
+corepack pnpm build
 
-```
-https://cloudrun-service-upr23soxia-uc.a.run.app/api/v1/docs
-```
-
-### Obtaining an Access Token
-
-Generate an access token using the `/api/v1/login/access-token` endpoint with credentials specified in your `.env` file.
-
-## Connecting the Frontend
-
-### Generate an Access Token
-
-Obtain an access token using the login endpoint:
-
-```javascript
-const token = "your_generated_access_token_here"; // Replace with actual token
+cd ..
+git diff --check
 ```
 
-### Example Frontend Integration
+## Deployment references
 
-Utilize the access token in your Next.js application as follows:
-
-```javascript
-const headers = new Headers({
-  Authorization: "Bearer " + token,
-  "Content-Type": "application/json",
-});
-
-async function chatAnswer() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/qa/chat`,
-    {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({ message: "Your query here" }),
-    }
-  );
-  return res.json();
-}
-```
-
-## Subscription Management
-
-Integrate Stripe to manage subscriptions and limit usage based on the chosen plan. Follow Stripe's official documentation to set up the billing and subscription logic.
-
-## Contributing
-
-Contributions are welcome! For major changes, please open an issue first to discuss what you would like to change.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- [Next.js internationalization](https://nextjs.org/docs/app/guides/internationalization)
+- [FastAPI on Vercel](https://vercel.com/docs/frameworks/backend/fastapi)
+- [Vercel Python runtime](https://vercel.com/docs/functions/runtimes/python)
+- [pnpm workspace settings](https://pnpm.io/settings)

@@ -1760,7 +1760,7 @@ git commit -m "feat(deploy): add Vercel deployment profile"
 - Create: `scripts/smoke.sh`
 - Modify: `README.md`
 
-- [ ] **Step 1: Create the shared smoke script**
+- [x] **Step 1: Create the shared smoke script**
 
 Create `scripts/smoke.sh`:
 
@@ -1786,7 +1786,7 @@ Make it executable:
 chmod +x scripts/smoke.sh
 ```
 
-- [ ] **Step 2: Replace the README setup section**
+- [x] **Step 2: Replace the README setup section**
 
 Write the repository README with these sections and commands:
 
@@ -1843,6 +1843,9 @@ git diff --check
 
 - [ ] **Step 3: Run the complete local quality gate**
 
+Backend coverage, Ruff, frontend tests/lint/build, standalone output, and the
+shared smoke script pass locally. Docker commands await a local Docker CLI.
+
 Run:
 
 ```bash
@@ -1872,6 +1875,8 @@ Expected:
 
 - [ ] **Step 4: Run the Vercel Preview smoke gate**
 
+Preview deployment and smoke URLs await the user's linked Vercel Projects.
+
 Deploy both projects and pass their returned Preview URLs to the smoke script:
 
 ```bash
@@ -1884,7 +1889,7 @@ API_BASE_URL="${API_PREVIEW_URL}" \
 
 Expected: the script reports both Preview URLs as healthy. Record the actual Preview URLs in the delivery note.
 
-- [ ] **Step 5: Commit operator documentation and smoke checks**
+- [x] **Step 5: Commit operator documentation and smoke checks**
 
 ```bash
 git add README.md scripts/smoke.sh
