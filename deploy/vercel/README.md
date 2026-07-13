@@ -38,6 +38,8 @@ Variables:
 - `FRONTEND_URL`
 - `BLOB_READ_WRITE_TOKEN`
 - `MANAGED_PARSER_API_KEY`
+- `GUEST_SIGNING_SECRET`
+- `QUOTA_HASH_SECRET`
 - `INTERNAL_JOB_SECRET`
 - `WORKFLOW_TRIGGER_URL`
 - `CORS_ORIGINS`
@@ -58,6 +60,7 @@ BACKEND_URL=https://equitylens-api.example.com
 FRONTEND_URL=https://equitylens-web.example.com
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id
 COOKIE_SECURE=true
+GUEST_SIGNING_SECRET=replace-with-shared-32-character-secret
 INTERNAL_JOB_SECRET=replace-with-shared-32-character-secret
 ```
 
@@ -67,9 +70,10 @@ Set the API Project's `WORKFLOW_TRIGGER_URL` to the Web Project trigger route:
 WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/company-intelligence
 ```
 
-Use the same `INTERNAL_JOB_SECRET` value in both Vercel Projects. The trigger
-starts a durable Workflow run, and each step calls a signed, idempotent FastAPI
-endpoint using only the database job ID.
+Use the same `GUEST_SIGNING_SECRET` and `INTERNAL_JOB_SECRET` values in both
+Vercel Projects. The guest secret signs short-lived anonymous research
+assertions. The internal secret starts a durable Workflow run and signs each
+idempotent FastAPI step request using only the database job ID.
 
 Use exact HTTPS origins and omit trailing slashes.
 

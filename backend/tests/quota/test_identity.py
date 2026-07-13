@@ -1,3 +1,6 @@
+import base64
+import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -31,6 +34,29 @@ def test_signed_guest_assertion_round_trips_without_raw_ip() -> None:
         expires_at=NOW + timedelta(minutes=5),
     )
     assert "daily-ip-hash" not in token
+
+
+def test_signed_guest_assertion_uses_the_canonical_bff_payload() -> None:
+    token = sign_guest_assertion(
+        guest_id=GUEST_ID,
+        ip_hash="a" * 64,
+        secret=SECRET,
+        now=NOW,
+    )
+
+    encoded, signature = token.split(".")
+    padding = "=" * (-len(encoded) % 4)
+    payload = json.loads(base64.urlsafe_b64decode(encoded + padding))
+
+    assert list(payload) == [
+        "guest_id",
+        "ip_hash",
+        "issued_at",
+        "expires_at",
+    ]
+    assert payload["issued_at"] == "2026-07-13T12:00:00.000Z"
+    assert payload["expires_at"] == "2026-07-13T12:05:00.000Z"
+    assert re.fullmatch(r"[0-9a-f]{64}", signature)
 
 
 def test_expired_or_tampered_assertion_is_rejected() -> None:

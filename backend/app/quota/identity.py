@@ -44,10 +44,12 @@ def sign_guest_assertion(
     _validate_secret(secret)
     UUID(guest_id)
     issued_at = _as_utc(now or datetime.now(UTC))
+    expires_at = issued_at + timedelta(minutes=5)
     payload = {
-        "g": guest_id,
-        "i": ip_hash,
-        "exp": int((issued_at + timedelta(minutes=5)).timestamp()),
+        "guest_id": guest_id,
+        "ip_hash": ip_hash,
+        "issued_at": _format_timestamp(issued_at),
+        "expires_at": _format_timestamp(expires_at),
     }
     encoded = _encode(json.dumps(payload, separators=(",", ":")).encode())
     signature = _sign(encoded, secret)
@@ -67,12 +69,22 @@ def verify_guest_assertion(
         if not hmac.compare_digest(supplied_signature, expected_signature):
             raise ValueError("invalid guest assertion signature")
         payload = json.loads(_decode(encoded))
-        guest_id = str(payload["g"])
+        if list(payload) != [
+            "guest_id",
+            "ip_hash",
+            "issued_at",
+            "expires_at",
+        ]:
+            raise ValueError("invalid guest assertion fields")
+        guest_id = str(payload["guest_id"])
         UUID(guest_id)
-        ip_hash = str(payload["i"])
-        expires_at = datetime.fromtimestamp(int(payload["exp"]), tz=UTC)
+        ip_hash = str(payload["ip_hash"])
+        issued_at = _parse_timestamp(payload["issued_at"])
+        expires_at = _parse_timestamp(payload["expires_at"])
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise ValueError("invalid guest assertion") from error
+    if expires_at - issued_at != timedelta(minutes=5):
+        raise ValueError("invalid guest assertion lifetime")
     if _as_utc(now or datetime.now(UTC)) >= expires_at:
         raise ValueError("expired guest assertion")
     return GuestAssertion(guest_id, ip_hash, expires_at)
@@ -106,12 +118,11 @@ def _keyed_hash(secret: str, value: str) -> str:
 
 
 def _sign(encoded: str, secret: str) -> str:
-    digest = hmac.new(
+    return hmac.new(
         secret.encode(),
         encoded.encode(),
         hashlib.sha256,
-    ).digest()
-    return _encode(digest)
+    ).hexdigest()
 
 
 def _encode(value: bytes) -> str:
@@ -132,3 +143,15 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _format_timestamp(value: datetime) -> str:
+    return _as_utc(value).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _parse_timestamp(value: object) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError("invalid assertion timestamp")
+    return _as_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
