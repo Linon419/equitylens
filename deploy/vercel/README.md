@@ -34,6 +34,8 @@ Variables:
 - `OPENAI_ORGANIZATION`
 - `FIRST_SUPERUSER`
 - `FIRST_SUPERUSER_PASSWORD`
+- `GOOGLE_CLIENT_ID`
+- `FRONTEND_URL`
 - `BLOB_READ_WRITE_TOKEN`
 - `MANAGED_PARSER_API_KEY`
 - `CORS_ORIGINS`
@@ -46,13 +48,17 @@ The production Web origin is applied in step 3.
 Use the Web Deploy Button in the root [`README.md`](../../README.md), or import
 the repository and choose `frontend` as the Root Directory.
 
-Set:
+Set the server-only API origin, public web origin, Google browser client ID,
+and production cookie policy:
 
 ```dotenv
-NEXT_PUBLIC_API_BASE_URL=https://equitylens-api.example.com
+BACKEND_URL=https://equitylens-api.example.com
+FRONTEND_URL=https://equitylens-web.example.com
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id
+COOKIE_SECURE=true
 ```
 
-Use the API production origin and omit a trailing slash.
+Use exact HTTPS origins and omit trailing slashes.
 
 ## 3. Connect both origins
 
@@ -61,7 +67,16 @@ the API:
 
 ```dotenv
 CORS_ORIGINS=https://equitylens-web.example.com
+FRONTEND_URL=https://equitylens-web.example.com
 ```
+
+Set the same `GOOGLE_CLIENT_ID` value in the Backend project and
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` in the Frontend project.
+
+| Project | Required authentication variables |
+|---|---|
+| Frontend | `BACKEND_URL`, `FRONTEND_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `COOKIE_SECURE=true` |
+| Backend | `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, `SECRET_KEY_ACCESS_API`, `DATABASE_URL` |
 
 ## 4. Verify production
 

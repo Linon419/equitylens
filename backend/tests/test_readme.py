@@ -19,6 +19,8 @@ EXPECTED_DEPLOYS = {
         "env": {
             "DATABASE_URL",
             "SECRET_KEY_ACCESS_API",
+            "GOOGLE_CLIENT_ID",
+            "FRONTEND_URL",
             "OPENAI_API_KEY",
             "OPENAI_ORGANIZATION",
             "FIRST_SUPERUSER",
@@ -35,7 +37,12 @@ EXPECTED_DEPLOYS = {
     "Web": {
         "root-directory": "frontend",
         "project-name": "equitylens-web",
-        "env": {"NEXT_PUBLIC_API_BASE_URL"},
+        "env": {
+            "BACKEND_URL",
+            "FRONTEND_URL",
+            "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+            "COOKIE_SECURE",
+        },
     },
 }
 
@@ -58,7 +65,7 @@ def test_readme_identifies_the_product_and_delivery_status() -> None:
     content = readme_text()
 
     assert content.startswith('<div align="center">\n\n# EquityLens')
-    assert "Early Development / Phase 0" in content
+    assert "Early Development / Phase 1" in content
     assert "US equity research" in content
 
 

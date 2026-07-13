@@ -2,6 +2,18 @@
 
 Copy `.env.example` to `.env`, replace every secret, then run:
 
+Authentication requires these profile values:
+
+```dotenv
+GOOGLE_CLIENT_ID=replace-with-google-client-id
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id
+FRONTEND_URL=https://equitylens.example.com
+BACKEND_URL=http://api:8000
+COOKIE_SECURE=true
+```
+
+Use `COOKIE_SECURE=false` only for native HTTP development on localhost.
+
 ```bash
 docker compose config
 docker compose build

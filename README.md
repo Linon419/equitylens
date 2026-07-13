@@ -15,15 +15,15 @@ financial performance, market price, and valuation in one research workspace.
 
 | Deploy the API | Deploy the Web app |
 |---|---|
-| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=NEXT_PUBLIC_API_BASE_URL&envDescription=Enter+the+production+URL+of+your+deployed+EquityLens+API.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
+| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
 
 [Quick start](#quick-start) · [Architecture](#architecture) · [Deployment](#deployment) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
 </div>
 
 > [!IMPORTANT]
-> **Early Development / Phase 0.** The engineering foundation is operational.
-> Investor accounts, automated filing retrieval, company intelligence,
+> **Early Development / Phase 1.** The engineering foundation and Google
+> authentication flow are operational. Automated filing retrieval, company intelligence,
 > valuation workflows, and cited research answers are roadmap features.
 
 ## Why EquityLens
@@ -48,7 +48,7 @@ and six connected questions:
 | PostgreSQL / pgvector schema managed by Alembic | Available |
 | Reproducible Python and Node.js dependency locks | Available |
 | Docker and Vercel deployment profiles | Available |
-| User registration and authentication experience | Roadmap |
+| Google sign-in, rotating sessions, and protected bilingual pages | Available |
 | US company, quote, fundamentals, and valuation data | Roadmap |
 | Manual filing upload and automated SEC retrieval | Roadmap |
 | Value-chain maps and evidence-backed RAG answers | Roadmap |
@@ -130,12 +130,29 @@ Start the web application in a second terminal:
 
 ```bash
 cd frontend
+cp .env.example .env.local
 corepack pnpm install --frozen-lockfile
 corepack pnpm dev
 ```
 
 Browser language detection selects `/en-US` or `/zh-CN`. The language selector
 stores the user's choice in a cookie.
+
+### Google authentication
+
+Create an OAuth 2.0 Web application in Google Cloud Console and configure these
+Authorized JavaScript origins:
+
+- `http://localhost:3000`
+- the Vercel Preview origin used for verification
+- the Vercel Production origin
+- the public Docker deployment origin
+
+Set the same client ID as `GOOGLE_CLIENT_ID` for FastAPI and
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` for Next.js. FastAPI validates the Google ID
+token. Next.js stores the resulting EquityLens access and refresh tokens in
+HttpOnly cookies. Set `FRONTEND_URL` to the exact public web origin used by each
+environment so same-origin mutation checks remain valid behind a proxy.
 
 ## Deployment
 
@@ -145,8 +162,8 @@ EquityLens uses two Vercel Projects connected to the repository:
 
 1. Deploy `backend/` with the **Deploy API** button.
 2. Copy the resulting API production URL.
-3. Deploy `frontend/` with the **Deploy Web** button and set
-   `NEXT_PUBLIC_API_BASE_URL` to the API URL.
+3. Deploy `frontend/` with the **Deploy Web** button and set `BACKEND_URL` to
+   the API URL.
 4. Set the API Project's `CORS_ORIGINS` to the Web production origin and
    redeploy the API.
 5. Run the shared smoke check against both production origins.
@@ -191,6 +208,7 @@ uv run ruff check app/app.py app/main.py app/core/config.py app/providers \
 cd ../frontend
 corepack pnpm install --frozen-lockfile
 corepack pnpm test
+corepack pnpm test:e2e
 corepack pnpm lint
 corepack pnpm build
 
@@ -200,7 +218,7 @@ git diff --check
 
 ## Roadmap
 
-- User registration, sessions, and protected research workspaces
+- Saved companies, research notes, and user watchlists
 - Company search, live prices, financial statements, and valuation multiples
 - SEC 10-K and 10-Q retrieval with processing status and provenance
 - Manual filing uploads with storage and parsing provider support

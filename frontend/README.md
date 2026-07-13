@@ -6,7 +6,11 @@ language detection and a persistent language selector.
 
 ## Development
 
+Copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and
+keep `BACKEND_URL=http://localhost:8000` for native development.
+
 ```bash
+cp .env.example .env.local
 corepack pnpm install --frozen-lockfile
 corepack pnpm dev
 ```
@@ -17,6 +21,7 @@ Open `http://localhost:3000`.
 
 ```bash
 corepack pnpm test
+corepack pnpm test:e2e
 corepack pnpm lint
 corepack pnpm build
 ```
