@@ -41,6 +41,7 @@ MANIFEST
 .env*
 *.env
 env.*
+!backend/app/migrations/env.py
 !.env.example
 !**/.env.example
 .vercel/
