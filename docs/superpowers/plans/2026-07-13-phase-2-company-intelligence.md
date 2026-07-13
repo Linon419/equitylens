@@ -507,9 +507,14 @@ def optional_money_column() -> Column[Decimal]:
 class MarketSnapshot(SQLModel, table=True):
     __tablename__ = "market_snapshot"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
+    job_type: str = Field(default="company_intelligence", max_length=64)
     company_id: int = Field(foreign_key="company.id", index=True)
     price: Decimal | None = Field(default=None, sa_column=optional_money_column())
     previous_close: Decimal | None = Field(default=None, sa_column=optional_money_column())
+    price_change: Decimal | None = Field(default=None, sa_column=optional_money_column())
+    price_change_percent: Decimal | None = Field(
+        default=None, sa_column=optional_money_column()
+    )
     market_cap: Decimal | None = Field(default=None, sa_column=optional_money_column())
     trailing_eps: Decimal | None = Field(default=None, sa_column=optional_money_column())
     trailing_pe: Decimal | None = Field(default=None, sa_column=optional_money_column())
