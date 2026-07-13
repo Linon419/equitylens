@@ -20,8 +20,9 @@ def test_job_state_has_stable_wire_values() -> None:
         "queued",
         "downloading",
         "parsing",
-        "embedding",
         "analyzing",
+        "verifying",
+        "localizing",
         "completed",
         "failed",
     ]

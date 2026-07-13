@@ -9,8 +9,9 @@ class JobState(StrEnum):
     QUEUED = "queued"
     DOWNLOADING = "downloading"
     PARSING = "parsing"
-    EMBEDDING = "embedding"
     ANALYZING = "analyzing"
+    VERIFYING = "verifying"
+    LOCALIZING = "localizing"
     COMPLETED = "completed"
     FAILED = "failed"
 

@@ -29,6 +29,10 @@ class DocumentParserName(StrEnum):
     LOCAL = "local"
 
 
+class MarketDataProviderName(StrEnum):
+    YAHOO = "yahoo"
+
+
 def parse_cors(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
@@ -73,6 +77,25 @@ class Settings(BaseSettings):
     S3_SECRET_ACCESS_KEY: str | None = None
     BLOB_READ_WRITE_TOKEN: str | None = None
     MANAGED_PARSER_API_KEY: str | None = None
+    WORKFLOW_TRIGGER_URL: str | None = None
+
+    MARKET_DATA_PROVIDER: MarketDataProviderName = MarketDataProviderName.YAHOO
+    SEC_USER_AGENT: str
+    RESEARCH_MODEL: str = "gpt-5-mini"
+    RESEARCH_SCHEMA_VERSION: str = "company-intelligence-v1"
+    RESEARCH_PROMPT_VERSION: str = "company-intelligence-2026-07-13"
+    GUEST_SIGNING_SECRET: str
+    QUOTA_HASH_SECRET: str
+    INTERNAL_JOB_SECRET: str
+
+    MARKET_QUOTE_TTL_SECONDS: int = 15 * 60
+    COMPANY_PROFILE_TTL_SECONDS: int = 7 * 24 * 60 * 60
+    SEC_SUBMISSIONS_TTL_SECONDS: int = 60 * 60
+    FINANCIALS_TTL_SECONDS: int = 24 * 60 * 60
+    GUEST_DAILY_ANALYSIS_LIMIT: int = 2
+    USER_DAILY_ANALYSIS_LIMIT: int = 10
+    IP_DAILY_ANALYSIS_LIMIT: int = 10
+    MAX_FILING_BYTES: int = 15 * 1024 * 1024
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -132,6 +155,7 @@ class Settings(BaseSettings):
             DeploymentTarget.VERCEL: (
                 "BLOB_READ_WRITE_TOKEN",
                 "MANAGED_PARSER_API_KEY",
+                "WORKFLOW_TRIGGER_URL",
             ),
         }
         missing = [
@@ -143,6 +167,21 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"{self.DEPLOYMENT_TARGET.value} profile is missing: "
                 f"{', '.join(missing)}"
+            )
+
+        short_secrets = [
+            field
+            for field in (
+                "GUEST_SIGNING_SECRET",
+                "QUOTA_HASH_SECRET",
+                "INTERNAL_JOB_SECRET",
+            )
+            if len(getattr(self, field)) < 32
+        ]
+        if short_secrets:
+            raise ValueError(
+                "Phase 2 secrets require at least 32 characters: "
+                f"{', '.join(short_secrets)}"
             )
         return self
 
