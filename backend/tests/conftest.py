@@ -12,6 +12,8 @@ TEST_ENV = {
     "OPENAI_ORGANIZATION": "test-organization",
     "FIRST_SUPERUSER": "admin@example.com",
     "FIRST_SUPERUSER_PASSWORD": "test-password",
+    "GOOGLE_CLIENT_ID": "test-google-client-id",
+    "FRONTEND_URL": "http://localhost:3000",
     "REDIS_URL": "redis://localhost:6379/0",
     "S3_ENDPOINT_URL": "http://localhost:9000",
     "S3_BUCKET": "filings",

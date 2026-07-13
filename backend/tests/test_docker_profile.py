@@ -60,6 +60,9 @@ def test_environment_template_contains_placeholders_only() -> None:
     assert (
         "SECRET_KEY_ACCESS_API=replace-with-at-least-32-random-characters" in template
     )
+    assert "GOOGLE_CLIENT_ID=replace-with-google-client-id" in template
+    assert "BACKEND_URL=http://api:8000" in template
+    assert "NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id" in template
 
 
 def test_native_backend_template_uses_local_service_addresses() -> None:

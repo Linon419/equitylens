@@ -10,6 +10,8 @@ BASE = {
     "OPENAI_ORGANIZATION": "test",
     "FIRST_SUPERUSER": "admin@example.com",
     "FIRST_SUPERUSER_PASSWORD": "test-password",
+    "GOOGLE_CLIENT_ID": "test-google-client-id",
+    "FRONTEND_URL": "http://localhost:3000",
 }
 
 DOCKER_PROVIDERS = {

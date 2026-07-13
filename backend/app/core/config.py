@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     API_VERSION: str = "v1"
     PROJECT_NAME: str = "equitylens-api"
     CORS_ORIGINS: CorsOrigins = ["http://localhost:3000"]
+    FRONTEND_URL: str = "http://localhost:3000"
+    GOOGLE_CLIENT_ID: str
 
     SECRET_KEY_ACCESS_API: str
     DATABASE_URL: str
@@ -72,7 +74,9 @@ class Settings(BaseSettings):
     BLOB_READ_WRITE_TOKEN: str | None = None
     MANAGED_PARSER_API_KEY: str | None = None
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    REFRESH_REUSE_GRACE_SECONDS: int = 10
 
     @property
     def API_V1_STR(self) -> str:
