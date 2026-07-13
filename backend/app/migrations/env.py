@@ -7,7 +7,6 @@ from sqlmodel import SQLModel
 from app.core.config import settings
 from app.models import user_model  # noqa: F401
 
-
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URI)
 
