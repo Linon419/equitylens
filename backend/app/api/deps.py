@@ -46,7 +46,11 @@ def get_market_data_provider() -> MarketDataProvider:
 
 async def get_sec_data_provider() -> AsyncIterator[SecDataProvider]:
     async with httpx.AsyncClient(timeout=30) as client:
-        yield SecClient(client=client, user_agent=settings.SEC_USER_AGENT)
+        yield SecClient(
+            client=client,
+            user_agent=settings.SEC_USER_AGENT,
+            max_filing_bytes=settings.MAX_FILING_BYTES,
+        )
 
 
 MarketDataProviderDep = Annotated[
