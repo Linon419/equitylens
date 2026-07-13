@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.api.main import api_router
 from app.auth.errors import AuthError
 from app.core.config import settings
+from app.core.errors import DomainError
 
 
 def create_app() -> FastAPI:
@@ -40,6 +41,24 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=error.status_code,
             content={"code": error.code, "request_id": request_id},
+            headers={"x-request-id": request_id},
+        )
+
+    @application.exception_handler(DomainError)
+    async def domain_error_handler(
+        request: Request,
+        error: DomainError,
+    ) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", str(uuid4()))
+        content: dict[str, Any] = {
+            "code": error.code,
+            "request_id": request_id,
+        }
+        if error.details is not None:
+            content["details"] = error.details
+        return JSONResponse(
+            status_code=error.status_code,
+            content=content,
             headers={"x-request-id": request_id},
         )
 

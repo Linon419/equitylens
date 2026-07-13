@@ -1,0 +1,17 @@
+{
+  "quotes": [
+    {
+      "symbol": "AAPL",
+      "longname": "Apple Inc.",
+      "shortname": "Apple Inc.",
+      "exchange": "NMS",
+      "quoteType": "EQUITY"
+    },
+    {
+      "symbol": "AAPD",
+      "shortname": "Direxion Daily AAPL Bear 1X Shares",
+      "exchange": "NGM",
+      "quoteType": "ETF"
+    }
+  ]
+}
