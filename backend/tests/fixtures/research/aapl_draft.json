@@ -1,0 +1,38 @@
+{
+  "core_businesses": [
+    {
+      "claim_id": "business-1",
+      "title": "Devices and services FY2025",
+      "explanation": "Hardware anchors a services ecosystem in FY2025.",
+      "confidence": "High",
+      "citation_ids": ["citation-1"],
+      "revenue_period": "FY2025"
+    }
+  ],
+  "revenue_engines": [],
+  "upstream": [
+    {
+      "claim_id": "upstream-1",
+      "title": "Manufacturing supply",
+      "explanation": "Concentrated manufacturing can disrupt availability.",
+      "confidence": "Medium",
+      "citation_ids": ["citation-2"]
+    }
+  ],
+  "company_layer": [],
+  "downstream": [],
+  "competitors": [],
+  "material_dependencies": [],
+  "citations": [
+    {
+      "citation_id": "citation-1",
+      "section_id": "section-business",
+      "excerpt": "The Company designs, manufactures and markets smartphones and personal computers."
+    },
+    {
+      "citation_id": "citation-2",
+      "section_id": "section-risk",
+      "excerpt": "Manufacturing and supply concentration may disrupt product availability."
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "verdicts": [
+    {"claim_id": "business-1", "supported": true, "reason": "Directly supported."},
+    {"claim_id": "upstream-1", "supported": true, "reason": "Directly supported."}
+  ]
+}
