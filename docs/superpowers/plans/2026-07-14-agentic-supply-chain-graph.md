@@ -921,6 +921,7 @@ git commit -m "feat(graph): collect official source evidence"
 
 - Create: `backend/app/supply_chain/entity_resolver.py`
 - Create: `backend/tests/supply_chain/test_entity_resolver.py`
+- Modify: `backend/app/supply_chain/schemas.py`
 
 - [ ] **Step 1: Write failing entity-resolution tests**
 

@@ -41,6 +41,15 @@ SupportRole = Literal["primary", "corroborating"]
 ConfidenceLabel = Literal["High", "Medium", "Low"]
 AcceptedGraphStatus = Literal["completed", "insufficient_evidence"]
 EvidenceCoverage = Literal["complete", "partial", "insufficient_evidence"]
+ResolutionStatus = Literal["resolved", "unresolved", "ambiguous"]
+ResolutionBasis = Literal[
+    "cik",
+    "ticker",
+    "legal_name",
+    "deterministic_key",
+    "unresolved_hash",
+    "ambiguous_name",
+]
 
 StableKey = Annotated[
     str,
@@ -230,6 +239,7 @@ class EvidenceReference(FrozenValueModel):
 
 class EntityCandidate(FrozenValueModel):
     node_key: StableKey
+    kind: NodeKind
     label_en: ShortText
     symbol: Symbol | None = None
     cik: Cik | None = None
@@ -241,7 +251,8 @@ class ResolvedEntity(FrozenValueModel):
     symbol: Symbol | None = None
     cik: Cik | None = None
     legal_name: ShortText | None = None
-    resolution_status: Literal["resolved", "unresolved", "ambiguous"]
+    resolution_status: ResolutionStatus
+    resolution_basis: ResolutionBasis
     confidence: Score
 
 
@@ -257,6 +268,18 @@ class GraphNodeDraft(StrictValueModel):
     importance: Score
     confidence: Score
     rank: Rank = 0
+    aliases: list[ShortText] = Field(default_factory=list, max_length=24)
+    resolution_status: ResolutionStatus | None = None
+    resolution_basis: ResolutionBasis | None = None
+
+    @model_validator(mode="after")
+    def validate_aliases(self) -> Self:
+        normalized = [alias.casefold() for alias in self.aliases]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("duplicate node aliases")
+        if self.label_en.casefold() in normalized:
+            raise ValueError("canonical node label cannot also be an alias")
+        return self
 
 
 class GraphEdgeDraft(StrictValueModel):
