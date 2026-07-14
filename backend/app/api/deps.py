@@ -324,6 +324,7 @@ def get_supply_chain_agent() -> SupplyChainAgent:
         schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
         prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
         stage_timeout_seconds=60,
+        max_source_tokens=settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET,
     )
 
 

@@ -40,7 +40,8 @@ def extraction_system_prompt(
             "company, its key businesses and products, upstream companies and "
             "categories, and downstream channels and markets. Every external "
             "relationship must cite an exact supplied excerpt and source key. "
-            "Leave aliases and resolution audit fields empty for deterministic "
+            "Provide bounded company aliases and ticker candidates found in the "
+            "evidence. Leave resolution status and basis empty for deterministic "
             "server-side resolution."
         ),
     )

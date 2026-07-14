@@ -70,13 +70,11 @@ def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
     assert settings.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE is None
     assert research_model == settings.SUPPLY_CHAIN_GRAPH_MODEL
     assert settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION == "supply-chain-graph.v1"
-    assert (
-        settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION
-        == "supply-chain-graph.2026-07-14"
-    )
+    assert settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION == "supply-chain-graph.2026-07-14"
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_NODES == 40
     assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 25
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD == 0.75
+    assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET == 100_000
 
 
 def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None:
@@ -109,6 +107,10 @@ def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None
         (
             {"SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD": 1.01},
             "SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD",
+        ),
+        (
+            {"SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET": 0},
+            "SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET",
         ),
     ],
 )

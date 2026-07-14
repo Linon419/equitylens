@@ -1,7 +1,8 @@
 import asyncio
 import json
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 import httpx
@@ -100,14 +101,15 @@ class OpenAISupplyChainAgent:
         schema_version: str = "supply-chain-graph.v1",
         prompt_version: str = "supply-chain-graph.2026-07-14",
         stage_timeout_seconds: float = 60,
-        max_source_chars: int = 300_000,
+        max_source_tokens: int = 100_000,
         max_tool_result_chars: int = 40_000,
         max_tool_calls: int = 8,
+        token_counter: Callable[[str], int] | None = None,
     ) -> None:
         if stage_timeout_seconds <= 0:
             raise ValueError("stage_timeout_seconds must be positive")
-        if max_source_chars < 64 or max_tool_result_chars < 64:
-            raise ValueError("source character limits are too small")
+        if max_source_tokens < 1 or max_tool_result_chars < 64:
+            raise ValueError("source limits are too small")
         if not 1 <= max_tool_calls <= 8:
             raise ValueError("max_tool_calls must be between one and eight")
         self._model = model
@@ -115,9 +117,11 @@ class OpenAISupplyChainAgent:
         self.schema_version = schema_version
         self.prompt_version = prompt_version
         self._stage_timeout_seconds = stage_timeout_seconds
-        self._max_source_chars = max_source_chars
+        self._max_source_tokens = max_source_tokens
         self._max_tool_result_chars = max_tool_result_chars
         self._max_tool_calls = max_tool_calls
+        model_counter = getattr(model, "get_num_tokens", None)
+        self._token_counter = token_counter or model_counter or _utf8_token_bound
 
     async def plan_sources(
         self,
@@ -125,55 +129,55 @@ class OpenAISupplyChainAgent:
         company: CompanyIdentity,
         tools: OfficialSourceTools,
     ) -> SourcePlan:
-        system_prompt = source_planning_system_prompt(
-            schema_version=self.schema_version,
-            prompt_version=self.prompt_version,
-        )
-        messages: list[BaseMessage] = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=_json(company_payload(company))),
-        ]
-        bound = self._model.bind_tools(
-            [ListOfficialSources, FetchOfficialSource],
-            strict=True,
-            parallel_tool_calls=False,
-        )
-        catalog: dict[str, OfficialSourceMetadata] = {}
-        fetched_ids: set[str] = set()
-        tool_call_count = 0
-        while True:
-            response = await self._invoke_tool_model(bound, messages)
-            messages.append(response)
-            calls = response.tool_calls
-            if not calls:
-                break
-            if tool_call_count + len(calls) > self._max_tool_calls:
-                raise SupplyChainAgentError("SOURCE_TOOL_LIMIT_REACHED")
-            for call in calls:
-                result = await self._execute_tool(
-                    call,
-                    company=company,
-                    tools=tools,
-                    catalog=catalog,
-                    fetched_ids=fetched_ids,
-                )
-                tool_call_count += 1
-                messages.append(
-                    ToolMessage(
-                        content=_json(result),
-                        tool_call_id=str(call.get("id", "")),
+        async with self._stage_deadline():
+            system_prompt = source_planning_system_prompt(
+                schema_version=self.schema_version,
+                prompt_version=self.prompt_version,
+            )
+            messages: list[BaseMessage] = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=_json(company_payload(company))),
+            ]
+            bound = self._model.bind_tools(
+                [ListOfficialSources, FetchOfficialSource],
+                strict=True,
+                parallel_tool_calls=False,
+            )
+            catalog: dict[str, OfficialSourceMetadata] = {}
+            fetched_ids: set[str] = set()
+            tool_call_count = 0
+            while True:
+                response = await self._invoke_tool_model(bound, messages)
+                messages.append(response)
+                calls = response.tool_calls
+                if not calls:
+                    break
+                if tool_call_count + len(calls) > self._max_tool_calls:
+                    raise SupplyChainAgentError("SOURCE_TOOL_LIMIT_REACHED")
+                for call in calls:
+                    result = await self._execute_tool(
+                        call,
+                        company=company,
+                        tools=tools,
+                        catalog=catalog,
+                        fetched_ids=fetched_ids,
                     )
-                )
-        if not fetched_ids:
-            raise SupplyChainAgentError("SOURCE_PLAN_EMPTY")
-        plan = await self._invoke_structured(
-            schema=SourcePlan,
-            stage="plan_sources",
-            messages=messages,
-            validator=lambda result: _validate_source_plan(result, fetched_ids),
-            tool_count=tool_call_count,
-        )
-        return plan
+                    tool_call_count += 1
+                    messages.append(
+                        ToolMessage(
+                            content=_json(result),
+                            tool_call_id=str(call.get("id", "")),
+                        )
+                    )
+            if not fetched_ids:
+                raise SupplyChainAgentError("SOURCE_PLAN_EMPTY")
+            return await self._invoke_structured(
+                schema=SourcePlan,
+                stage="plan_sources",
+                messages=messages,
+                validator=lambda result: _validate_source_plan(result, fetched_ids),
+                tool_count=tool_call_count,
+            )
 
     async def extract_graph(
         self,
@@ -181,21 +185,22 @@ class OpenAISupplyChainAgent:
         company: CompanyIdentity,
         sources: list[OfficialSourceDocument],
     ) -> GraphDraft:
-        source_payload = self._bounded_sources(sources)
-        messages = self._stage_messages(
-            extraction_system_prompt,
-            {
-                "company": company_payload(company),
-                "sources": source_payload,
-            },
-        )
-        source_keys = {source.source_key for source in sources}
-        return await self._invoke_structured(
-            schema=GraphDraft,
-            stage="extract_graph",
-            messages=messages,
-            validator=lambda result: _validate_draft(result, source_keys),
-        )
+        async with self._stage_deadline():
+            source_payload = self._bounded_sources(sources)
+            messages = self._stage_messages(
+                extraction_system_prompt,
+                {
+                    "company": company_payload(company),
+                    "sources": source_payload,
+                },
+            )
+            source_keys = {source.source_key for source in sources}
+            return await self._invoke_structured(
+                schema=GraphDraft,
+                stage="extract_graph",
+                messages=messages,
+                validator=lambda result: _validate_draft(result, source_keys),
+            )
 
     async def verify_graph(
         self,
@@ -203,25 +208,26 @@ class OpenAISupplyChainAgent:
         draft: GraphDraft,
         sources: list[OfficialSourceDocument],
     ) -> GraphVerification:
-        messages = self._stage_messages(
-            verification_system_prompt,
-            {
-                "draft": draft.model_dump(mode="json"),
-                "sources": self._bounded_sources(sources),
-            },
-        )
-        edge_keys = {edge.edge_key for edge in draft.edges}
-        source_keys = {source.source_key for source in sources}
-        return await self._invoke_structured(
-            schema=GraphVerification,
-            stage="verify_graph",
-            messages=messages,
-            validator=lambda result: _validate_verification(
-                result,
-                edge_keys=edge_keys,
-                source_keys=source_keys,
-            ),
-        )
+        async with self._stage_deadline():
+            messages = self._stage_messages(
+                verification_system_prompt,
+                {
+                    "draft": draft.model_dump(mode="json"),
+                    "sources": self._bounded_sources(sources),
+                },
+            )
+            edge_keys = {edge.edge_key for edge in draft.edges}
+            source_keys = {source.source_key for source in sources}
+            return await self._invoke_structured(
+                schema=GraphVerification,
+                stage="verify_graph",
+                messages=messages,
+                validator=lambda result: _validate_verification(
+                    result,
+                    edge_keys=edge_keys,
+                    source_keys=source_keys,
+                ),
+            )
 
     async def localize_graph(
         self,
@@ -229,17 +235,26 @@ class OpenAISupplyChainAgent:
         graph: AcceptedGraph,
         locale: Literal["zh"] = "zh",
     ) -> GraphLocalization:
-        if locale != "zh":
-            raise SupplyChainAgentError("AGENT_LOCALE_UNSUPPORTED")
-        messages = self._stage_messages(
-            localization_system_prompt,
-            {"graph": graph.model_dump(mode="json"), "locale": locale},
-        )
-        return await self._invoke_structured(
-            schema=GraphLocalization,
-            stage="localize_graph",
-            messages=messages,
-        )
+        async with self._stage_deadline():
+            if locale != "zh":
+                raise SupplyChainAgentError("AGENT_LOCALE_UNSUPPORTED")
+            messages = self._stage_messages(
+                localization_system_prompt,
+                {"graph": graph.model_dump(mode="json"), "locale": locale},
+            )
+            return await self._invoke_structured(
+                schema=GraphLocalization,
+                stage="localize_graph",
+                messages=messages,
+            )
+
+    @asynccontextmanager
+    async def _stage_deadline(self) -> AsyncIterator[None]:
+        try:
+            async with asyncio.timeout(self._stage_timeout_seconds):
+                yield
+        except TimeoutError as error:
+            raise SupplyChainAgentError.from_provider(error) from None
 
     def _stage_messages(
         self,
@@ -262,8 +277,7 @@ class OpenAISupplyChainAgent:
         messages: list[BaseMessage],
     ) -> AIMessage:
         try:
-            async with asyncio.timeout(self._stage_timeout_seconds):
-                result = await runnable.ainvoke(messages)
+            result = await runnable.ainvoke(messages)
         except SupplyChainAgentError:
             raise
         except Exception as error:
@@ -352,8 +366,7 @@ class OpenAISupplyChainAgent:
         started = time.monotonic()
         for attempt in range(2):
             try:
-                async with asyncio.timeout(self._stage_timeout_seconds):
-                    raw_result = await runnable.ainvoke(attempt_messages)
+                raw_result = await runnable.ainvoke(attempt_messages)
                 result, metadata = _parse_structured_result(schema, raw_result)
                 if validator is not None:
                     validator(result)
@@ -392,14 +405,21 @@ class OpenAISupplyChainAgent:
         self,
         sources: list[OfficialSourceDocument],
     ) -> list[dict[str, object]]:
-        remaining = self._max_source_chars
+        remaining = self._max_source_tokens
         payloads: list[dict[str, object]] = []
         for index, source in enumerate(sources):
             source_count = len(sources) - index
             allocation = max(1, remaining // source_count)
             payload = source.model_dump(mode="json")
-            payload["body_text"] = _truncate_text(source.body_text, allocation)
-            remaining -= len(str(payload["body_text"]))
+            payload["body_text"] = _truncate_to_tokens(
+                source.body_text,
+                allocation,
+                self._token_counter,
+            )
+            remaining = max(
+                0,
+                remaining - self._token_counter(str(payload["body_text"])),
+            )
             payloads.append(payload)
         return payloads
 
@@ -472,9 +492,7 @@ def _validate_source_plan(plan: SourcePlan, fetched_ids: set[str]) -> None:
 
 def _validate_draft(draft: GraphDraft, source_keys: set[str]) -> None:
     if any(
-        node.aliases
-        or node.resolution_status is not None
-        or node.resolution_basis is not None
+        node.resolution_status is not None or node.resolution_basis is not None
         for node in draft.nodes
     ):
         raise ValueError("model output included server-owned resolution audit")
@@ -509,6 +527,35 @@ def _truncate_text(value: str, limit: int) -> str:
     if limit <= len(TRUNCATION_MARKER):
         return TRUNCATION_MARKER[:limit]
     return f"{value[: limit - len(TRUNCATION_MARKER)]}{TRUNCATION_MARKER}"
+
+
+def _truncate_to_tokens(
+    value: str,
+    limit: int,
+    count_tokens: Callable[[str], int],
+) -> str:
+    if count_tokens(value) <= limit:
+        return value
+    if count_tokens(TRUNCATION_MARKER) > limit:
+        return ""
+    low = 0
+    high = len(value)
+    candidate = TRUNCATION_MARKER
+    while low <= high:
+        midpoint = (low + high) // 2
+        proposed = f"{value[:midpoint]}{TRUNCATION_MARKER}"
+        if count_tokens(proposed) <= limit:
+            candidate = proposed
+            low = midpoint + 1
+        else:
+            high = midpoint - 1
+    while candidate and count_tokens(candidate) > limit:
+        candidate = candidate[:-1]
+    return candidate
+
+
+def _utf8_token_bound(value: str) -> int:
+    return len(value.encode("utf-8"))
 
 
 def _json(value: object) -> str:
