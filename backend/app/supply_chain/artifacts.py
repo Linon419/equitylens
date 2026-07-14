@@ -90,12 +90,12 @@ def _is_blob_conflict(error: Exception) -> bool:
 
 def _fully_unquote(value: str) -> str:
     decoded = value
-    for _ in range(3):
+    for _ in range(len(value) + 1):
         next_value = unquote(decoded)
         if next_value == decoded:
-            break
+            return decoded
         decoded = next_value
-    return decoded
+    raise GraphArtifactError()
 
 
 def _validate_vercel_artifact_key(artifact_key: str, *, prefix: str) -> str:

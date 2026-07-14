@@ -319,6 +319,8 @@ async def test_vercel_store_maps_missing_results(result: object | None) -> None:
         "https://example.com/supply-chain/a.gz",
         "https://blob.vercel-storage.com/other/a.gz",
         "https://blob.vercel-storage.com/supply-chain/%252e%252e/secret",
+        "supply-chain/%2525252e%2525252e/secret",
+        ("https://blob.vercel-storage.com/supply-chain/%2525252e%2525252e/secret"),
         "https://user:secret@blob.vercel-storage.com/supply-chain/a.gz",
     ],
 )
