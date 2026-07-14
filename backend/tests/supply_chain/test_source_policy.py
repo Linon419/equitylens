@@ -1,9 +1,12 @@
 import traceback
 
+import httpcore
 import pytest
 
 from app.supply_chain.source_policy import (
     PUBLIC_SUFFIX_EXTRACTOR,
+    PinnedNetworkBackend,
+    PinningHostResolver,
     SourcePolicyError,
     SourceUrlPolicy,
 )
@@ -251,6 +254,49 @@ async def test_redirect_limit_is_three() -> None:
 
     assert error.value.code == "SOURCE_REDIRECT_LIMIT"
     assert resolver.calls == ["apple.com"]
+
+
+@pytest.mark.anyio
+async def test_pinned_network_backend_connects_to_the_validated_address() -> None:
+    resolver = PinningHostResolver(Resolver({"apple.com": ("93.184.216.34",)}))
+    await resolver.resolve("apple.com")
+
+    class Backend:
+        def __init__(self) -> None:
+            self.hosts: list[str] = []
+            self.stream = object()
+
+        async def connect_tcp(self, host: str, port: int, **kwargs):
+            self.hosts.append(host)
+            return self.stream
+
+        async def sleep(self, seconds: float) -> None:
+            return None
+
+    underlying = Backend()
+    backend = PinnedNetworkBackend(resolver, backend=underlying)
+
+    stream = await backend.connect_tcp("apple.com", 443)
+
+    assert stream is underlying.stream
+    assert underlying.hosts == ["93.184.216.34"]
+
+
+@pytest.mark.anyio
+async def test_pinned_network_backend_rejects_an_unvalidated_hostname() -> None:
+    resolver = PinningHostResolver(Resolver({"apple.com": ("93.184.216.34",)}))
+
+    class Backend:
+        async def connect_tcp(self, host: str, port: int, **kwargs):
+            raise AssertionError("connection should be blocked before the backend")
+
+        async def sleep(self, seconds: float) -> None:
+            return None
+
+    backend = PinnedNetworkBackend(resolver, backend=Backend())
+
+    with pytest.raises(httpcore.ConnectError, match="SOURCE_DNS_PIN_MISSING"):
+        await backend.connect_tcp("apple.com", 443)
 
 
 def test_public_suffix_extractor_is_offline_only() -> None:

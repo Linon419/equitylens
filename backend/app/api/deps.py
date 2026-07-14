@@ -41,7 +41,7 @@ from app.supply_chain.artifacts import (
 )
 from app.supply_chain.collector import OfficialSourceCollectorImpl, extract_pdf_text
 from app.supply_chain.contracts import GraphArtifactStore, OfficialSourceCollector
-from app.supply_chain.source_policy import SystemHostResolver
+from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
@@ -277,12 +277,17 @@ async def get_official_source_collector(
     artifact_store: GraphArtifactStoreDep,
     pdf_text_extractor: OfficialPdfTextExtractorDep,
 ) -> AsyncIterator[OfficialSourceCollector]:
-    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
+    resolver = PinningHostResolver()
+    async with httpx.AsyncClient(
+        timeout=30,
+        follow_redirects=False,
+        transport=PinnedDnsTransport(resolver),
+    ) as client:
         yield OfficialSourceCollectorImpl(
             sec_provider=sec_provider,
             client=client,
             artifact_store=artifact_store,
-            resolver=SystemHostResolver(),
+            resolver=resolver,
             user_agent=settings.SEC_USER_AGENT,
             source_limit=settings.SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT,
             per_source_bytes=min(

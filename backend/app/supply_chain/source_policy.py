@@ -3,9 +3,11 @@ import ipaddress
 import re
 import socket
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 
+import httpcore
+import httpx
 import tldextract
 
 PUBLIC_SUFFIX_EXTRACTOR = tldextract.TLDExtract(
@@ -46,15 +48,87 @@ class HostResolver(Protocol):
 
 
 class SystemHostResolver:
+    def __init__(self, *, timeout_seconds: float = 5.0) -> None:
+        self._timeout_seconds = timeout_seconds
+
     async def resolve(self, hostname: str) -> tuple[str, ...]:
         loop = asyncio.get_running_loop()
-        results = await loop.getaddrinfo(
-            hostname,
-            443,
-            family=socket.AF_UNSPEC,
-            type=socket.SOCK_STREAM,
-        )
+        async with asyncio.timeout(self._timeout_seconds):
+            results = await loop.getaddrinfo(
+                hostname,
+                443,
+                family=socket.AF_UNSPEC,
+                type=socket.SOCK_STREAM,
+            )
         return tuple(sorted({str(result[4][0]) for result in results}))
+
+
+class PinningHostResolver:
+    def __init__(self, resolver: HostResolver | None = None) -> None:
+        self._resolver = resolver or SystemHostResolver()
+        self._pins: dict[str, tuple[str, ...]] = {}
+
+    async def resolve(self, hostname: str) -> tuple[str, ...]:
+        addresses = await self._resolver.resolve(hostname)
+        self._pins[hostname] = addresses
+        return addresses
+
+    def pinned_addresses(self, hostname: str) -> tuple[str, ...]:
+        return self._pins.get(hostname, ())
+
+
+class PinnedNetworkBackend:
+    def __init__(
+        self,
+        resolver: PinningHostResolver,
+        *,
+        backend: Any | None = None,
+    ) -> None:
+        self._resolver = resolver
+        self._backend = backend or httpcore.AnyIOBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Any | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        hostname = host.decode("ascii") if isinstance(host, bytes) else host
+        addresses = self._resolver.pinned_addresses(hostname)
+        if not addresses:
+            raise httpcore.ConnectError("SOURCE_DNS_PIN_MISSING")
+        for address in addresses:
+            try:
+                return await self._backend.connect_tcp(
+                    address,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except Exception:
+                continue
+        raise httpcore.ConnectError("SOURCE_PINNED_CONNECT_FAILED") from None
+
+    async def connect_unix_socket(self, *args: Any, **kwargs: Any) -> Any:
+        raise httpcore.ConnectError("SOURCE_UNIX_SOCKET_FORBIDDEN")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._backend.sleep(seconds)
+
+
+class PinnedDnsTransport(httpx.AsyncHTTPTransport):
+    def __init__(self, resolver: PinningHostResolver) -> None:
+        self._pool = httpcore.AsyncConnectionPool(
+            ssl_context=httpx.create_ssl_context(verify=True, trust_env=False),
+            max_connections=20,
+            max_keepalive_connections=10,
+            keepalive_expiry=5.0,
+            retries=0,
+            network_backend=PinnedNetworkBackend(resolver),
+        )
 
 
 class SourceUrlPolicy:
@@ -170,7 +244,7 @@ class SourceUrlPolicy:
 
 
 def _contains_unsafe_characters(value: str) -> bool:
-    if not value or len(value) > 8192 or "\\" in value:
+    if not value or len(value) > 2000 or "\\" in value:
         return True
     decoded = value
     for _ in range(8):

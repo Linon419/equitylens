@@ -22,6 +22,7 @@ from app.supply_chain.collector import (
     extract_official_text,
 )
 from app.supply_chain.schemas import CompanyIdentity
+from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
 
 
 @dataclass
@@ -289,6 +290,32 @@ async def test_catalog_deduplicates_canonical_urls_and_selection_is_deterministi
 
         assert len(first) == 1
         assert [item.source_id for item in first] == [item.source_id for item in second]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_catalog_keeps_the_most_recent_sec_filings_before_pruning() -> None:
+    payload = submissions(rows=4)
+    tools, client, _, _, _ = await prepared_tools(
+        payload=payload,
+        handler=response_handler({}),
+        source_limit=2,
+    )
+    try:
+        listed = await tools.list_official_sources(
+            company=company("apple.example.com"),
+            query="",
+            source_types=("sec_filing",),
+        )
+
+        assert sorted(
+            (source.published_at.isoformat() for source in listed),
+            reverse=True,
+        ) == [
+            "2025-07-04",
+            "2025-07-03",
+        ]
     finally:
         await client.aclose()
 
@@ -600,6 +627,8 @@ async def test_dependency_wires_bounded_collector_without_network(
         assert collector._user_agent == "EquityLens dependency admin@example.com"
         assert collector._min_host_interval == 0.1
         assert collector._client.follow_redirects is False
+        assert isinstance(collector._resolver, PinningHostResolver)
+        assert isinstance(collector._client._transport, PinnedDnsTransport)
         assert collector._pdf_text_extractor is pdf_extractor
     finally:
         await dependency.aclose()

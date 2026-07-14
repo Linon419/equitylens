@@ -41,6 +41,7 @@ HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 TEXT_TYPES = frozenset({"text/plain"})
 PDF_TYPES = frozenset({"application/pdf"})
 ROBOTS_LIMIT = 64 * 1024
+MAX_DISCOVERY_ANCHORS = 512
 
 
 class SourceCollectionError(RuntimeError):
@@ -232,54 +233,35 @@ class PreparedOfficialSourceTools:
                 compressed = await self._artifact_store.get(
                     artifact_key=document.artifact_key
                 )
-                body = gzip.decompress(compressed)
+                body = await asyncio.to_thread(
+                    _decompress_artifact,
+                    compressed,
+                    byte_limit=self._per_source_bytes,
+                )
             except (GraphArtifactError, OSError, SourceCollectionError):
                 continue
-            for metadata in _discover_issuer_links(
+            discovered = await asyncio.to_thread(
+                _discover_issuer_links,
                 body,
                 index=document,
                 company=self._company,
                 policy=self._policy,
-            ):
-                if metadata.canonical_url in {
-                    source.canonical_url for source in self._catalog.values()
-                }:
+                limit=self._source_limit,
+            )
+            existing_urls = {source.canonical_url for source in self._catalog.values()}
+            for metadata in discovered:
+                if metadata.canonical_url in existing_urls:
                     continue
                 self._catalog[metadata.source_id] = metadata
+                existing_urls.add(metadata.canonical_url)
         self._trim_catalog()
 
     def _trim_catalog(self) -> None:
-        sec_sources = sorted(
-            (
-                source
-                for source in self._catalog.values()
-                if source.source_type == "sec_filing"
-            ),
-            key=lambda source: (
-                -(source.published_at.toordinal() if source.published_at else 0),
-                source.source_id,
-            ),
+        selected = _select_catalog_sources(
+            tuple(self._catalog.values()),
+            limit=self._source_limit,
+            discovery_ids=self._discovery_ids,
         )
-        issuer_sources = sorted(
-            (
-                source
-                for source in self._catalog.values()
-                if source.source_type != "sec_filing"
-            ),
-            key=lambda source: (
-                source.source_id not in self._discovery_ids,
-                source.source_type,
-                source.source_id,
-            ),
-        )
-        issuer_limit = min(len(issuer_sources), max(1, self._source_limit // 2))
-        selected = [
-            *issuer_sources[:issuer_limit],
-            *sec_sources[: self._source_limit - issuer_limit],
-        ]
-        if len(selected) < self._source_limit:
-            remaining = self._source_limit - len(selected)
-            selected.extend(issuer_sources[issuer_limit : issuer_limit + remaining])
         self._catalog = {source.source_id: source for source in selected}
         self._filings = {
             source_id: filing
@@ -368,14 +350,16 @@ class PreparedOfficialSourceTools:
         )[: self._max_model_chars]
         if len(text.strip()) < 20:
             raise SourceCollectionError("SOURCE_TEXT_EMPTY")
-        digest = hashlib.sha256(body).hexdigest()
-        compressed = gzip.compress(body, compresslevel=6, mtime=0)
+        digest, compressed, compressed_digest = await asyncio.to_thread(
+            _prepare_artifact,
+            body,
+        )
         try:
             artifact_key = await self._artifact_store.put(
                 object_key=f"sha256/{digest}.gz",
                 body=compressed,
                 content_type="application/gzip",
-                sha256=hashlib.sha256(compressed).hexdigest(),
+                sha256=compressed_digest,
             )
         except GraphArtifactError:
             raise SourceCollectionError(
@@ -430,7 +414,8 @@ class PreparedOfficialSourceTools:
             budget.remaining,
             self._remaining_total,
         )
-        body = _decode_http_content(
+        body = await asyncio.to_thread(
+            _decode_http_content,
             response.content,
             content_encoding=response.headers.get("content-encoding", ""),
             byte_limit=decoded_limit,
@@ -655,7 +640,8 @@ class PreparedOfficialSourceTools:
                     budget.remaining,
                     self._remaining_total,
                 )
-                robots_body = _decode_http_content(
+                robots_body = await asyncio.to_thread(
+                    _decode_http_content,
                     response.content,
                     content_encoding=response.headers.get("content-encoding", ""),
                     byte_limit=decoded_limit,
@@ -758,7 +744,11 @@ def _build_catalog(
     unique: dict[str, OfficialSourceMetadata] = {}
     for candidate in candidates:
         unique.setdefault(candidate.canonical_url, candidate)
-    selected = sorted(unique.values(), key=lambda item: item.source_id)[:limit]
+    selected = _select_catalog_sources(
+        tuple(unique.values()),
+        limit=limit,
+        discovery_ids=tuple(discovery_ids),
+    )
     return (
         selected,
         {
@@ -780,10 +770,11 @@ def _discover_issuer_links(
     index: OfficialSourceDocument,
     company: CompanyIdentity,
     policy: SourceUrlPolicy,
+    limit: int,
 ) -> list[OfficialSourceMetadata]:
     soup = BeautifulSoup(body, "html.parser")
     discovered: dict[str, OfficialSourceMetadata] = {}
-    for anchor in soup.find_all("a", href=True):
+    for anchor in soup.find_all("a", href=True, limit=MAX_DISCOVERY_ANCHORS):
         href = anchor.get("href")
         if not isinstance(href, str):
             continue
@@ -800,19 +791,74 @@ def _discover_issuer_links(
         if source_type is None:
             continue
         digest = hashlib.sha256(target.encode()).hexdigest()[:20]
-        discovered.setdefault(
-            target,
-            OfficialSourceMetadata(
-                source_id=f"issuer-doc:{digest}",
-                source_key=f"issuer:{company.cik}:{digest}",
-                source_type=source_type,
-                publisher=company.legal_name,
-                title=(title or target.rsplit("/", 1)[-1])[:500],
-                canonical_url=target,
-                published_at=None,
-            ),
+        fallback_title = urlsplit(target).path.rstrip("/").rsplit("/", 1)[-1]
+        metadata = OfficialSourceMetadata(
+            source_id=f"issuer-doc:{digest}",
+            source_key=f"issuer:{company.cik}:{digest}",
+            source_type=source_type,
+            publisher=company.legal_name,
+            title=(title or fallback_title or "Official document")[:500],
+            canonical_url=target,
+            published_at=None,
         )
+        discovered.setdefault(target, metadata)
+        if len(discovered) >= limit:
+            break
     return sorted(discovered.values(), key=lambda source: source.source_id)
+
+
+def _select_catalog_sources(
+    sources: Sequence[OfficialSourceMetadata],
+    *,
+    limit: int,
+    discovery_ids: tuple[str, ...],
+) -> list[OfficialSourceMetadata]:
+    sec_sources = sorted(
+        (source for source in sources if source.source_type == "sec_filing"),
+        key=lambda source: (
+            -(source.published_at.toordinal() if source.published_at else 0),
+            source.source_id,
+        ),
+    )
+    issuer_sources = sorted(
+        (source for source in sources if source.source_type != "sec_filing"),
+        key=lambda source: (
+            source.source_id not in discovery_ids,
+            source.source_type,
+            source.source_id,
+        ),
+    )
+    issuer_limit = min(len(issuer_sources), max(1, limit // 2))
+    if sec_sources:
+        issuer_limit = min(issuer_limit, max(0, limit - 1))
+    selected = [
+        *issuer_sources[:issuer_limit],
+        *sec_sources[: limit - issuer_limit],
+    ]
+    if len(selected) < limit:
+        remaining = limit - len(selected)
+        selected.extend(issuer_sources[issuer_limit : issuer_limit + remaining])
+    return selected
+
+
+def _prepare_artifact(body: bytes) -> tuple[str, bytes, str]:
+    digest = hashlib.sha256(body).hexdigest()
+    compressed = gzip.compress(body, compresslevel=6, mtime=0)
+    return digest, compressed, hashlib.sha256(compressed).hexdigest()
+
+
+def _decompress_artifact(content: bytes, *, byte_limit: int) -> bytes:
+    decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    try:
+        decoded = decoder.decompress(content, byte_limit + 1)
+        if decoder.unconsumed_tail or len(decoded) > byte_limit:
+            raise SourceCollectionError("SOURCE_ARTIFACT_TOO_LARGE")
+        decoded += decoder.flush(byte_limit + 1 - len(decoded))
+    except zlib.error:
+        raise SourceCollectionError("SOURCE_ARTIFACT_INVALID") from None
+    if len(decoded) > byte_limit or not decoder.eof:
+        raise SourceCollectionError("SOURCE_ARTIFACT_TOO_LARGE")
+    return decoded
 
 
 def _classify_issuer_link(url: str, title: str) -> SourceType | None:
