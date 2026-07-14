@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import UUID
+
+from pydantic import BaseModel
 
 from app.quota.schemas import QuotaStatus
 from app.supply_chain.schemas import (
@@ -12,11 +16,19 @@ from app.supply_chain.schemas import (
     GraphVerification,
     OfficialSourceDocument,
     OfficialSourceMetadata,
-    PublicSupplyChainGraph,
     ResolvedEntity,
     SourcePlan,
     SourceType,
 )
+
+if TYPE_CHECKING:
+    from app.models.supply_chain_model import SupplyChainGraphSnapshot
+    from app.supply_chain.repository import (
+        CreateWorkingSnapshotCommand,
+        GraphVersionKey,
+        PersistedGraph,
+        PublishGraphCommand,
+    )
 
 
 class GraphArtifactStore(Protocol):
@@ -98,62 +110,34 @@ class EntityResolver(Protocol):
 
 
 class SupplyChainGraphRepository(Protocol):
-    async def latest_public(
-        self,
-        *,
-        company_id: int,
-        locale: Literal["en", "zh"],
-    ) -> PublicSupplyChainGraph | None: ...
+    def latest_public(self, company_id: int) -> SupplyChainGraphSnapshot | None: ...
 
-    async def get_version(
-        self,
-        *,
-        company_id: int,
-        source_fingerprint: str,
-        schema_version: str,
-        prompt_version: str,
-        model_id: str,
-    ) -> UUID | None: ...
+    def find_by_version_key(
+        self, key: GraphVersionKey
+    ) -> SupplyChainGraphSnapshot | None: ...
 
-    async def create_working_snapshot(
-        self,
-        *,
-        company_id: int,
-        source_fingerprint: str,
-        schema_version: str,
-        prompt_version: str,
-        model_id: str,
-    ) -> UUID: ...
+    def create_working_snapshot(
+        self, command: CreateWorkingSnapshotCommand
+    ) -> SupplyChainGraphSnapshot: ...
 
-    async def save_stage(
+    def save_stage(
         self,
-        *,
         snapshot_id: UUID,
-        stage: Literal["source_plan", "draft", "verification", "localization"],
-        payload: dict[str, object],
+        *,
+        stage: str,
+        payload: BaseModel | dict[str, object],
     ) -> None: ...
 
-    async def load_stage(
+    def load_stage(
         self,
-        *,
         snapshot_id: UUID,
-        stage: Literal["source_plan", "draft", "verification", "localization"],
+        *,
+        stage: str,
     ) -> dict[str, object] | None: ...
 
-    async def publish(
-        self,
-        *,
-        snapshot_id: UUID,
-        graph: AcceptedGraph,
-        localization: GraphLocalization,
-    ) -> PublicSupplyChainGraph: ...
+    def publish(self, command: PublishGraphCommand) -> SupplyChainGraphSnapshot: ...
 
-    async def load_public(
-        self,
-        *,
-        snapshot_id: UUID,
-        locale: Literal["en", "zh"],
-    ) -> PublicSupplyChainGraph | None: ...
+    def load_public(self, snapshot_id: UUID) -> PersistedGraph: ...
 
 
 class GraphQuotaLedger(Protocol):
