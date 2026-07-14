@@ -5,6 +5,9 @@ import type {
   IntelligenceResponse,
   MarketResponse,
   QuotaStatus,
+  SupplyChainGraphEdge,
+  SupplyChainGraphNode,
+  SupplyChainGraphResponse,
 } from "@/lib/research/types";
 
 export const companyFixture: Company = {
@@ -199,8 +202,163 @@ export const jobFixture: IngestionJob = {
   attempt_count: 0,
   retry_eligible: true,
   error_code: null,
+  result_kind: "company_intelligence",
   snapshot_id: null,
+  graph_snapshot_id: null,
   provider_run_id: "fake:job",
   created_at: "2026-07-13T15:00:00Z",
   updated_at: "2026-07-13T15:00:00Z",
+};
+
+const focusNode: SupplyChainGraphNode = {
+  id: "30000000-0000-4000-8000-000000000000",
+  node_key: "company:0000320193",
+  kind: "company",
+  layer: "core",
+  label: "Apple Inc.",
+  description: "Designs the integrated device, software, and services ecosystem.",
+  symbol: "AAPL",
+  cik: "0000320193",
+  importance: 1,
+  confidence: "High",
+  rank: 0,
+};
+
+const upstreamNodes: SupplyChainGraphNode[] = Array.from(
+  { length: 12 },
+  (_, index) => ({
+    id: `31000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    node_key: `upstream:${String(index + 1).padStart(2, "0")}`,
+    kind: index < 6 ? "company" : "category",
+    layer: "upstream",
+    label: `Supplier ${index + 1}`,
+    description: `Fixture supplier ${index + 1} provides a critical input or manufacturing capability.`,
+    symbol: index < 6 ? `SUP${index + 1}` : null,
+    cik: null,
+    importance: 0.92 - index * 0.025,
+    confidence: index % 3 === 0 ? "High" : "Medium",
+    rank: index,
+  }),
+);
+
+const downstreamNodes: SupplyChainGraphNode[] = Array.from(
+  { length: 12 },
+  (_, index) => ({
+    id: `32000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    node_key: `downstream:${String(index + 1).padStart(2, "0")}`,
+    kind: index < 5 ? "company" : "business",
+    layer: "downstream",
+    label: `Channel ${index + 1}`,
+    description: `Fixture channel ${index + 1} reaches a customer segment or distribution market.`,
+    symbol: index < 5 ? `BUY${index + 1}` : null,
+    cik: null,
+    importance: 0.88 - index * 0.025,
+    confidence: index % 4 === 0 ? "High" : "Medium",
+    rank: index,
+  }),
+);
+
+function graphEdge(
+  node: SupplyChainGraphNode,
+  index: number,
+): SupplyChainGraphEdge {
+  const upstream = node.layer === "upstream";
+  const potential = index % 5 === 4;
+  return {
+    id: `33000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    edge_key: `${upstream ? node.node_key : focusNode.node_key}|${upstream ? "supplies" : "sells_to"}|${upstream ? focusNode.node_key : node.node_key}`,
+    source: upstream ? node.id : focusNode.id,
+    target: upstream ? focusNode.id : node.id,
+    relationship_type: upstream ? "supplies" : "sells_to",
+    evidence_status: potential ? "potential" : "verified",
+    confidence: potential ? "Medium" : "High",
+    importance: node.importance,
+    explanation: upstream
+      ? `${node.label} supports a documented Apple input dependency.`
+      : `Apple reaches ${node.label} through a documented route to market.`,
+    citations: [
+      {
+        id: `34000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+        source_id: "35000000-0000-4000-8000-000000000001",
+        source_key: "sec:0000320193:2025-10-k",
+        excerpt: `This fixture evidence supports relationship ${index + 1} with exact source text.`,
+        locator: `Item 1, paragraph ${index + 1}`,
+        support_role: "primary",
+        confidence: potential ? 0.68 : 0.94,
+      },
+    ],
+  };
+}
+
+const graphNodes = [...upstreamNodes, focusNode, ...downstreamNodes];
+const graphEdges = [...upstreamNodes, ...downstreamNodes].map(graphEdge);
+const graphRefreshJob: IngestionJob = {
+  ...jobFixture,
+  id: "36000000-0000-4000-8000-000000000001",
+  state: "collecting",
+  current_step: "collecting",
+  result_kind: "supply_chain_graph",
+  graph_snapshot_id: "37000000-0000-4000-8000-000000000001",
+};
+
+export const supplyChainGraphFixture: SupplyChainGraphResponse = {
+  snapshot: {
+    id: "37000000-0000-4000-8000-000000000001",
+    status: "completed",
+    symbol: "AAPL",
+    model_id: "gpt-5-mini",
+    focus_node_key: focusNode.node_key,
+    thesis: "Apple coordinates a concentrated component network and global routes to market.",
+    evidence_coverage: "complete",
+    overall_confidence: "High",
+    node_count: graphNodes.length,
+    edge_count: graphEdges.length,
+    generated_at: "2026-07-14T12:00:00Z",
+  },
+  nodes: graphNodes,
+  edges: graphEdges,
+  sources: [
+    {
+      id: "35000000-0000-4000-8000-000000000001",
+      source_id: "sec:2025-10-k",
+      source_key: "sec:0000320193:2025-10-k",
+      source_type: "sec_filing",
+      publisher: "Apple Inc.",
+      title: "Apple 2025 Form 10-K",
+      canonical_url: "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+      published_at: "2025-10-31",
+    },
+    {
+      id: "35000000-0000-4000-8000-000000000002",
+      source_id: "issuer:fy2025-results",
+      source_key: "issuer:0000320193:fy2025-results",
+      source_type: "official_press_release",
+      publisher: "Apple Inc.",
+      title: "Apple reports fourth quarter results",
+      canonical_url: "https://www.apple.com/newsroom/2025/10/apple-reports-fourth-quarter-results/",
+      published_at: "2025-10-30",
+    },
+  ],
+  refresh_job: graphRefreshJob,
+  quota: quotaFixture,
+};
+
+export const supplyChainGraphCachedFixture: SupplyChainGraphResponse = {
+  ...supplyChainGraphFixture,
+  refresh_job: null,
+};
+
+export const supplyChainGraphInsufficientFixture: SupplyChainGraphResponse = {
+  ...supplyChainGraphFixture,
+  snapshot: {
+    ...supplyChainGraphFixture.snapshot,
+    status: "insufficient_evidence",
+    evidence_coverage: "insufficient_evidence",
+    overall_confidence: "Low",
+    thesis: "Available official evidence supports only a partial supply-chain view.",
+  },
+  edges: supplyChainGraphFixture.edges.filter(
+    (edge) => edge.evidence_status === "verified",
+  ).slice(0, 4),
+  refresh_job: null,
 };

@@ -33,6 +33,9 @@ export type JobStatus =
   | "downloading"
   | "parsing"
   | "analyzing"
+  | "collecting"
+  | "extracting"
+  | "resolving"
   | "verifying"
   | "localizing"
   | "completed"
@@ -165,7 +168,9 @@ export interface IngestionJob {
   attempt_count: number;
   retry_eligible: boolean;
   error_code: string | null;
+  result_kind: "company_intelligence" | "supply_chain_graph";
   snapshot_id: string | null;
+  graph_snapshot_id: string | null;
   provider_run_id: string | null;
   created_at: string;
   updated_at: string;
@@ -178,6 +183,97 @@ export interface SyncResponse {
   quota: QuotaStatus;
 }
 
+export type SupplyChainNodeKind =
+  | "company"
+  | "business"
+  | "product"
+  | "category";
+export type SupplyChainLayer = "upstream" | "core" | "downstream";
+export type SupplyChainEvidenceStatus = "verified" | "potential";
+
+export interface SupplyChainSnapshotSummary {
+  id: string;
+  status: "completed" | "insufficient_evidence";
+  symbol: string;
+  model_id: string;
+  focus_node_key: string;
+  thesis: string;
+  evidence_coverage: EvidenceCoverage;
+  overall_confidence: Confidence | null;
+  node_count: number;
+  edge_count: number;
+  generated_at: string;
+}
+
+export interface SupplyChainGraphNode {
+  id: string;
+  node_key: string;
+  kind: SupplyChainNodeKind;
+  layer: SupplyChainLayer;
+  label: string;
+  description: string;
+  symbol: string | null;
+  cik: string | null;
+  importance: number;
+  confidence: Confidence;
+  rank: number;
+}
+
+export interface SupplyChainCitation {
+  id: string;
+  source_id: string;
+  source_key: string;
+  excerpt: string;
+  locator: string;
+  support_role: "primary" | "corroborating";
+  confidence: number;
+}
+
+export interface SupplyChainGraphEdge {
+  id: string;
+  edge_key: string;
+  source: string;
+  target: string;
+  relationship_type: string;
+  evidence_status: SupplyChainEvidenceStatus;
+  confidence: Confidence;
+  importance: number;
+  explanation: string;
+  citations: SupplyChainCitation[];
+}
+
+export interface SupplyChainSource {
+  id: string;
+  source_id: string;
+  source_key: string;
+  source_type:
+    | "sec_filing"
+    | "annual_report"
+    | "ir_page"
+    | "official_press_release";
+  publisher: string;
+  title: string;
+  canonical_url: string;
+  published_at: string | null;
+}
+
+export interface SupplyChainGraphResponse {
+  snapshot: SupplyChainSnapshotSummary;
+  nodes: SupplyChainGraphNode[];
+  edges: SupplyChainGraphEdge[];
+  sources: SupplyChainSource[];
+  refresh_job: IngestionJob | null;
+  quota: QuotaStatus;
+}
+
+export interface GraphSyncResponse {
+  status: "accepted" | "active_job" | "reused_snapshot";
+  job: IngestionJob | null;
+  job_id: string | null;
+  snapshot_id: string | null;
+  quota: QuotaStatus;
+}
+
 type ResearchResponseMap = {
   company: Company;
   market: MarketResponse;
@@ -186,6 +282,8 @@ type ResearchResponseMap = {
   quota: QuotaStatus;
   job: IngestionJob;
   sync: SyncResponse;
+  supplyChainGraph: SupplyChainGraphResponse;
+  graphSync: GraphSyncResponse;
 };
 
 export function parseResearchResponse<K extends keyof ResearchResponseMap>(
@@ -201,9 +299,11 @@ export function parseResearchResponse<K extends keyof ResearchResponseMap>(
     quota: ["limit", "used", "remaining", "resets_at"],
     job: ["id", "company_symbol", "state", "current_step"],
     sync: ["status", "quota"],
+    supplyChainGraph: ["snapshot", "nodes", "edges", "sources", "quota"],
+    graphSync: ["status", "quota"],
   };
   for (const field of requiredFields[kind]) {
-    if (!(field in record)) {
+    if (!(field in record) || record[field] === undefined) {
       throw new Error(`Invalid ${kind} response: missing ${field}`);
     }
   }
