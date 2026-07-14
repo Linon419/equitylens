@@ -279,6 +279,27 @@ class GraphNodeDraft(StrictValueModel):
             raise ValueError("duplicate node aliases")
         if self.label_en.casefold() in normalized:
             raise ValueError("canonical node label cannot also be an alias")
+        if self.resolution_status is None and self.resolution_basis is None:
+            return self
+        allowed = {
+            "company": {
+                "resolved": {"cik", "ticker", "legal_name"},
+                "unresolved": {"unresolved_hash"},
+                "ambiguous": {"ambiguous_name"},
+            },
+            "entity": {
+                "resolved": {"deterministic_key"},
+                "unresolved": set(),
+                "ambiguous": set(),
+            },
+        }
+        kind_group = "company" if self.kind == "company" else "entity"
+        if (
+            self.resolution_status is None
+            or self.resolution_basis is None
+            or self.resolution_basis not in allowed[kind_group][self.resolution_status]
+        ):
+            raise ValueError("resolution audit fields are inconsistent")
         return self
 
 

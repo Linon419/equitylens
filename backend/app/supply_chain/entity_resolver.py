@@ -127,7 +127,6 @@ class DeterministicEntityResolver:
                     cik=node.cik,
                 )
             )
-            resolved = _preserve_resolution_audit(node, resolved)
             redirects[node.node_key] = resolved.node_key
             node_groups[resolved.node_key].append((node, resolved))
 
@@ -207,6 +206,9 @@ def _merge_node(
         )[0]
     )
     canonical_label = selected_entity.legal_name or content_node.label_en
+    resolution_basis: ResolutionBasis = selected_entity.resolution_basis
+    if selected_entity.resolution_status == "resolved" and selected_entity.cik:
+        resolution_basis = "cik"
     aliases = _merged_aliases(members, canonical_label=canonical_label)
     return GraphNodeDraft(
         node_key=node_key,
@@ -225,7 +227,7 @@ def _merge_node(
         rank=min(node.rank for node, _ in members),
         aliases=aliases,
         resolution_status=selected_entity.resolution_status,
-        resolution_basis=selected_entity.resolution_basis,
+        resolution_basis=resolution_basis,
     )
 
 
@@ -312,25 +314,6 @@ def _deduplicate_evidence(
     )
     retained = sorted(ordered[:12], key=lambda item: item[0])
     return [record[1] for _, record in retained]
-
-
-def _preserve_resolution_audit(
-    node: GraphNodeDraft,
-    resolved: ResolvedEntity,
-) -> ResolvedEntity:
-    if (
-        node.node_key != resolved.node_key
-        or node.resolution_status is None
-        or node.resolution_basis is None
-    ):
-        return resolved
-    return resolved.model_copy(
-        update={
-            "resolution_status": node.resolution_status,
-            "resolution_basis": node.resolution_basis,
-            "confidence": _BASIS_CONFIDENCE[node.resolution_basis],
-        }
-    )
 
 
 def _merged_aliases(

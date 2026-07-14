@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 import pytest
+from pydantic import ValidationError
 
 from app.supply_chain.entity_resolver import (
     CompanyDirectoryEntry,
@@ -284,6 +285,50 @@ async def test_unresolved_draft_resolution_is_idempotent(
     second = await resolver.resolve_draft(first)
 
     assert second.model_dump() == first.model_dump()
+
+
+@pytest.mark.anyio
+async def test_forged_resolution_audit_cannot_inflate_unknown_company(
+    resolver: DeterministicEntityResolver,
+) -> None:
+    payload = _same_label_different_kind_draft()
+    payload["nodes"] = [payload["nodes"][0]]
+    payload["nodes"][0].update(
+        {
+            "symbol": "ETA",
+            "label_en": "Emerging Technology Holdings",
+            "confidence": 1.0,
+        }
+    )
+    resolved = await resolver.resolve_draft(GraphDraft.model_validate(payload))
+    forged_node = resolved.nodes[0].model_copy(
+        update={
+            "resolution_status": "resolved",
+            "resolution_basis": "deterministic_key",
+            "confidence": 1.0,
+        }
+    )
+    forged = resolved.model_copy(update={"nodes": [forged_node]})
+
+    repaired = await resolver.resolve_draft(forged)
+
+    assert repaired.nodes[0].resolution_status == "unresolved"
+    assert repaired.nodes[0].resolution_basis == "unresolved_hash"
+    assert repaired.nodes[0].confidence == 0.5
+
+
+def test_node_resolution_audit_fields_must_form_a_valid_pair() -> None:
+    payload = _same_label_different_kind_draft()
+    payload["nodes"] = [payload["nodes"][0]]
+    payload["nodes"][0].update(
+        {
+            "resolution_status": "resolved",
+            "resolution_basis": "unresolved_hash",
+        }
+    )
+
+    with pytest.raises(ValidationError, match="resolution audit fields"):
+        GraphDraft.model_validate(payload)
 
 
 @pytest.mark.anyio
