@@ -26,10 +26,12 @@ describe("research BFF route", () => {
     ["GET", "companies/AAPL/market"],
     ["GET", "companies/AAPL/financials"],
     ["GET", "companies/AAPL/intelligence"],
+    ["GET", "companies/AAPL/supply-chain-graph"],
     ["GET", "jobs/11111111-1111-4111-8111-111111111111"],
     ["GET", "agent-quota"],
     ["GET", "watchlist"],
     ["POST", "companies/AAPL/sync"],
+    ["POST", "companies/AAPL/supply-chain-graph/sync"],
     ["POST", "jobs/11111111-1111-4111-8111-111111111111/retry"],
     ["POST", "watchlist/AAPL"],
     ["DELETE", "watchlist/AAPL"],
@@ -43,6 +45,7 @@ describe("research BFF route", () => {
     ["DELETE", "companies/AAPL"],
     ["GET", "../auth/me"],
     ["GET", "%2e%2e/auth/me"],
+    ["DELETE", "companies/AAPL/supply-chain-graph"],
   ])("blocks %s %s", (method, path) => {
     expect(isAllowedResearchRequest(method, path)).toBe(false);
   });

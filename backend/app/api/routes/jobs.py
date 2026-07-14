@@ -53,8 +53,15 @@ async def retry_failed_job(
     session: SessionDep,
     principal: AgentPrincipal,
     backend: JobBackendDep,
+    repository: QuotaRepositoryDep,
 ) -> JobPublic:
-    job = await retry_job(session, job_id, principal, backend)
+    job = await retry_job(
+        session,
+        job_id,
+        principal,
+        backend,
+        quota_repository=repository,
+    )
     company = session.get(Company, job.company_id)
     if company is None:
         raise DomainError("COMPANY_NOT_FOUND", 404)

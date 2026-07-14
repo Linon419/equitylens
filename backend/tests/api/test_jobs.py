@@ -82,3 +82,29 @@ def test_agent_endpoints_require_guest_assertion_or_user_token(phase_2_api) -> N
 
     assert response.status_code == 401
     assert response.json()["code"] == "GUEST_ASSERTION_REQUIRED"
+
+
+def test_graph_dispatch_failure_retry_rereserves_quota(phase_2_api) -> None:
+    headers = guest_headers(GUEST_ONE)
+    phase_2_api.jobs.fail = True
+    accepted = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": True},
+        headers=headers,
+    )
+
+    assert accepted.status_code == 202
+    payload = accepted.json()
+    assert payload["job"]["state"] == "failed"
+    assert payload["quota"]["used"] == 0
+
+    phase_2_api.jobs.fail = False
+    retried = phase_2_api.client.post(
+        f"/api/v1/jobs/{payload['job']['id']}/retry",
+        headers=headers,
+    )
+
+    assert retried.status_code == 200
+    assert retried.json()["result_kind"] == "supply_chain_graph"
+    quota = phase_2_api.client.get("/api/v1/agent-quota", headers=headers)
+    assert quota.json()["used"] == 1

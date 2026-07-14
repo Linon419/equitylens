@@ -20,7 +20,10 @@ from app.filings.sec_client import SecClient
 from app.jobs.pipeline import CompanyIntelligencePipeline
 from app.jobs.rq_backend import RQJobBackend
 from app.jobs.schemas import JobBackend
-from app.jobs.service import UnconfiguredJobBackend
+from app.jobs.service import (
+    GraphSynchronizationServices,
+    UnconfiguredJobBackend,
+)
 from app.jobs.vercel_backend import VercelWorkflowBackend
 from app.market_data.yahoo import YahooMarketDataProvider
 from app.models.auth_model import AuthSession
@@ -57,6 +60,7 @@ from app.supply_chain.pipeline import (
     SupplyChainPipelineServices,
 )
 from app.supply_chain.repository import SqlSupplyChainGraphRepository
+from app.supply_chain.service import SupplyChainGraphService
 from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
 from app.supply_chain.validator import validate_for_publication
 
@@ -403,6 +407,47 @@ def get_supply_chain_graph_pipeline(
 SupplyChainGraphPipelineDep = Annotated[
     SupplyChainGraphPipeline,
     Depends(get_supply_chain_graph_pipeline),
+]
+
+
+def get_supply_chain_graph_service(
+    session: SessionDep,
+    quota_repository: QuotaRepositoryDep,
+) -> SupplyChainGraphService:
+    return SupplyChainGraphService(
+        session=session,
+        repository=SqlSupplyChainGraphRepository(session),
+        quota_repository=quota_repository,
+        guest_limit=settings.GUEST_DAILY_ANALYSIS_LIMIT,
+        user_limit=settings.USER_DAILY_ANALYSIS_LIMIT,
+    )
+
+
+SupplyChainGraphServiceDep = Annotated[
+    SupplyChainGraphService,
+    Depends(get_supply_chain_graph_service),
+]
+
+
+def get_graph_synchronization_services(
+    quota_repository: QuotaRepositoryDep,
+    backend: JobBackendDep,
+) -> GraphSynchronizationServices:
+    return GraphSynchronizationServices(
+        quota_repository=quota_repository,
+        job_backend=backend,
+        schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
+        prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
+        model_id=settings.SUPPLY_CHAIN_GRAPH_MODEL,
+        guest_limit=settings.GUEST_DAILY_ANALYSIS_LIMIT,
+        user_limit=settings.USER_DAILY_ANALYSIS_LIMIT,
+        ip_limit=settings.IP_DAILY_ANALYSIS_LIMIT,
+    )
+
+
+GraphSynchronizationServicesDep = Annotated[
+    GraphSynchronizationServices,
+    Depends(get_graph_synchronization_services),
 ]
 
 

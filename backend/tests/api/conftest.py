@@ -18,8 +18,10 @@ from app.api.deps import (
     get_job_backend,
     get_market_data_provider,
     get_sec_data_provider,
+    get_supply_chain_graph_service,
 )
 from app.auth.errors import AuthError
+from app.core.errors import DomainError
 from app.jobs.errors import JobDispatchError
 from app.jobs.schemas import JobSubmission
 from app.main import create_app
@@ -119,11 +121,79 @@ class FakeJobBackend:
 
 
 @dataclass
+class FakeSupplyChainGraphService:
+    calls: list[dict] = field(default_factory=list)
+    missing: bool = False
+
+    def get_current(
+        self,
+        *,
+        company,
+        principal,
+        locale: str,
+        evidence: set[str],
+        limit: int,
+    ):
+        self.calls.append(
+            {
+                "symbol": company.symbol,
+                "principal_type": principal.principal_type,
+                "locale": locale,
+                "evidence": evidence,
+                "limit": limit,
+            }
+        )
+        if self.missing:
+            raise DomainError("GRAPH_NOT_FOUND", 404)
+        localized = locale == "zh"
+        return {
+            "snapshot": {
+                "id": "11111111-1111-4111-8111-111111111111",
+                "status": "completed",
+                "symbol": company.symbol,
+                "model_id": "gpt-5-mini",
+                "focus_node_key": "company:0000320193",
+                "thesis": "苹果产业链" if localized else "Apple supply chain",
+                "evidence_coverage": "complete",
+                "overall_confidence": "High",
+                "node_count": 1,
+                "edge_count": 0,
+                "generated_at": "2026-07-14T12:00:00Z",
+            },
+            "nodes": [
+                {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "node_key": "company:0000320193",
+                    "kind": "company",
+                    "layer": "core",
+                    "label": "苹果" if localized else "Apple Inc.",
+                    "description": "核心公司" if localized else "Focal company",
+                    "symbol": company.symbol,
+                    "cik": company.cik,
+                    "importance": 1.0,
+                    "confidence": "High",
+                    "rank": 0,
+                }
+            ],
+            "edges": [],
+            "sources": [],
+            "refresh_job": None,
+            "quota": {
+                "limit": 2,
+                "used": 0,
+                "remaining": 2,
+                "resets_at": "2026-07-15T00:00:00Z",
+            },
+        }
+
+
+@dataclass
 class Phase2ApiHarness:
     client: TestClient
     market: FakeMarketProvider
     sec: FakeSecProvider
     jobs: FakeJobBackend
+    graphs: FakeSupplyChainGraphService
     engine: object
 
 
@@ -138,6 +208,7 @@ def phase_2_api() -> Generator[Phase2ApiHarness, None, None]:
     market = FakeMarketProvider()
     sec = FakeSecProvider()
     jobs = FakeJobBackend()
+    graphs = FakeSupplyChainGraphService()
     app = create_app()
 
     def override_db() -> Generator[Session, None, None]:
@@ -158,6 +229,7 @@ def phase_2_api() -> Generator[Phase2ApiHarness, None, None]:
     app.dependency_overrides[get_market_data_provider] = lambda: market
     app.dependency_overrides[get_sec_data_provider] = lambda: sec
     app.dependency_overrides[get_job_backend] = lambda: jobs
+    app.dependency_overrides[get_supply_chain_graph_service] = lambda: graphs
     app.dependency_overrides[get_current_user] = override_current_user
 
     with TestClient(app) as client:
@@ -166,5 +238,6 @@ def phase_2_api() -> Generator[Phase2ApiHarness, None, None]:
             market=market,
             sec=sec,
             jobs=jobs,
+            graphs=graphs,
             engine=engine,
         )

@@ -1,13 +1,30 @@
-from datetime import date
+from datetime import UTC, date, datetime
+from uuid import UUID
 
 from sqlmodel import Session, select
 
 from app.models.company_model import Company
+from app.models.job_model import IngestionJob
 from app.models.research_model import (
     CompanyIntelligenceSnapshot,
     Filing,
     FilingSection,
 )
+from app.models.supply_chain_model import SupplyChainGraphSnapshot
+from app.quota.identity import sign_guest_assertion
+
+GRAPH_GUEST = "33333333-3333-4333-8333-333333333333"
+
+
+def graph_headers(guest_id: str = GRAPH_GUEST) -> dict[str, str]:
+    return {
+        "x-guest-assertion": sign_guest_assertion(
+            guest_id=guest_id,
+            ip_hash="c" * 64,
+            secret="g" * 32,
+            now=datetime.now(UTC),
+        )
+    }
 
 
 def test_company_search_and_identity_are_public(phase_2_api) -> None:
@@ -160,3 +177,149 @@ def test_company_identity_returns_stable_not_found(phase_2_api) -> None:
 
     assert response.status_code == 404
     assert response.json()["code"] == "COMPANY_NOT_FOUND"
+
+
+def test_supply_chain_graph_defaults_to_verified_english(phase_2_api) -> None:
+    response = phase_2_api.client.get(
+        "/api/v1/companies/AAPL/supply-chain-graph",
+        headers=graph_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["snapshot"]["symbol"] == "AAPL"
+    assert payload["snapshot"]["thesis"] == "Apple supply chain"
+    assert payload["quota"]["limit"] == 2
+    assert phase_2_api.graphs.calls[-1]["evidence"] == {"verified"}
+    assert phase_2_api.graphs.calls[-1]["limit"] == 40
+
+
+def test_supply_chain_graph_supports_chinese_and_potential_edges(
+    phase_2_api,
+) -> None:
+    response = phase_2_api.client.get(
+        "/api/v1/companies/AAPL/supply-chain-graph"
+        "?locale=zh&evidence=verified,potential&limit=10",
+        headers=graph_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["nodes"][0]["label"] == "苹果"
+    assert phase_2_api.graphs.calls[-1]["evidence"] == {
+        "verified",
+        "potential",
+    }
+    assert phase_2_api.graphs.calls[-1]["limit"] == 10
+
+
+def test_supply_chain_graph_rejects_invalid_filters(phase_2_api) -> None:
+    for query in ("evidence=potential", "locale=fr", "limit=99"):
+        response = phase_2_api.client.get(
+            f"/api/v1/companies/AAPL/supply-chain-graph?{query}",
+            headers=graph_headers(),
+        )
+        assert response.status_code == 422
+
+
+def test_supply_chain_graph_returns_stable_missing_error(phase_2_api) -> None:
+    phase_2_api.graphs.missing = True
+
+    response = phase_2_api.client.get(
+        "/api/v1/companies/AAPL/supply-chain-graph",
+        headers=graph_headers(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "GRAPH_NOT_FOUND"
+
+
+def test_supply_chain_graph_sync_accepts_graph_job(phase_2_api) -> None:
+    response = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": True},
+        headers=graph_headers(),
+    )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "accepted"
+    assert payload["job"]["result_kind"] == "supply_chain_graph"
+    assert payload["job"]["graph_snapshot_id"] is None
+    assert payload["quota"]["used"] == 1
+
+    duplicate = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": False},
+        headers=graph_headers(),
+    )
+    assert duplicate.status_code == 202
+    assert duplicate.json()["status"] == "active_job"
+
+
+def test_supply_chain_graph_sync_reuses_completed_cached_snapshot(
+    phase_2_api,
+) -> None:
+    headers = graph_headers()
+    accepted = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": False},
+        headers=headers,
+    )
+    job_id = UUID(accepted.json()["job"]["id"])
+    with Session(phase_2_api.engine) as session:
+        job = session.get(IngestionJob, job_id)
+        assert job is not None
+        snapshot = SupplyChainGraphSnapshot(
+            company_id=job.company_id,
+            status="completed",
+            schema_version="supply-chain-graph.v1",
+            prompt_version="supply-chain-graph.2026-07-14",
+            model_id="gpt-5-mini",
+            source_fingerprint="d" * 64,
+            content_en={"focus_node_key": "company:0000320193"},
+            content_zh={"focus_node_key": "company:0000320193"},
+            evidence_coverage="complete",
+            node_count=1,
+            edge_count=0,
+            generated_at=datetime.now(UTC),
+            verified_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+        session.add(snapshot)
+        session.flush()
+        job.state = "completed"
+        job.current_step = "completed"
+        job.graph_snapshot_id = snapshot.id
+        snapshot_id = snapshot.id
+        session.add(job)
+        session.commit()
+
+    reused = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": False},
+        headers=headers,
+    )
+
+    assert reused.status_code == 200
+    assert reused.json()["status"] == "reused_snapshot"
+    assert reused.json()["snapshot_id"] == str(snapshot_id)
+
+
+def test_supply_chain_graph_sync_shares_active_job_across_guests(
+    phase_2_api,
+) -> None:
+    first = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": False},
+        headers=graph_headers("44444444-4444-4444-8444-444444444444"),
+    )
+    second = phase_2_api.client.post(
+        "/api/v1/companies/AAPL/supply-chain-graph/sync",
+        json={"force_refresh": False},
+        headers=graph_headers("55555555-5555-4555-8555-555555555555"),
+    )
+
+    assert first.status_code == second.status_code == 202
+    assert second.json()["status"] == "active_job"
+    assert second.json()["job"]["id"] == first.json()["job"]["id"]
+    assert second.json()["quota"]["used"] == 0
