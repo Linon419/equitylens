@@ -120,7 +120,7 @@ class CompanyIntelligencePipeline:
         operation: Callable[[IngestionJob], Awaitable[None]],
     ) -> bool:
         job = self._lock_job(job_id)
-        if has_reached(job.state, target):
+        if has_reached(job.job_type, job.state, target):
             return False
         if job.state != expected:
             raise DomainError("JOB_STATE_CONFLICT", 409)
@@ -137,9 +137,9 @@ class CompanyIntelligencePipeline:
 
     def _advance(self, job_id: UUID, expected: str, target: str) -> None:
         job = self._lock_job(job_id)
-        if has_reached(job.state, target):
+        if has_reached(job.job_type, job.state, target):
             return
-        job.state = next_state(expected, target)
+        job.state = next_state(job.job_type, expected, target)
         job.current_step = target
         job.error_code = None
         self._session.add(job)

@@ -35,7 +35,7 @@ async def _execute_step(
     job = session.get(IngestionJob, job_id)
     if job is None:
         raise DomainError("JOB_NOT_FOUND", 404)
-    if has_reached(job.state, TARGET_STATE[step]):
+    if has_reached(job.job_type, job.state, TARGET_STATE[step]):
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     method = getattr(pipeline, step)
     await method(job_id)

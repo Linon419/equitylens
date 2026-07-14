@@ -8,14 +8,34 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core.errors import DomainError
+from app.jobs._graph_sync import (
+    GraphSynchronizationServices,
+    graph_deduplication_key,
+    synchronize_supply_chain_graph,
+)
 from app.jobs.errors import JobDispatchError
 from app.jobs.schemas import JobBackend, JobPublic, SyncResponse
+from app.jobs.state import prior_state
 from app.models.company_model import Company
 from app.models.job_model import IngestionJob
 from app.models.research_model import CompanyIntelligenceSnapshot, Filing
 from app.quota.identity import RequestPrincipal
 from app.quota.repository import QuotaRepository
-from app.quota.service import get_quota, reserve_analysis
+from app.quota.service import (
+    get_quota,
+    refund_job_analysis,
+    rereserve_job_analysis,
+    reserve_analysis,
+)
+
+__all__ = [
+    "GraphSynchronizationServices",
+    "SynchronizationServices",
+    "graph_deduplication_key",
+    "retry_job",
+    "synchronize_company",
+    "synchronize_supply_chain_graph",
+]
 
 
 @dataclass(frozen=True)
@@ -160,6 +180,7 @@ async def retry_job(
     principal: RequestPrincipal,
     backend: JobBackend,
     *,
+    quota_repository: QuotaRepository | None = None,
     now: datetime | None = None,
 ) -> IngestionJob:
     job = get_requester_job(session, job_id, principal)
@@ -168,9 +189,20 @@ async def retry_job(
     ):
         raise DomainError("JOB_RETRY_UNAVAILABLE", 409)
     current_time = _as_utc(now or datetime.now(UTC))
+    if job.job_type == "supply_chain_graph":
+        if quota_repository is None:
+            raise DomainError("GRAPH_QUOTA_REPOSITORY_MISSING", 500)
+        rereserved = rereserve_job_analysis(
+            quota_repository,
+            job.id,
+            now=current_time,
+        )
+        if not rereserved:
+            raise DomainError("JOB_RETRY_UNAVAILABLE", 409)
     if job.state == "failed":
-        job.state = "queued"
-        job.current_step = "queued"
+        resume_state = prior_state(job.job_type, job.current_step)
+        job.state = resume_state
+        job.current_step = resume_state
     job.attempt_count += 1
     job.error_code = None
     job.provider_run_id = None
@@ -179,6 +211,16 @@ async def retry_job(
     session.commit()
     session.refresh(job)
     await _dispatch(session, job, backend, current_time)
+    if (
+        job.job_type == "supply_chain_graph"
+        and job.error_code == "JOB_DISPATCH_FAILED"
+        and quota_repository is not None
+    ):
+        job.state = "failed"
+        refund_job_analysis(quota_repository, job.id, now=current_time)
+        session.add(job)
+        session.commit()
+        session.refresh(job)
     return job
 
 

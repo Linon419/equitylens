@@ -15,6 +15,7 @@ from app.supply_chain.schemas import (
     GraphLocalization,
     GraphVerification,
     OfficialSourceDocument,
+    SourcePlan,
 )
 from app.supply_chain.validator import validate_for_publication
 
@@ -68,16 +69,29 @@ def source_documents() -> list[OfficialSourceDocument]:
 
 
 @pytest.fixture
+def graph_draft() -> GraphDraft:
+    return GraphDraft.model_validate(load_fixture("aapl_draft.json"))
+
+
+@pytest.fixture
+def graph_verification() -> GraphVerification:
+    return GraphVerification.model_validate(load_fixture("aapl_verification.json"))
+
+
+@pytest.fixture
+def source_plan() -> SourcePlan:
+    return SourcePlan.model_validate(load_fixture("aapl_sources.json")["source_plan"])
+
+
+@pytest.fixture
 def accepted_graph(
     source_documents: list[OfficialSourceDocument],
+    graph_draft: GraphDraft,
+    graph_verification: GraphVerification,
 ) -> AcceptedGraph:
-    draft = GraphDraft.model_validate(load_fixture("aapl_draft.json"))
-    verification = GraphVerification.model_validate(
-        load_fixture("aapl_verification.json")
-    )
     return validate_for_publication(
-        draft=draft,
-        verification=verification,
+        draft=graph_draft,
+        verification=graph_verification,
         sources=source_documents,
         min_nodes=25,
         max_nodes=40,

@@ -12,19 +12,11 @@ from app.core.config import settings
 from app.filings.sec_client import SecClient
 from app.jobs.errors import PipelineStepError
 from app.jobs.pipeline import CompanyIntelligencePipeline
+from app.jobs.state import prior_state
 from app.models.job_model import IngestionJob
 from app.research.openai_generator import OpenAIIntelligenceGenerator
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
-PRIOR_STATE = {
-    "downloading": "queued",
-    "parsing": "downloading",
-    "analyzing": "parsing",
-    "verifying": "analyzing",
-    "localizing": "verifying",
-}
-
-
 def run_company_intelligence(job_id: str) -> Retry | None:
     try:
         asyncio.run(_run_pipeline(UUID(job_id)))
@@ -85,7 +77,7 @@ def _prepare_retry(session: Session, job_id: UUID) -> None:
             job.error_code or "JOB_RETRY_UNAVAILABLE",
             retryable=False,
         )
-    job.state = PRIOR_STATE.get(job.current_step, "queued")
+    job.state = prior_state(job.job_type, job.current_step)
     job.current_step = job.state
     job.attempt_count += 1
     job.error_code = None
