@@ -78,12 +78,23 @@ class Settings(BaseSettings):
     BLOB_READ_WRITE_TOKEN: str | None = None
     MANAGED_PARSER_API_KEY: str | None = None
     WORKFLOW_TRIGGER_URL: str | None = None
+    SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL: str | None = None
 
     MARKET_DATA_PROVIDER: MarketDataProviderName = MarketDataProviderName.YAHOO
     SEC_USER_AGENT: str
     RESEARCH_MODEL: str = "gpt-5-mini"
     RESEARCH_SCHEMA_VERSION: str = "company-intelligence-v1"
     RESEARCH_PROMPT_VERSION: str = "company-intelligence-2026-07-13"
+    SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE: str | None = None
+    SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION: str = "supply-chain-graph.v1"
+    SUPPLY_CHAIN_GRAPH_PROMPT_VERSION: str = "supply-chain-graph.2026-07-14"
+    SUPPLY_CHAIN_GRAPH_MIN_NODES: int = 25
+    SUPPLY_CHAIN_GRAPH_MAX_NODES: int = 40
+    SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD: float = 0.75
+    SUPPLY_CHAIN_GRAPH_CACHE_TTL_HOURS: int = 24
+    SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT: int = 24
+    SUPPLY_CHAIN_GRAPH_SOURCE_BYTES: int = 8_000_000
+    GRAPH_ARTIFACT_PREFIX: str = "supply-chain"
     GUEST_SIGNING_SECRET: str
     QUOTA_HASH_SECRET: str
     INTERNAL_JOB_SECRET: str
@@ -105,6 +116,10 @@ class Settings(BaseSettings):
     def API_V1_STR(self) -> str:
         return f"/api/{self.API_VERSION}"
 
+    @property
+    def SUPPLY_CHAIN_GRAPH_MODEL(self) -> str:
+        return self.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE or self.RESEARCH_MODEL
+
     @cached_property
     def ASYNC_DATABASE_URI(self) -> str:
         return (
@@ -123,6 +138,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_deployment_profile(self) -> Self:
+        if self.SUPPLY_CHAIN_GRAPH_MIN_NODES < 1:
+            raise ValueError("SUPPLY_CHAIN_GRAPH_MIN_NODES must be at least 1")
+        if self.SUPPLY_CHAIN_GRAPH_MAX_NODES < self.SUPPLY_CHAIN_GRAPH_MIN_NODES:
+            raise ValueError(
+                "SUPPLY_CHAIN_GRAPH_MAX_NODES must be greater than or equal to "
+                "SUPPLY_CHAIN_GRAPH_MIN_NODES"
+            )
+        if not 0 <= self.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD <= 1:
+            raise ValueError(
+                "SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD must be between 0 and 1"
+            )
+
         expected = {
             DeploymentTarget.DOCKER: (
                 ObjectStorageProviderName.S3,
@@ -156,6 +183,7 @@ class Settings(BaseSettings):
                 "BLOB_READ_WRITE_TOKEN",
                 "MANAGED_PARSER_API_KEY",
                 "WORKFLOW_TRIGGER_URL",
+                "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
             ),
         }
         missing = [

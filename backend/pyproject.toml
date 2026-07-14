@@ -7,6 +7,7 @@ dependencies = [
   "alembic>=1.16,<2",
   "asyncpg>=0.30,<1",
   "beautifulsoup4>=4.15,<5",
+  "boto3>=1.39,<2",
   "fastapi>=0.117.1,<1",
   "google-auth[requests]>=2.40,<3",
   "httpx>=0.28,<1",
@@ -26,7 +27,9 @@ dependencies = [
   "rq>=2.4,<3",
   "sqlalchemy>=2.0,<3",
   "sqlmodel>=0.0.24,<0.1",
+  "tldextract>=5.3,<6",
   "uvicorn[standard]>=0.35,<1",
+  "vercel>=0.3,<1",
   "yfinance>=1.5,<2",
 ]
 
@@ -38,7 +41,6 @@ dev = [
   "ruff>=0.12,<1",
 ]
 worker = [
-  "boto3>=1.39,<2",
   "pymupdf>=1.26,<2",
   "pypdf>=5,<7",
   "unstructured[pdf]>=0.18,<1",

@@ -30,6 +30,9 @@ VERCEL_PROVIDERS = {
     "BLOB_READ_WRITE_TOKEN": "test-blob-token",
     "MANAGED_PARSER_API_KEY": "test-parser-key",
     "WORKFLOW_TRIGGER_URL": "https://example.vercel.app/api/internal/workflows/company-intelligence",
+    "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL": (
+        "https://example.vercel.app/api/internal/workflows/supply-chain"
+    ),
 }
 
 
@@ -55,6 +58,49 @@ def test_docker_profile_accepts_docker_providers() -> None:
     assert settings.USER_DAILY_ANALYSIS_LIMIT == 10
     assert settings.IP_DAILY_ANALYSIS_LIMIT == 10
     assert settings.MARKET_QUOTE_TTL_SECONDS == 900
+
+
+def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_MODEL", "gpt-5-mini")
+    settings = Settings(_env_file=None)
+
+    assert settings.SUPPLY_CHAIN_GRAPH_MODEL == "gpt-5-mini"
+    assert settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION == "supply-chain-graph.v1"
+    assert (
+        settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION
+        == "supply-chain-graph.2026-07-14"
+    )
+    assert settings.SUPPLY_CHAIN_GRAPH_MAX_NODES == 40
+    assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 25
+    assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD == 0.75
+
+
+@pytest.mark.parametrize(
+    ("overrides", "invalid_field"),
+    [
+        ({"SUPPLY_CHAIN_GRAPH_MIN_NODES": 0}, "SUPPLY_CHAIN_GRAPH_MIN_NODES"),
+        (
+            {
+                "SUPPLY_CHAIN_GRAPH_MIN_NODES": 25,
+                "SUPPLY_CHAIN_GRAPH_MAX_NODES": 24,
+            },
+            "SUPPLY_CHAIN_GRAPH_MAX_NODES",
+        ),
+        (
+            {"SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD": -0.01},
+            "SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD",
+        ),
+        (
+            {"SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD": 1.01},
+            "SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD",
+        ),
+    ],
+)
+def test_supply_chain_graph_rejects_invalid_bounds(
+    overrides: dict[str, int | float], invalid_field: str
+) -> None:
+    with pytest.raises(ValidationError, match=invalid_field):
+        Settings(**BASE, **DOCKER_PROVIDERS, **overrides)
 
 
 def test_vercel_profile_accepts_vercel_providers() -> None:
@@ -93,10 +139,13 @@ def test_profile_rejects_short_phase_2_secrets(field: str) -> None:
         Settings(**values)
 
 
-def test_vercel_profile_requires_workflow_trigger_url() -> None:
-    providers = {**VERCEL_PROVIDERS, "WORKFLOW_TRIGGER_URL": None}
+@pytest.mark.parametrize(
+    "field", ["WORKFLOW_TRIGGER_URL", "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL"]
+)
+def test_vercel_profile_requires_workflow_trigger_url(field: str) -> None:
+    providers = {**VERCEL_PROVIDERS, field: None}
 
-    with pytest.raises(ValidationError, match="WORKFLOW_TRIGGER_URL"):
+    with pytest.raises(ValidationError, match=field):
         Settings(
             **BASE,
             **providers,
