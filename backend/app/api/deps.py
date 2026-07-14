@@ -40,7 +40,12 @@ from app.supply_chain.artifacts import (
     VercelBlobGraphArtifactStore,
 )
 from app.supply_chain.collector import OfficialSourceCollectorImpl, extract_pdf_text
-from app.supply_chain.contracts import GraphArtifactStore, OfficialSourceCollector
+from app.supply_chain.contracts import (
+    GraphArtifactStore,
+    OfficialSourceCollector,
+    SupplyChainAgent,
+)
+from app.supply_chain.openai_agent import OpenAISupplyChainAgent
 from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
@@ -303,6 +308,28 @@ async def get_official_source_collector(
 OfficialSourceCollectorDep = Annotated[
     OfficialSourceCollector,
     Depends(get_official_source_collector),
+]
+
+
+def get_supply_chain_agent() -> SupplyChainAgent:
+    model_id = settings.SUPPLY_CHAIN_GRAPH_MODEL
+    return OpenAISupplyChainAgent(
+        model=ChatOpenAI(
+            model=model_id,
+            temperature=0,
+            timeout=60,
+            max_retries=0,
+        ),
+        model_id=model_id,
+        schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
+        prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
+        stage_timeout_seconds=60,
+    )
+
+
+SupplyChainAgentDep = Annotated[
+    SupplyChainAgent,
+    Depends(get_supply_chain_agent),
 ]
 
 
