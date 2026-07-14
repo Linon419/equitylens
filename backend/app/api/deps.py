@@ -39,7 +39,9 @@ from app.supply_chain.artifacts import (
     S3GraphArtifactStore,
     VercelBlobGraphArtifactStore,
 )
-from app.supply_chain.contracts import GraphArtifactStore
+from app.supply_chain.collector import OfficialSourceCollectorImpl
+from app.supply_chain.contracts import GraphArtifactStore, OfficialSourceCollector
+from app.supply_chain.source_policy import SystemHostResolver
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
@@ -257,6 +259,33 @@ def get_graph_artifact_store() -> GraphArtifactStore:
 GraphArtifactStoreDep = Annotated[
     GraphArtifactStore,
     Depends(get_graph_artifact_store),
+]
+
+
+async def get_official_source_collector(
+    sec_provider: SecDataProviderDep,
+    artifact_store: GraphArtifactStoreDep,
+) -> AsyncIterator[OfficialSourceCollector]:
+    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
+        yield OfficialSourceCollectorImpl(
+            sec_provider=sec_provider,
+            client=client,
+            artifact_store=artifact_store,
+            resolver=SystemHostResolver(),
+            user_agent=settings.SEC_USER_AGENT,
+            source_limit=settings.SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT,
+            per_source_bytes=min(
+                settings.MAX_FILING_BYTES,
+                settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES,
+            ),
+            total_source_bytes=settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES,
+            min_host_interval=0.1,
+        )
+
+
+OfficialSourceCollectorDep = Annotated[
+    OfficialSourceCollector,
+    Depends(get_official_source_collector),
 ]
 
 

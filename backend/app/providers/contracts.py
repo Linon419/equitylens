@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class JobState(StrEnum):
@@ -62,3 +62,7 @@ class CacheProvider(Protocol):
 
 class DocumentParser(Protocol):
     async def parse(self, *, object_key: str) -> list[ParsedPage]: ...
+
+
+class OfficialSourceDiscoveryProvider(Protocol):
+    async def get_submissions(self, cik: str) -> dict[str, Any]: ...
