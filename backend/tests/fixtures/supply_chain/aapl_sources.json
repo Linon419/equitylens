@@ -1,0 +1,82 @@
+{
+  "company": {
+    "company_id": 1,
+    "symbol": "AAPL",
+    "cik": "0000320193",
+    "legal_name": "Apple Inc.",
+    "exchange": "Nasdaq",
+    "official_hosts": [
+      "apple.com",
+      "sec.gov"
+    ]
+  },
+  "documents": [
+    {
+      "source_id": "apple-2025-10k",
+      "source_key": "source:apple-2025-10k",
+      "source_type": "sec_filing",
+      "publisher": "Apple Inc.",
+      "title": "Synthetic 2025 Form 10-K Fixture",
+      "canonical_url": "https://www.sec.gov/Archives/fixture/apple-2025-10k",
+      "published_at": "2025-10-31",
+      "content_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "artifact_key": "fixtures/supply-chain/apple-2025-10k.txt",
+      "content_type": "text/plain",
+      "body_text": "FIXTURE DATA — Synthetic Apple filing text for deterministic tests.\nApple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and services.\niPhone, Mac, iPad, Wearables Home and Accessories, Apple Services, and Apple Silicon are core Apple businesses or products in this fixture.\nApple Silicon is a component of iPhone, Mac, and iPad product platforms.\nApple Services serves consumer end markets through digital content, cloud, payment, and support offerings."
+    },
+    {
+      "source_id": "apple-2025-supplier-list",
+      "source_key": "source:apple-2025-supplier-list",
+      "source_type": "annual_report",
+      "publisher": "Apple Inc.",
+      "title": "Synthetic Supplier Responsibility Fixture",
+      "canonical_url": "https://www.apple.com/supplier-responsibility/fixture-2025",
+      "published_at": "2025-03-15",
+      "content_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "artifact_key": "fixtures/supply-chain/apple-2025-suppliers.txt",
+      "content_type": "text/plain",
+      "body_text": "FIXTURE DATA — Synthetic Apple supplier report for deterministic tests.\nTSMC Semiconductor Manufacturing fabricates Apple-designed silicon used across Apple products.\nSamsung Display Components supplies display panels associated with Apple product manufacturing.\nSK hynix Memory is identified as a potential memory supplier in this synthetic test record.\nFoxconn Contract Manufacturing assembles selected Apple products for distribution.\nBroadcom Connectivity Components supplies wireless connectivity components used in Apple devices.\nSony Image Sensors supplies camera imaging components used in iPhone products.\nCorning Glass Components supplies durable cover materials used in Apple devices.\nQorvo Radio Frequency supplies radio-frequency components used in iPhone products.\nTexas Instruments Power Management supplies power-management components used in Apple devices.\nArm Architecture licenses processor architecture used by Apple silicon designs."
+    },
+    {
+      "source_id": "apple-channel-program",
+      "source_key": "source:apple-channel-program",
+      "source_type": "ir_page",
+      "publisher": "Apple Inc.",
+      "title": "Synthetic Apple Channel Program Fixture",
+      "canonical_url": "https://www.apple.com/business/channel-fixture",
+      "published_at": "2025-05-01",
+      "content_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "artifact_key": "fixtures/supply-chain/apple-channel-program.txt",
+      "content_type": "text/plain",
+      "body_text": "FIXTURE DATA — Synthetic Apple channel text for deterministic tests.\nUS Wireless Carriers sell iPhone products to downstream customers.\nTechnology Distributors distribute Apple products through authorized reseller networks.\nEnterprise Channels sell Apple products and services to organizational customers.\nConsumer End Markets purchase Apple products and services through retail and online channels.\nAT&T and Verizon are represented as carrier channels for iPhone in this synthetic fixture.\nIngram Micro and TD SYNNEX are represented as technology distributors for Apple products in this synthetic fixture."
+    },
+    {
+      "source_id": "apple-developer-release",
+      "source_key": "source:apple-developer-release",
+      "source_type": "official_press_release",
+      "publisher": "Apple Inc.",
+      "title": "Synthetic Apple Developer Program Release Fixture",
+      "canonical_url": "https://www.apple.com/newsroom/fixture/developer-program",
+      "published_at": "2025-06-10",
+      "content_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "artifact_key": "fixtures/supply-chain/apple-developer-release.txt",
+      "content_type": "text/plain",
+      "body_text": "FIXTURE DATA — Synthetic Apple press release for deterministic tests.\nApple Services provides a platform for software developers through official developer programs.\nApple Inc. serves enterprise customers through Apple at Work channels."
+    }
+  ],
+  "source_plan": {
+    "selected_source_ids": [
+      "apple-2025-10k",
+      "apple-2025-supplier-list",
+      "apple-channel-program",
+      "apple-developer-release"
+    ],
+    "rationale_en": "Use synthetic official-company fixtures covering products, suppliers, channels, and developer programs.",
+    "relevant_sections": [
+      "Business and products",
+      "Supplier relationships",
+      "Sales channels",
+      "Developer programs"
+    ]
+  }
+}

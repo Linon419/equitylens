@@ -1,0 +1,200 @@
+{
+  "edge_verifications": [
+    {
+      "edge_key": "company:tsmc|supplies|product:apple-silicon",
+      "verdict": "verified",
+      "confidence": 0.98,
+      "reason_en": "The official synthetic supplier record directly supports semiconductor manufacturing for Apple-designed silicon.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "TSMC Semiconductor Manufacturing fabricates Apple-designed silicon used across Apple products.", "locator": "Supplier fixture paragraph 1", "support_role": "primary", "confidence": 0.98}]
+    },
+    {
+      "edge_key": "company:samsung-display|supplies|product:iphone",
+      "verdict": "verified",
+      "confidence": 0.94,
+      "reason_en": "The official synthetic supplier record directly supports a display component relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Samsung Display Components supplies display panels associated with Apple product manufacturing.", "locator": "Supplier fixture paragraph 2", "support_role": "primary", "confidence": 0.94}]
+    },
+    {
+      "edge_key": "company:sk-hynix|supplies|product:apple-silicon",
+      "verdict": "potential",
+      "confidence": 0.7,
+      "reason_en": "The synthetic source explicitly marks the memory relationship as potential.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "SK hynix Memory is identified as a potential memory supplier in this synthetic test record.", "locator": "Supplier fixture paragraph 3", "support_role": "primary", "confidence": 0.7}]
+    },
+    {
+      "edge_key": "company:foxconn|manufactures_for|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.96,
+      "reason_en": "The official synthetic supplier record directly supports contract manufacturing.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Foxconn Contract Manufacturing assembles selected Apple products for distribution.", "locator": "Supplier fixture paragraph 4", "support_role": "primary", "confidence": 0.96}]
+    },
+    {
+      "edge_key": "company:broadcom|supplies|product:iphone",
+      "verdict": "verified",
+      "confidence": 0.91,
+      "reason_en": "The official synthetic supplier record supports the connectivity component relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Broadcom Connectivity Components supplies wireless connectivity components used in Apple devices.", "locator": "Supplier fixture paragraph 5", "support_role": "primary", "confidence": 0.91}]
+    },
+    {
+      "edge_key": "company:sony-image-sensors|supplies|product:iphone",
+      "verdict": "verified",
+      "confidence": 0.9,
+      "reason_en": "The official synthetic supplier record supports the imaging component relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Sony Image Sensors supplies camera imaging components used in iPhone products.", "locator": "Supplier fixture paragraph 6", "support_role": "primary", "confidence": 0.9}]
+    },
+    {
+      "edge_key": "company:corning|supplies|product:iphone",
+      "verdict": "verified",
+      "confidence": 0.88,
+      "reason_en": "The official synthetic supplier record supports the cover material relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Corning Glass Components supplies durable cover materials used in Apple devices.", "locator": "Supplier fixture paragraph 7", "support_role": "primary", "confidence": 0.88}]
+    },
+    {
+      "edge_key": "company:qorvo|supplies|product:iphone",
+      "verdict": "potential",
+      "confidence": 0.69,
+      "reason_en": "The relationship remains potential pending a corroborating official source.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Qorvo Radio Frequency supplies radio-frequency components used in iPhone products.", "locator": "Supplier fixture paragraph 8", "support_role": "primary", "confidence": 0.69}]
+    },
+    {
+      "edge_key": "company:texas-instruments|supplies|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.87,
+      "reason_en": "The official synthetic supplier record supports the power-management relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Texas Instruments Power Management supplies power-management components used in Apple devices.", "locator": "Supplier fixture paragraph 9", "support_role": "primary", "confidence": 0.87}]
+    },
+    {
+      "edge_key": "company:arm|licenses_to|product:apple-silicon",
+      "verdict": "verified",
+      "confidence": 0.9,
+      "reason_en": "The official synthetic supplier record supports an architecture licensing relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Arm Architecture licenses processor architecture used by Apple silicon designs.", "locator": "Supplier fixture paragraph 10", "support_role": "primary", "confidence": 0.9}]
+    },
+    {
+      "edge_key": "company:arm|manufactures_for|company:0000320193",
+      "verdict": "rejected",
+      "confidence": 0.99,
+      "reason_en": "The manufacturing claim is unsupported because the cited fixture describes licensing only.",
+      "evidence_refs": [{"source_key": "source:apple-2025-supplier-list", "excerpt": "Arm Architecture licenses processor architecture used by Apple silicon designs.", "locator": "Supplier fixture paragraph 10", "support_role": "primary", "confidence": 0.99}]
+    },
+    {
+      "edge_key": "product:apple-silicon|component_of|product:iphone",
+      "verdict": "verified",
+      "confidence": 0.97,
+      "reason_en": "The synthetic filing directly identifies Apple Silicon as an iPhone component platform.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "Apple Silicon is a component of iPhone, Mac, and iPad product platforms.", "locator": "Business fixture paragraph 3", "support_role": "primary", "confidence": 0.97}]
+    },
+    {
+      "edge_key": "product:apple-silicon|component_of|product:mac",
+      "verdict": "verified",
+      "confidence": 0.97,
+      "reason_en": "The synthetic filing directly identifies Apple Silicon as a Mac component platform.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "Apple Silicon is a component of iPhone, Mac, and iPad product platforms.", "locator": "Business fixture paragraph 3", "support_role": "primary", "confidence": 0.97}]
+    },
+    {
+      "edge_key": "product:apple-silicon|component_of|product:ipad",
+      "verdict": "verified",
+      "confidence": 0.96,
+      "reason_en": "The synthetic filing directly identifies Apple Silicon as an iPad component platform.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "Apple Silicon is a component of iPhone, Mac, and iPad product platforms.", "locator": "Business fixture paragraph 3", "support_role": "primary", "confidence": 0.96}]
+    },
+    {
+      "edge_key": "product:iphone|component_of|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.99,
+      "reason_en": "The synthetic filing identifies iPhone as a core Apple product.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "iPhone, Mac, iPad, Wearables Home and Accessories, Apple Services, and Apple Silicon are core Apple businesses or products in this fixture.", "locator": "Business fixture paragraph 2", "support_role": "primary", "confidence": 0.99}]
+    },
+    {
+      "edge_key": "product:mac|component_of|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.98,
+      "reason_en": "The synthetic filing identifies Mac as a core Apple product.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "iPhone, Mac, iPad, Wearables Home and Accessories, Apple Services, and Apple Silicon are core Apple businesses or products in this fixture.", "locator": "Business fixture paragraph 2", "support_role": "primary", "confidence": 0.98}]
+    },
+    {
+      "edge_key": "product:ipad|component_of|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.98,
+      "reason_en": "The synthetic filing identifies iPad as a core Apple product.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "iPhone, Mac, iPad, Wearables Home and Accessories, Apple Services, and Apple Silicon are core Apple businesses or products in this fixture.", "locator": "Business fixture paragraph 2", "support_role": "primary", "confidence": 0.98}]
+    },
+    {
+      "edge_key": "business:wearables-home-accessories|component_of|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.96,
+      "reason_en": "The synthetic filing identifies the business grouping as core to Apple.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "iPhone, Mac, iPad, Wearables Home and Accessories, Apple Services, and Apple Silicon are core Apple businesses or products in this fixture.", "locator": "Business fixture paragraph 2", "support_role": "primary", "confidence": 0.96}]
+    },
+    {
+      "edge_key": "business:apple-services|component_of|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.97,
+      "reason_en": "The synthetic filing identifies Services as a core Apple business.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "iPhone, Mac, iPad, Wearables Home and Accessories, Apple Services, and Apple Silicon are core Apple businesses or products in this fixture.", "locator": "Business fixture paragraph 2", "support_role": "primary", "confidence": 0.97}]
+    },
+    {
+      "edge_key": "category:us-wireless-carriers|distributes_for|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.93,
+      "reason_en": "The synthetic official channel page supports the carrier route to market.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "US Wireless Carriers sell iPhone products to downstream customers.", "locator": "Channel fixture paragraph 1", "support_role": "primary", "confidence": 0.93}]
+    },
+    {
+      "edge_key": "category:technology-distributors|distributes_for|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.9,
+      "reason_en": "The synthetic official channel page supports the distributor route to market.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "Technology Distributors distribute Apple products through authorized reseller networks.", "locator": "Channel fixture paragraph 2", "support_role": "primary", "confidence": 0.9}]
+    },
+    {
+      "edge_key": "company:0000320193|sells_to|business:enterprise-channels",
+      "verdict": "verified",
+      "confidence": 0.92,
+      "reason_en": "The synthetic official channel page supports organizational sales channels.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "Enterprise Channels sell Apple products and services to organizational customers.", "locator": "Channel fixture paragraph 3", "support_role": "primary", "confidence": 0.92}]
+    },
+    {
+      "edge_key": "company:0000320193|sells_to|category:consumer-end-markets",
+      "verdict": "verified",
+      "confidence": 0.97,
+      "reason_en": "The synthetic official channel page supports consumer end-market sales.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "Consumer End Markets purchase Apple products and services through retail and online channels.", "locator": "Channel fixture paragraph 4", "support_role": "primary", "confidence": 0.97}]
+    },
+    {
+      "edge_key": "company:att|distributes_for|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.88,
+      "reason_en": "The synthetic official channel page names AT&T as a carrier channel.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "AT&T and Verizon are represented as carrier channels for iPhone in this synthetic fixture.", "locator": "Channel fixture paragraph 5", "support_role": "primary", "confidence": 0.88}]
+    },
+    {
+      "edge_key": "company:verizon|distributes_for|company:0000320193",
+      "verdict": "potential",
+      "confidence": 0.72,
+      "reason_en": "The named carrier relationship remains potential pending corroboration.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "AT&T and Verizon are represented as carrier channels for iPhone in this synthetic fixture.", "locator": "Channel fixture paragraph 5", "support_role": "primary", "confidence": 0.72}]
+    },
+    {
+      "edge_key": "company:ingram-micro|distributes_for|company:0000320193",
+      "verdict": "verified",
+      "confidence": 0.84,
+      "reason_en": "The synthetic official channel page names Ingram Micro as a technology distributor.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "Ingram Micro and TD SYNNEX are represented as technology distributors for Apple products in this synthetic fixture.", "locator": "Channel fixture paragraph 6", "support_role": "primary", "confidence": 0.84}]
+    },
+    {
+      "edge_key": "company:td-synnex|distributes_for|company:0000320193",
+      "verdict": "potential",
+      "confidence": 0.7,
+      "reason_en": "The named distributor relationship remains potential pending corroboration.",
+      "evidence_refs": [{"source_key": "source:apple-channel-program", "excerpt": "Ingram Micro and TD SYNNEX are represented as technology distributors for Apple products in this synthetic fixture.", "locator": "Channel fixture paragraph 6", "support_role": "primary", "confidence": 0.7}]
+    },
+    {
+      "edge_key": "business:apple-services|serves_market|category:consumer-end-markets",
+      "verdict": "verified",
+      "confidence": 0.94,
+      "reason_en": "The synthetic filing directly supports the consumer market relationship.",
+      "evidence_refs": [{"source_key": "source:apple-2025-10k", "excerpt": "Apple Services serves consumer end markets through digital content, cloud, payment, and support offerings.", "locator": "Business fixture paragraph 4", "support_role": "primary", "confidence": 0.94}]
+    }
+  ]
+}
