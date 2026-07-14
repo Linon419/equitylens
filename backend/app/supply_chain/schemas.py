@@ -3,6 +3,7 @@ from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -80,6 +81,24 @@ Symbol = Annotated[
 Cik = Annotated[
     str,
     StringConstraints(strict=True, pattern=r"^[0-9]{10}$"),
+]
+
+
+def _require_nonblank_exact_text(value: str) -> str:
+    if not value.strip():
+        raise ValueError("must contain non-whitespace characters")
+    return value
+
+
+ExactEvidenceText = Annotated[
+    str,
+    StringConstraints(strict=True, min_length=20, max_length=2000),
+    AfterValidator(_require_nonblank_exact_text),
+]
+ExactBodyText = Annotated[
+    str,
+    StringConstraints(strict=True, min_length=20, max_length=500_000),
+    AfterValidator(_require_nonblank_exact_text),
 ]
 
 
@@ -161,10 +180,7 @@ class OfficialSourceDocument(OfficialSourceMetadata):
             max_length=120,
         ),
     ]
-    body_text: Annotated[
-        str,
-        StringConstraints(strict=True, min_length=20, max_length=500_000),
-    ]
+    body_text: ExactBodyText
 
 
 class SourcePlan(StrictValueModel):
@@ -182,10 +198,7 @@ class SourcePlan(StrictValueModel):
 
 class EvidenceReference(FrozenValueModel):
     source_key: StableKey
-    excerpt: Annotated[
-        str,
-        StringConstraints(strict=True, min_length=20, max_length=2000),
-    ]
+    excerpt: ExactEvidenceText
     locator: Annotated[
         str,
         StringConstraints(
@@ -437,10 +450,7 @@ class PublicGraphCitation(StrictValueModel):
     id: UUID
     source_id: UUID
     source_key: StableKey
-    excerpt: Annotated[
-        str,
-        StringConstraints(strict=True, min_length=20, max_length=2000),
-    ]
+    excerpt: ExactEvidenceText
     locator: Annotated[
         str,
         StringConstraints(

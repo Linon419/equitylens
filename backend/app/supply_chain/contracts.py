@@ -64,24 +64,28 @@ class OfficialSourceCollector(Protocol):
 class SupplyChainAgent(Protocol):
     async def plan_sources(
         self,
+        *,
         company: CompanyIdentity,
         tools: OfficialSourceTools,
     ) -> SourcePlan: ...
 
     async def extract_graph(
         self,
+        *,
         company: CompanyIdentity,
-        sources: Sequence[OfficialSourceDocument],
+        sources: list[OfficialSourceDocument],
     ) -> GraphDraft: ...
 
     async def verify_graph(
         self,
+        *,
         draft: GraphDraft,
-        sources: Sequence[OfficialSourceDocument],
+        sources: list[OfficialSourceDocument],
     ) -> GraphVerification: ...
 
     async def localize_graph(
         self,
+        *,
         graph: AcceptedGraph,
         locale: Literal["zh"] = "zh",
     ) -> GraphLocalization: ...

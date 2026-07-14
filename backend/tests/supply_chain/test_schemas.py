@@ -1,7 +1,9 @@
 import inspect
 import json
 from copy import deepcopy
+from inspect import Parameter
 from pathlib import Path
+from typing import Literal, get_type_hints
 
 import pytest
 from pydantic import ValidationError
@@ -16,13 +18,16 @@ from app.supply_chain.contracts import (
     SupplyChainGraphRepository,
 )
 from app.supply_chain.schemas import (
+    AcceptedGraph,
     CompanyIdentity,
     EvidenceReference,
     GraphDraft,
+    GraphLocalization,
     GraphRefreshRequest,
     GraphVerification,
     OfficialSourceDocument,
     OfficialSourceMetadata,
+    PublicGraphCitation,
     SourcePlan,
 )
 
@@ -385,6 +390,111 @@ def test_official_source_metadata_is_immutable(source_payload: dict) -> None:
 
 
 @pytest.mark.parametrize(
+    ("schema", "payload", "field"),
+    [
+        (
+            OfficialSourceDocument,
+            {
+                "source_id": "source-id",
+                "source_key": "source:key",
+                "source_type": "sec_filing",
+                "publisher": "Apple Inc.",
+                "title": "Fixture filing",
+                "canonical_url": "https://www.apple.com/fixture",
+                "content_hash": "a" * 64,
+                "artifact_key": "fixtures/source.txt",
+                "content_type": "text/plain",
+                "body_text": " " * 20,
+            },
+            "body_text",
+        ),
+        (
+            EvidenceReference,
+            {
+                "source_key": "source:key",
+                "excerpt": " " * 20,
+                "locator": "Item 1",
+            },
+            "excerpt",
+        ),
+        (
+            PublicGraphCitation,
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "source_id": "00000000-0000-0000-0000-000000000002",
+                "source_key": "source:key",
+                "excerpt": " " * 20,
+                "locator": "Item 1",
+                "support_role": "primary",
+                "confidence": 1.0,
+            },
+            "excerpt",
+        ),
+    ],
+)
+def test_evidence_text_rejects_whitespace_only(
+    schema, payload: dict, field: str
+) -> None:
+    with pytest.raises(ValidationError, match=field):
+        schema.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("schema", "payload", "field", "exact_text"),
+    [
+        (
+            OfficialSourceDocument,
+            {
+                "source_id": "source-id",
+                "source_key": "source:key",
+                "source_type": "sec_filing",
+                "publisher": "Apple Inc.",
+                "title": "Fixture filing",
+                "canonical_url": "https://www.apple.com/fixture",
+                "content_hash": "a" * 64,
+                "artifact_key": "fixtures/source.txt",
+                "content_type": "text/plain",
+                "body_text": "  FIXTURE DATA body stays exact.  \n",
+            },
+            "body_text",
+            "  FIXTURE DATA body stays exact.  \n",
+        ),
+        (
+            EvidenceReference,
+            {
+                "source_key": "source:key",
+                "excerpt": "  Evidence excerpt stays exact.  ",
+                "locator": "Item 1",
+            },
+            "excerpt",
+            "  Evidence excerpt stays exact.  ",
+        ),
+        (
+            PublicGraphCitation,
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "source_id": "00000000-0000-0000-0000-000000000002",
+                "source_key": "source:key",
+                "excerpt": "  Public excerpt stays exact.  ",
+                "locator": "Item 1",
+                "support_role": "primary",
+                "confidence": 1.0,
+            },
+            "excerpt",
+            "  Public excerpt stays exact.  ",
+        ),
+    ],
+)
+def test_evidence_text_preserves_valid_exact_string(
+    schema,
+    payload: dict,
+    field: str,
+    exact_text: str,
+) -> None:
+    assert getattr(schema.model_validate(payload), field) == exact_text
+
+
+@pytest.mark.parametrize(
     "protocol",
     [
         GraphArtifactStore,
@@ -413,3 +523,61 @@ def test_agent_contract_exposes_exact_stage_methods() -> None:
         "verify_graph",
         "localize_graph",
     }
+
+
+@pytest.mark.parametrize(
+    ("method_name", "parameter_names", "expected_hints"),
+    [
+        (
+            "plan_sources",
+            ["company", "tools"],
+            {
+                "company": CompanyIdentity,
+                "tools": OfficialSourceTools,
+                "return": SourcePlan,
+            },
+        ),
+        (
+            "extract_graph",
+            ["company", "sources"],
+            {
+                "company": CompanyIdentity,
+                "sources": list[OfficialSourceDocument],
+                "return": GraphDraft,
+            },
+        ),
+        (
+            "verify_graph",
+            ["draft", "sources"],
+            {
+                "draft": GraphDraft,
+                "sources": list[OfficialSourceDocument],
+                "return": GraphVerification,
+            },
+        ),
+        (
+            "localize_graph",
+            ["graph", "locale"],
+            {
+                "graph": AcceptedGraph,
+                "locale": Literal["zh"],
+                "return": GraphLocalization,
+            },
+        ),
+    ],
+)
+def test_agent_stage_signatures_are_exact_and_keyword_only(
+    method_name: str,
+    parameter_names: list[str],
+    expected_hints: dict,
+) -> None:
+    method = getattr(SupplyChainAgent, method_name)
+    signature = inspect.signature(method)
+    parameters = list(signature.parameters.values())
+
+    assert parameters[0].name == "self"
+    assert [parameter.name for parameter in parameters[1:]] == parameter_names
+    assert all(parameter.kind is Parameter.KEYWORD_ONLY for parameter in parameters[1:])
+    assert get_type_hints(method) == expected_hints
+    if method_name == "localize_graph":
+        assert signature.parameters["locale"].default == "zh"
