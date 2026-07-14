@@ -1,3 +1,4 @@
+@import "@xyflow/react/dist/style.css";
 @import "tailwindcss";
 
 :root {
@@ -651,6 +652,469 @@ a {
   .app-content { padding-left: 1.25rem; padding-right: 1.25rem; }
   .settings-card { box-shadow: 6px 6px 0 var(--signal); }
   .settings-card__field { align-items: flex-start; flex-direction: column; gap: 1rem; }
+}
+
+/* Agent-built supply-chain terminal: traceable relationships over a fixed industrial map. */
+.supply-chain-section {
+  --chain-upstream: #a7583d;
+  --chain-core: #1f63b6;
+  --chain-downstream: #237268;
+  --chain-potential: #a66b13;
+  max-width: 1500px;
+}
+
+.supply-chain-section__header {
+  align-items: end;
+  border-bottom: 2px solid var(--research-navy);
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+  padding-bottom: 1.25rem;
+}
+
+.supply-chain-section__header p,
+.supply-chain-thesis > p {
+  color: var(--chain-core);
+  font: 650 0.68rem var(--font-mono), monospace;
+  letter-spacing: 0.12em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.supply-chain-section__header h2 {
+  font: 450 clamp(3rem, 6vw, 6.5rem)/0.9 var(--font-display), "Noto Serif SC", serif;
+  letter-spacing: -0.055em;
+  margin: 0.8rem 0 0;
+}
+
+.supply-chain-primary-action,
+.supply-chain-retry,
+.supply-chain-empty button,
+.supply-chain-fit,
+.supply-chain-inspector button,
+.supply-chain-toolbar button {
+  border: 1px solid var(--research-navy);
+  cursor: pointer;
+  font: 650 0.68rem var(--font-mono), monospace;
+  min-height: 44px;
+}
+
+.supply-chain-primary-action,
+.supply-chain-empty button {
+  background: var(--research-navy);
+  color: var(--research-paper);
+  min-width: 10rem;
+  padding: 0.8rem 1rem;
+}
+
+.supply-chain-primary-action:disabled,
+.supply-chain-empty button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.supply-chain-job,
+.supply-chain-result,
+.supply-chain-alert {
+  align-items: center;
+  display: flex;
+  font: 600 0.7rem/1.5 var(--font-mono), monospace;
+  gap: 0.8rem;
+  margin: 1.2rem 0 0;
+  padding: 0.85rem 1rem;
+}
+
+.supply-chain-job {
+  background: #dce9f9;
+  border-left: 4px solid var(--chain-core);
+}
+
+.supply-chain-job progress {
+  accent-color: var(--chain-core);
+  margin-left: auto;
+  width: min(14rem, 25%);
+}
+
+.supply-chain-job__pulse {
+  background: var(--chain-core);
+  border-radius: 50%;
+  height: 0.55rem;
+  width: 0.55rem;
+}
+
+.supply-chain-job.is-failed,
+.supply-chain-alert {
+  background: #f9ddd2;
+  border-left: 4px solid #a83717;
+  color: #7e260e;
+}
+
+.supply-chain-result {
+  align-items: start;
+  background: #f5e8cf;
+  border-left: 4px solid var(--chain-potential);
+  flex-direction: column;
+}
+
+.supply-chain-retry {
+  background: transparent;
+  color: #8b2c11;
+  margin-top: 0.8rem;
+  padding: 0.6rem 0.9rem;
+}
+
+.supply-chain-thesis {
+  align-items: start;
+  background: var(--research-navy);
+  color: var(--research-paper);
+  display: grid;
+  gap: 1rem 2rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+}
+
+.supply-chain-thesis > p {
+  color: #80b3ff;
+  grid-column: 1;
+}
+
+.supply-chain-thesis > strong {
+  font: 430 clamp(1.5rem, 2.4vw, 2.4rem)/1.2 var(--font-display), serif;
+  grid-column: 1;
+  max-width: 900px;
+}
+
+.supply-chain-thesis dl {
+  display: grid;
+  gap: 0.8rem;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  min-width: 13rem;
+}
+
+.supply-chain-thesis dl div {
+  border-top: 1px solid rgba(244, 241, 231, 0.25);
+  padding-top: 0.55rem;
+}
+
+.supply-chain-thesis dt,
+.supply-chain-thesis dd {
+  font: 550 0.64rem var(--font-mono), monospace;
+  margin: 0;
+}
+
+.supply-chain-thesis dt { color: var(--research-muted); }
+.supply-chain-thesis dd { margin-top: 0.3rem; }
+
+.supply-chain-toolbar {
+  align-items: center;
+  border-bottom: 1px solid rgba(7, 27, 45, 0.25);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.8rem 0;
+}
+
+.supply-chain-toolbar > div {
+  display: flex;
+}
+
+.supply-chain-toolbar button {
+  background: transparent;
+  min-width: 8rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.supply-chain-toolbar button + button { border-left: 0; }
+.supply-chain-toolbar button[aria-pressed="true"] { background: var(--research-navy); color: var(--research-paper); }
+
+.supply-chain-toolbar label {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font: 600 0.68rem var(--font-mono), monospace;
+  gap: 0.65rem;
+  min-height: 44px;
+}
+
+.supply-chain-toolbar input {
+  appearance: none;
+  background: #c5c2b8;
+  border: 1px solid var(--research-navy);
+  border-radius: 1rem;
+  height: 1.35rem;
+  position: relative;
+  width: 2.4rem;
+}
+
+.supply-chain-toolbar input::after {
+  background: var(--research-paper);
+  border: 1px solid var(--research-navy);
+  border-radius: 50%;
+  content: "";
+  height: 0.9rem;
+  left: 0.15rem;
+  position: absolute;
+  top: 0.15rem;
+  transition: transform 160ms ease;
+  width: 0.9rem;
+}
+
+.supply-chain-toolbar input:checked { background: var(--chain-potential); }
+.supply-chain-toolbar input:checked::after { transform: translateX(1rem); }
+.supply-chain-toolbar > span { color: #5d6b75; font: 600 0.64rem var(--font-mono), monospace; }
+
+.supply-chain-legend {
+  display: flex;
+  flex-wrap: wrap;
+  font: 600 0.62rem var(--font-mono), monospace;
+  gap: 0.6rem 1rem;
+  padding: 0.8rem 0;
+}
+
+.supply-chain-legend span { align-items: center; display: inline-flex; gap: 0.35rem; }
+.supply-chain-legend i { background: currentColor; display: inline-block; height: 0.55rem; width: 0.55rem; }
+.supply-chain-legend i.is-upstream { color: var(--chain-upstream); }
+.supply-chain-legend i.is-core { color: var(--chain-core); }
+.supply-chain-legend i.is-downstream { color: var(--chain-downstream); }
+.supply-chain-legend i.is-verified,
+.supply-chain-legend i.is-potential { background: transparent; border-top: 2px solid currentColor; height: 0; width: 1.3rem; }
+.supply-chain-legend i.is-verified { color: #0f766e; }
+.supply-chain-legend i.is-potential { border-top-style: dashed; color: var(--chain-potential); }
+
+.supply-chain-workspace {
+  border: 1px solid var(--research-navy);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 720px;
+  position: relative;
+}
+
+.supply-chain-workspace.has-selection { grid-template-columns: minmax(0, 7fr) minmax(300px, 3fr); }
+
+.supply-chain-canvas {
+  background:
+    linear-gradient(90deg, rgba(167, 88, 61, 0.04) 0 33.333%, rgba(31, 99, 182, 0.045) 33.333% 66.666%, rgba(35, 114, 104, 0.04) 66.666%),
+    #ebe7dc;
+  min-height: 720px;
+  min-width: 0;
+}
+
+.supply-chain-canvas.is-hidden { display: none; }
+.supply-chain-canvas .react-flow { min-height: 720px; }
+.supply-chain-canvas .react-flow__attribution { background: rgba(244, 241, 231, 0.85); font-size: 0.55rem; }
+.supply-chain-canvas .react-flow__minimap { background: #f4f1e7; border: 1px solid var(--research-navy); }
+.supply-chain-canvas .react-flow__controls { box-shadow: none; }
+.supply-chain-canvas .react-flow__controls-button { background: var(--research-paper); border-color: var(--research-navy); }
+.supply-chain-canvas .react-flow__node-supplyChain { width: 230px; }
+
+.supply-chain-fit {
+  background: rgba(244, 241, 231, 0.95);
+  color: var(--research-navy);
+  padding: 0.4rem 0.7rem;
+}
+
+.supply-chain-node { position: relative; }
+
+.supply-chain-node button {
+  background: #fbfaf4;
+  border: 1px solid var(--research-navy);
+  box-shadow: 4px 4px 0 rgba(7, 27, 45, 0.16);
+  color: var(--research-navy);
+  cursor: pointer;
+  display: grid;
+  min-height: 110px;
+  padding: 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.supply-chain-node--upstream button { border-left: 5px solid var(--chain-upstream); }
+.supply-chain-node--core button { border-left: 5px solid var(--chain-core); }
+.supply-chain-node--downstream button { border-left: 5px solid var(--chain-downstream); }
+
+.supply-chain-node.is-focus button {
+  background: var(--research-navy);
+  box-shadow: 6px 6px 0 var(--chain-core);
+  color: var(--research-paper);
+  min-height: 135px;
+  transform: scale(1.06);
+}
+
+.supply-chain-node.is-selected button { outline: 4px solid #e5a82d; outline-offset: 3px; }
+
+.supply-chain-node__topline {
+  align-items: center;
+  color: #5b6a75;
+  display: flex;
+  font: 650 0.55rem var(--font-mono), monospace;
+  gap: 0.45rem;
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+
+.supply-chain-node.is-focus .supply-chain-node__topline { color: #aebdca; }
+.supply-chain-node__icon { color: var(--chain-core); font-size: 0.8rem; }
+.supply-chain-node button > strong { font: 520 1.15rem var(--font-display), serif; margin-top: 0.55rem; }
+.supply-chain-node button > small { font: 650 0.58rem var(--font-mono), monospace; letter-spacing: 0.08em; }
+
+.supply-chain-node__badge,
+.supply-chain-node__links {
+  color: #64727b;
+  font: 600 0.54rem var(--font-mono), monospace;
+  margin-top: 0.55rem;
+}
+
+.supply-chain-node.is-focus .supply-chain-node__badge,
+.supply-chain-node.is-focus .supply-chain-node__links { color: #b8c5ce; }
+.supply-chain-node__badge { border: 1px solid currentColor; justify-self: start; padding: 0.18rem 0.28rem; text-transform: uppercase; }
+.supply-chain-node .react-flow__handle { background: var(--research-navy); border: 2px solid var(--research-paper); height: 11px; width: 11px; }
+
+.supply-chain-list {
+  background: #eeeae0;
+  list-style: none;
+  margin: 0;
+  min-height: 720px;
+  padding: 0;
+}
+
+.supply-chain-list.is-accessible-only {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.supply-chain-list__group { list-style: none; }
+.supply-chain-list__group > h3 { background: var(--research-navy); color: var(--research-paper); font: 650 0.68rem var(--font-mono), monospace; margin: 0; padding: 0.75rem 1rem; }
+.supply-chain-list__group > ul { list-style: none; margin: 0; padding: 0; }
+.supply-chain-list__group button { align-items: center; background: transparent; border: 0; border-bottom: 1px solid rgba(7, 27, 45, 0.2); cursor: pointer; display: flex; gap: 1rem; justify-content: space-between; min-height: 64px; padding: 0.7rem 1rem; text-align: left; width: 100%; }
+.supply-chain-list__group button.is-selected { background: #d8e5f5; box-shadow: inset 4px 0 var(--chain-core); }
+.supply-chain-list__group strong { font: 520 0.9rem/1.45 var(--font-display), serif; }
+.supply-chain-list__group button > span { color: #62717c; font: 600 0.56rem var(--font-mono), monospace; white-space: nowrap; }
+
+.supply-chain-inspector {
+  background: #f8f6ee;
+  border-left: 1px solid var(--research-navy);
+  max-height: 720px;
+  min-width: 0;
+  overflow: auto;
+}
+
+.supply-chain-inspector > header {
+  align-items: center;
+  background: var(--research-navy);
+  color: var(--research-paper);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.supply-chain-inspector > header h2 { font: 650 0.65rem var(--font-mono), monospace; margin: 0; text-transform: uppercase; }
+.supply-chain-inspector > header button { background: transparent; border-color: var(--research-paper); color: var(--research-paper); font-size: 1.25rem; min-width: 44px; }
+.supply-chain-inspector__body { padding: 1.2rem; }
+.supply-chain-inspector__layer,
+.supply-chain-inspector__status { display: inline-flex; font: 650 0.6rem var(--font-mono), monospace; letter-spacing: 0.07em; text-transform: uppercase; }
+.supply-chain-inspector__layer.is-upstream { color: var(--chain-upstream); }
+.supply-chain-inspector__layer.is-core { color: var(--chain-core); }
+.supply-chain-inspector__layer.is-downstream { color: var(--chain-downstream); }
+.supply-chain-inspector__status.is-verified { color: #0f766e; }
+.supply-chain-inspector__status.is-potential { color: var(--chain-potential); }
+.supply-chain-inspector__body > h3 { font: 500 clamp(1.8rem, 3vw, 2.8rem)/1.05 var(--font-display), serif; letter-spacing: -0.035em; margin: 0.8rem 0; }
+.supply-chain-inspector__body > p { color: #45535e; font-size: 0.85rem; line-height: 1.65; }
+.supply-chain-inspector__body dl { margin: 1.2rem 0; }
+.supply-chain-inspector__body dl div { border-top: 1px solid rgba(7, 27, 45, 0.2); display: grid; gap: 0.4rem; grid-template-columns: 7rem 1fr; padding: 0.65rem 0; }
+.supply-chain-inspector__body dt,
+.supply-chain-inspector__body dd { font: 550 0.62rem var(--font-mono), monospace; margin: 0; }
+.supply-chain-inspector__body dt { color: #65737e; }
+.supply-chain-inspector__body h4 { border-bottom: 1px solid var(--research-navy); font: 650 0.65rem var(--font-mono), monospace; margin: 1.5rem 0 0; padding-bottom: 0.55rem; text-transform: uppercase; }
+.supply-chain-inspector__relations { font-size: 0.78rem; line-height: 1.55; padding-left: 1rem; }
+.supply-chain-inspector__center { background: var(--chain-core); color: white; margin-top: 1rem; padding: 0.7rem 0.9rem; width: 100%; }
+.supply-chain-inspector__sources { display: grid; }
+.supply-chain-inspector__sources article { border-bottom: 1px solid rgba(7, 27, 45, 0.25); padding: 1rem 0; }
+.supply-chain-inspector__sources article header { display: grid; gap: 0.35rem; }
+.supply-chain-inspector__sources article header strong { font-family: var(--font-display), serif; }
+.supply-chain-inspector__sources article header span,
+.supply-chain-inspector__sources article > p { color: #64727d; font: 550 0.58rem/1.5 var(--font-mono), monospace; }
+.supply-chain-inspector__sources blockquote { border-left: 3px solid var(--chain-core); font: 440 0.9rem/1.65 var(--font-display), serif; margin: 0.8rem 0; padding-left: 0.8rem; }
+.supply-chain-inspector__sources a { color: #1f63b6; font: 650 0.62rem var(--font-mono), monospace; text-decoration: underline; text-underline-offset: 0.2rem; }
+
+.supply-chain-empty {
+  background: #ebe7dc;
+  border: 1px dashed #6d7c86;
+  display: grid;
+  justify-items: center;
+  margin-top: 1.5rem;
+  min-height: 330px;
+  padding: 3rem;
+  place-content: center;
+  text-align: center;
+}
+
+.supply-chain-empty > span { color: var(--chain-core); font: 400 2rem var(--font-mono), monospace; }
+.supply-chain-empty h3 { font: 500 clamp(2rem, 4vw, 4rem)/1 var(--font-display), serif; letter-spacing: -0.04em; margin: 1rem 0; max-width: 700px; }
+.supply-chain-empty p { color: #50606c; line-height: 1.6; max-width: 600px; }
+
+.supply-chain-section button:focus-visible,
+.supply-chain-section input:focus-visible,
+.supply-chain-section a:focus-visible {
+  outline: 3px solid #e5a82d;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .supply-chain-thesis { grid-template-columns: 1fr; }
+  .supply-chain-thesis dl { grid-column: 1; grid-row: auto; grid-template-columns: 1fr 1fr; }
+  .supply-chain-job { align-items: start; flex-wrap: wrap; }
+  .supply-chain-job progress { margin-left: 1.35rem; width: calc(100% - 1.35rem); }
+}
+
+@media (max-width: 760px) {
+  .supply-chain-section__header { align-items: start; flex-direction: column; }
+  .supply-chain-primary-action { width: 100%; }
+  .supply-chain-workspace,
+  .supply-chain-workspace.has-selection { grid-template-columns: 1fr; min-height: 560px; }
+  .supply-chain-canvas,
+  .supply-chain-canvas .react-flow { min-height: 560px; }
+  .supply-chain-list { min-height: 560px; }
+  .supply-chain-inspector {
+    border-left: 0;
+    border-top: 2px solid var(--research-navy);
+    bottom: 0;
+    box-shadow: 0 -12px 35px rgba(7, 27, 45, 0.25);
+    left: 0;
+    max-height: 72vh;
+    position: fixed;
+    right: 0;
+    z-index: 90;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .supply-chain-toolbar input::after,
+  .supply-chain-node.is-focus button { transition: none; }
+  .supply-chain-node.is-focus button { transform: none; }
+}
+
+@media print {
+  .supply-chain-toolbar,
+  .supply-chain-primary-action,
+  .supply-chain-canvas,
+  .supply-chain-inspector > header button { display: none; }
+  .supply-chain-workspace,
+  .supply-chain-workspace.has-selection { border: 0; display: block; min-height: 0; }
+  .supply-chain-list.is-accessible-only { clip: auto; clip-path: none; height: auto; overflow: visible; position: static; white-space: normal; width: auto; }
+  .supply-chain-list { min-height: 0; }
+  .supply-chain-inspector { border: 1px solid var(--research-navy); max-height: none; overflow: visible; }
 }
 
 @media (prefers-reduced-motion: reduce) {

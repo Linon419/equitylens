@@ -13,6 +13,7 @@ import {
   intelligenceFixture,
   marketFixture,
   quotaFixture,
+  supplyChainGraphCachedFixture,
 } from "./test-fixtures";
 
 describe("CompanyPage", () => {
@@ -40,11 +41,14 @@ describe("CompanyPage", () => {
         "/api/research/companies/AAPL/market",
         "/api/research/companies/AAPL/financials",
         "/api/research/companies/AAPL/intelligence?locale=en",
+        "/api/research/companies/AAPL/supply-chain-graph?locale=en&evidence=verified%2Cpotential",
         "/api/research/agent-quota",
       ]),
     );
     expect(screen.getByText(/Stale market data/)).toBeVisible();
     expect(screen.getByText(/USD · SEC XBRL Company Facts/)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "AI supply-chain graph" })).toBeVisible();
+    expect(screen.getByText(supplyChainGraphCachedFixture.snapshot.thesis)).toBeVisible();
   });
 
   it("renders a dedicated company-not-found state", async () => {
@@ -79,6 +83,25 @@ describe("CompanyPage", () => {
       expect(screen.getAllByText("Data unavailable").length).toBeGreaterThan(0),
     );
     expect(screen.getByText("Run the research agent to build cited intelligence.")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Build this company’s cited market map" })).toBeVisible();
+  });
+
+  it("treats a missing graph as an Agent-ready empty state", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.endsWith("/companies/AAPL")) return Response.json(companyFixture);
+      if (path.endsWith("/market")) return Response.json(marketFixture);
+      if (path.endsWith("/financials")) return Response.json(financialsFixture);
+      if (path.includes("/intelligence")) return Response.json(intelligenceFixture);
+      if (path.endsWith("/agent-quota")) return Response.json(quotaFixture);
+      return new Response(null, { status: 404 });
+    });
+
+    render(<CompanyPage copy={companyPageCopy.en} locale="en-US" symbol="AAPL" />);
+
+    expect(await screen.findByRole("heading", { name: "AI supply-chain graph" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Generate graph" })).toBeVisible();
+    expect(screen.queryByText(companyPageCopy.en.partialLoad)).toBeNull();
   });
 });
 
@@ -111,6 +134,7 @@ async function fetchFixture(input: RequestInfo | URL) {
   if (url.endsWith("/market")) return Response.json(marketFixture);
   if (url.endsWith("/financials")) return Response.json(financialsFixture);
   if (url.includes("/intelligence")) return Response.json(intelligenceFixture);
+  if (url.includes("/supply-chain-graph")) return Response.json(supplyChainGraphCachedFixture);
   if (url.endsWith("/agent-quota")) return Response.json(quotaFixture);
   return new Response(null, { status: 404 });
 }

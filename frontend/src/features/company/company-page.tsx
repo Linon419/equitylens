@@ -8,9 +8,9 @@ import { CitationPanel } from "./citation-panel";
 import { CompanyHeader } from "./company-header";
 import { companyPageCopy } from "./copy";
 import type { CompanyPageCopy } from "./copy";
-import { EvidenceFlow } from "./evidence-flow";
 import { FinancialTable } from "./financial-table";
 import { MarketContext } from "./market-context";
+import { SupplyChainGraph } from "./supply-chain-graph";
 import type { Locale } from "@/lib/i18n";
 import {
   parseResearchResponse,
@@ -20,6 +20,7 @@ import {
   type IntelligenceResponse,
   type MarketResponse,
   type QuotaStatus,
+  type SupplyChainGraphResponse,
 } from "@/lib/research/types";
 
 export { companyPageCopy };
@@ -31,6 +32,7 @@ type Resources = {
   market?: MarketResponse;
   financials?: FinancialsResponse;
   intelligence?: IntelligenceResponse;
+  supplyChainGraph?: SupplyChainGraphResponse;
   quota?: QuotaStatus;
   unavailable: string[];
 };
@@ -63,19 +65,26 @@ export function CompanyPage({
         `/api/research/companies/${symbol}/intelligence?locale=${language}`,
         controller.signal,
       ),
+      loadResource<SupplyChainGraphResponse>(
+        "supplyChainGraph",
+        `/api/research/companies/${symbol}/supply-chain-graph?locale=${language}&evidence=verified%2Cpotential`,
+        controller.signal,
+      ),
       loadResource<QuotaStatus>("quota", "/api/research/agent-quota", controller.signal),
-    ]).then(([company, market, financials, intelligence, quota]) => {
+    ]).then(([company, market, financials, intelligence, supplyChainGraph, quota]) => {
       if (controller.signal.aborted) return;
       const notFound =
         company.status === "rejected" &&
         company.reason instanceof ResearchResponseError &&
         company.reason.status === 404;
-      const unavailable = [market, financials, intelligence, quota]
-        .map((result, index) =>
-          result.status === "rejected"
-            ? ["market", "financials", "intelligence", "quota"][index]
-            : null,
-        )
+      const graphMissing = rejectedWithStatus(supplyChainGraph, 404);
+      const unavailable = [market, financials, intelligence, supplyChainGraph, quota]
+        .map((result, index) => {
+          const resource = ["market", "financials", "intelligence", "supplyChainGraph", "quota"][index];
+          return result.status === "rejected" && !(resource === "supplyChainGraph" && graphMissing)
+            ? resource
+            : null;
+        })
         .filter((value): value is string => value !== null);
       setResources({
         loading: false,
@@ -84,6 +93,7 @@ export function CompanyPage({
         market: fulfilled(market),
         financials: fulfilled(financials),
         intelligence: fulfilled(intelligence),
+        supplyChainGraph: fulfilled(supplyChainGraph),
         quota: fulfilled(quota),
         unavailable,
       });
@@ -104,6 +114,14 @@ export function CompanyPage({
     },
     [],
   );
+
+  const handleQuotaChange = useCallback((quota: QuotaStatus) => {
+    setResources((current) => ({
+      ...current,
+      quota,
+      unavailable: current.unavailable.filter((resource) => resource !== "quota"),
+    }));
+  }, []);
 
   if (resources.loading) {
     return <main className="company-page-state">{copy.loading}</main>;
@@ -157,15 +175,6 @@ export function CompanyPage({
             copy={copy.business}
             onCitation={setSelectedCitation}
           />
-          <EvidenceFlow
-            intelligence={intelligence}
-            locale={locale === "zh-CN" ? "zh" : "en"}
-          />
-          <IntelligenceNotes
-            copy={copy.insights}
-            intelligence={intelligence}
-            locale={locale}
-          />
         </>
       ) : (
         <section className="company-section company-intelligence-empty">
@@ -173,10 +182,29 @@ export function CompanyPage({
         </section>
       )}
 
+      <SupplyChainGraph
+        copy={copy.graph}
+        graph={resources.supplyChainGraph ?? null}
+        initialQuota={resources.quota}
+        locale={locale}
+        onQuotaChange={handleQuotaChange}
+        symbol={symbol}
+        unavailable={resources.unavailable.includes("supplyChainGraph")}
+      />
+
+      {intelligence ? (
+        <IntelligenceNotes
+          copy={copy.insights}
+          intelligence={intelligence}
+          locale={locale}
+        />
+      ) : null}
+
       {resources.quota ? (
         <AnalysisControl
           copy={copy.analysis}
           initialQuota={resources.quota}
+          key={`${resources.quota.used}-${resources.quota.resets_at}`}
           locale={locale}
           symbol={symbol}
           onCompleted={handleCompleted}
@@ -286,6 +314,12 @@ function abortableDelay(milliseconds: number, signal: AbortSignal) {
 
 function fulfilled<T>(result: PromiseSettledResult<T>): T | undefined {
   return result.status === "fulfilled" ? result.value : undefined;
+}
+
+function rejectedWithStatus<T>(result: PromiseSettledResult<T>, status: number) {
+  return result.status === "rejected"
+    && result.reason instanceof ResearchResponseError
+    && result.reason.status === status;
 }
 
 function formatTimestamp(value: string, locale: Locale) {
