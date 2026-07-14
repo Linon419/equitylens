@@ -146,12 +146,19 @@ async def test_memory_store_rejects_conflicts_and_missing_keys() -> None:
             content_type="application/gzip",
             sha256=digest(b"second"),
         )
-    with pytest.raises(GraphArtifactError):
+    with pytest.raises(GraphArtifactConflict):
         await store.put(
             object_key="a.gz",
             body=b"first",
             content_type="application/gzip",
             sha256=digest(b"other"),
+        )
+    with pytest.raises(GraphArtifactConflict):
+        await store.put(
+            object_key="a.gz",
+            body=b"second",
+            content_type="application/gzip",
+            sha256=first_digest,
         )
     with pytest.raises(GraphArtifactNotFound):
         await store.get(artifact_key="missing.gz")
@@ -332,6 +339,28 @@ async def test_s3_precondition_retries_transient_head_visibility() -> None:
 
     assert key == "supply-chain/a.gz"
     assert len(client.head_calls) == 2
+
+
+@pytest.mark.anyio
+async def test_s3_precondition_maps_persistent_missing_to_not_found() -> None:
+    client = RecordingS3()
+    client.put_error = s3_error("PreconditionFailed", 412)
+    client.head_errors = [s3_error("NoSuchKey", 404)] * 3
+    store = S3GraphArtifactStore(
+        client=client,
+        bucket="research",
+        prefix="supply-chain",
+    )
+
+    with pytest.raises(GraphArtifactNotFound):
+        await store.put(
+            object_key="a.gz",
+            body=b"payload",
+            content_type="application/gzip",
+            sha256=digest(b"payload"),
+        )
+
+    assert len(client.head_calls) == 3
 
 
 @pytest.mark.anyio

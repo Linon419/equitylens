@@ -181,17 +181,28 @@ class InMemoryGraphArtifactStore:
         sha256: str,
     ) -> str:
         key = _normalize_object_key(object_key)
-        verified_digest = _validate_write(
-            body=body,
-            content_type=content_type,
-            sha256=sha256,
-        )
-        artifact = _MemoryArtifact(bytes(body), content_type, verified_digest)
+        if not isinstance(body, bytes):
+            raise GraphArtifactError()
         async with self._lock:
             existing = self._artifacts.get(key)
-            if existing is not None and existing != artifact:
-                raise GraphArtifactConflict()
-            self._artifacts.setdefault(key, artifact)
+            if existing is not None:
+                if (
+                    existing.body != body
+                    or existing.content_type != content_type
+                    or existing.sha256 != sha256
+                ):
+                    raise GraphArtifactConflict()
+                return key
+            verified_digest = _validate_write(
+                body=body,
+                content_type=content_type,
+                sha256=sha256,
+            )
+            self._artifacts[key] = _MemoryArtifact(
+                bytes(body),
+                content_type,
+                verified_digest,
+            )
         return key
 
     async def get(self, *, artifact_key: str) -> bytes:
@@ -267,6 +278,8 @@ class S3GraphArtifactStore:
             if _is_missing(failure) and attempt < 2:
                 await asyncio.sleep(0)
                 continue
+            if _is_missing(failure):
+                raise GraphArtifactNotFound()
             raise GraphArtifactProviderError()
         raise GraphArtifactProviderError()
 
