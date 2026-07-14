@@ -307,7 +307,31 @@ async def test_vercel_store_maps_missing_results(result: object | None) -> None:
     store = VercelBlobGraphArtifactStore(client=client, prefix="supply-chain")
 
     with pytest.raises(GraphArtifactNotFound):
-        await store.get(artifact_key="missing")
+        await store.get(artifact_key="supply-chain/missing")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "artifact_key",
+    [
+        "../secret",
+        "supply-chain/%2e%2e/secret",
+        "https://example.com/supply-chain/a.gz",
+        "https://blob.vercel-storage.com/other/a.gz",
+        "https://blob.vercel-storage.com/supply-chain/%252e%252e/secret",
+        "https://user:secret@blob.vercel-storage.com/supply-chain/a.gz",
+    ],
+)
+async def test_vercel_store_rejects_unsafe_identifiers_before_sdk_call(
+    artifact_key: str,
+) -> None:
+    client = RecordingBlob()
+    store = VercelBlobGraphArtifactStore(client=client, prefix="supply-chain")
+
+    with pytest.raises(GraphArtifactError):
+        await store.get(artifact_key=artifact_key)
+
+    assert client.get_calls == []
 
 
 @pytest.mark.anyio

@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 
 class GraphArtifactError(RuntimeError):
@@ -85,6 +86,48 @@ def _is_blob_conflict(error: Exception) -> bool:
         marker in message
         for marker in ("already exists", "destination exists", "conflict", "overwrite")
     )
+
+
+def _fully_unquote(value: str) -> str:
+    decoded = value
+    for _ in range(3):
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            break
+        decoded = next_value
+    return decoded
+
+
+def _validate_vercel_artifact_key(artifact_key: str, *, prefix: str) -> str:
+    raw_key = _require_text(artifact_key, label="artifact_key")
+    parsed = urlsplit(raw_key)
+    if parsed.scheme or parsed.netloc:
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise GraphArtifactError() from error
+        hostname = parsed.hostname.casefold() if parsed.hostname else ""
+        allowed_host = hostname == "blob.vercel-storage.com" or hostname.endswith(
+            ".blob.vercel-storage.com"
+        )
+        if (
+            parsed.scheme != "https"
+            or not allowed_host
+            or parsed.username is not None
+            or parsed.password is not None
+            or port is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise GraphArtifactError()
+        path = parsed.path
+    else:
+        path = raw_key
+    decoded_path = _fully_unquote(path)
+    normalized_path = _normalize_object_key(decoded_path)
+    if normalized_path != prefix and not normalized_path.startswith(f"{prefix}/"):
+        raise GraphArtifactError()
+    return raw_key if parsed.scheme else normalized_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,7 +270,7 @@ class VercelBlobGraphArtifactStore:
         return url
 
     async def get(self, *, artifact_key: str) -> bytes:
-        key = _require_text(artifact_key, label="artifact_key")
+        key = _validate_vercel_artifact_key(artifact_key, prefix=self._prefix)
         try:
             result = await self._client.get(key, access="private", use_cache=True)
         except Exception as error:
