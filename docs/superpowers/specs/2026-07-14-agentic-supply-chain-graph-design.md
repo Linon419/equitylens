@@ -1,6 +1,6 @@
 # Agentic Supply-Chain Graph Design
 
-**Status:** Awaiting written-spec review
+**Status:** Approved design
 **Date:** 2026-07-14
 **Product:** EquityLens
 **Audience:** Retail investors researching US-listed companies
