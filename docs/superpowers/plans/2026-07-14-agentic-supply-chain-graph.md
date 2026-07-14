@@ -660,7 +660,7 @@ async def test_s3_store_writes_private_content_with_hash_metadata(recording_s3):
     assert recording_s3.put_calls[0]["Metadata"] == {"sha256": "abc"}
 ```
 
-For Vercel, assert `access="private"`, `add_random_suffix=False`, `allow_overwrite=False`, and async-stream reassembly in `get`.
+For Vercel, assert `access="private"`, `add_random_suffix=False`, `overwrite=False`, and exact buffered-byte reads from `GetBlobResult.content`.
 
 - [ ] **Step 2: Run the storage test and confirm the red state**
 
@@ -716,16 +716,16 @@ class VercelBlobGraphArtifactStore:
             body,
             access="private",
             add_random_suffix=False,
-            allow_overwrite=False,
+            overwrite=False,
             content_type=content_type,
         )
         return result.url
 
     async def get(self, *, artifact_key: str) -> bytes:
         result = await self._client.get(artifact_key, access="private", use_cache=True)
-        if result is None or result.status_code != 200 or result.stream is None:
+        if result is None or result.status_code != 200:
             raise GraphArtifactNotFound(artifact_key)
-        return b"".join([chunk async for chunk in result.stream])
+        return result.content
 ```
 
 Wrap provider exceptions in graph-domain errors and avoid returning tokens, request headers, or SDK payloads in error details.
