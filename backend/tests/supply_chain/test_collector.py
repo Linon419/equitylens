@@ -1,7 +1,8 @@
+import asyncio
 import gzip
 import hashlib
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -10,6 +11,7 @@ import pytest
 from app.api import deps
 from app.core.errors import DomainError
 from app.providers.contracts import OfficialSourceDiscoveryProvider
+from app.providers.sec import FilingContent, FilingReference
 from app.supply_chain.artifacts import (
     GraphArtifactProviderError,
     InMemoryGraphArtifactStore,
@@ -27,12 +29,54 @@ class SubmissionsProvider:
     payload: dict[str, Any]
     error: Exception | None = None
     calls: int = 0
+    client: httpx.AsyncClient | None = None
+    download_calls: list[FilingReference] = field(default_factory=list)
 
     async def get_submissions(self, cik: str) -> dict[str, Any]:
         self.calls += 1
         if self.error is not None:
             raise self.error
         return self.payload
+
+    async def download_official_filing(
+        self,
+        filing: FilingReference,
+        *,
+        max_bytes: int,
+    ) -> FilingContent:
+        self.download_calls.append(filing)
+        if self.client is None:
+            raise DomainError("SEC_DATA_UNAVAILABLE", 503, {"retryable": True})
+        try:
+            async with self.client.stream(
+                "GET",
+                filing.source_url,
+                headers={"User-Agent": "EquityLens test admin@example.com"},
+            ) as response:
+                if response.status_code >= 300:
+                    raise DomainError(
+                        "SEC_DATA_UNAVAILABLE",
+                        503,
+                        {"retryable": True},
+                    )
+                chunks: list[bytes] = []
+                size = 0
+                async for chunk in response.aiter_bytes():
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise DomainError("FILING_TOO_LARGE", 413)
+                    chunks.append(chunk)
+        except httpx.HTTPError:
+            raise DomainError(
+                "SEC_DATA_UNAVAILABLE",
+                503,
+                {"retryable": True},
+            ) from None
+        return FilingContent(
+            body=b"".join(chunks),
+            content_type=response.headers.get("content-type", ""),
+            source_url=str(response.url),
+        )
 
 
 class PublicResolver:
@@ -123,10 +167,10 @@ async def prepared_tools(
     sleeper: Callable[[float], Any] | None = None,
     pdf_text_extractor: Callable[[bytes], str] | None = None,
 ):
-    provider = SubmissionsProvider(payload)
     store = InMemoryGraphArtifactStore()
     resolver = PublicResolver()
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=1)
+    provider = SubmissionsProvider(payload, client=client)
     collector_kwargs: dict[str, Any] = {}
     if monotonic is not None:
         collector_kwargs["monotonic"] = monotonic
@@ -172,9 +216,13 @@ async def test_prepare_list_and_fetch_three_official_sources() -> None:
             "text/plain",
         ),
         "https://apple.example.com/newsroom/releases": (
-            b"<html><body><h2>Newsroom</h2><p>Official manufacturing update."
-            b"</p></body></html>",
+            b'<html><body><h2>Newsroom</h2><a href="/newsroom/supplier-update">'
+            b"Official supplier press release</a></body></html>",
             "text/html",
+        ),
+        "https://apple.example.com/newsroom/supplier-update": (
+            b"Official supplier manufacturing update with enough evidence.",
+            "text/plain",
         ),
     }
     tools, client, store, _, provider = await prepared_tools(
@@ -197,7 +245,8 @@ async def test_prepare_list_and_fetch_three_official_sources() -> None:
         ]
 
         assert provider.calls == 1
-        assert len(listed) == 3
+        assert len(provider.download_calls) == 1
+        assert len(listed) == 4
         assert {source.source_type for source in listed} == {
             "sec_filing",
             "ir_page",
@@ -240,6 +289,70 @@ async def test_catalog_deduplicates_canonical_urls_and_selection_is_deterministi
 
         assert len(first) == 1
         assert [item.source_id for item in first] == [item.source_id for item in second]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_catalog_discovers_official_documents_from_sec_index() -> None:
+    payload = submissions(
+        investor_website="https://investor.apple.example.com/investor",
+    )
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            content=(
+                b'<html><a href="/annual-report-2025.pdf">Annual Report 2025</a>'
+                b'<a href="/newsroom/supplier-update">Supplier press release</a>'
+                b'<a href="https://attacker.example/report">External report</a></html>'
+            ),
+            headers={"content-type": "text/html"},
+            request=request,
+        )
+
+    tools, client, _, _, _ = await prepared_tools(
+        payload=payload,
+        handler=handler,
+        hosts=("apple.example.com",),
+        source_limit=6,
+    )
+    try:
+        listed = await tools.list_official_sources(
+            company=company("apple.example.com"),
+            query="annual supplier",
+            source_types=(
+                "ir_page",
+                "annual_report",
+                "official_press_release",
+            ),
+        )
+        by_url = {source.canonical_url: source.source_type for source in listed}
+
+        assert by_url["https://investor.apple.example.com/investor"] == "ir_page"
+        assert (
+            by_url["https://investor.apple.example.com/annual-report-2025.pdf"]
+            == "annual_report"
+        )
+        assert (
+            by_url["https://investor.apple.example.com/newsroom/supplier-update"]
+            == "official_press_release"
+        )
+        assert all("attacker.example" not in source.canonical_url for source in listed)
+        assert len(listed) <= 6
+        assert [request.url.path for request in seen] == [
+            "/robots.txt",
+            "/investor",
+        ]
     finally:
         await client.aclose()
 
@@ -362,6 +475,47 @@ async def test_total_run_budget_stops_stream_at_remaining_bytes() -> None:
 
 
 @pytest.mark.anyio
+async def test_concurrent_fetches_share_one_total_byte_budget() -> None:
+    payload = submissions(rows=2)
+
+    class SlowStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            await asyncio.sleep(0)
+            yield b"Official source body with forty bytes!!"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            stream=SlowStream(),
+            headers={"content-type": "text/plain"},
+            request=request,
+        )
+
+    tools, client, _, _, _ = await prepared_tools(
+        payload=payload,
+        handler=handler,
+        total_source_bytes=60,
+    )
+    try:
+        listed = await tools.list_official_sources(
+            company=company("apple.example.com"),
+            query="",
+            source_types=("sec_filing",),
+        )
+        results = await asyncio.gather(
+            *(tools.fetch_official_source(source_id=item.source_id) for item in listed),
+            return_exceptions=True,
+        )
+
+        documents = [item for item in results if not isinstance(item, Exception)]
+        errors = [item for item in results if isinstance(item, SourceCollectionError)]
+        assert len(documents) == 1
+        assert [error.code for error in errors] == ["SOURCE_RUN_BYTE_BUDGET_EXCEEDED"]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
 async def test_content_length_is_advisory_and_stream_limit_wins() -> None:
     payload = submissions()
 
@@ -427,7 +581,14 @@ async def test_dependency_wires_bounded_collector_without_network(
         "EquityLens dependency admin@example.com",
     )
 
-    dependency = deps.get_official_source_collector(provider, store)
+    def pdf_extractor(body: bytes) -> str:
+        return "Configured PDF text"
+
+    dependency = deps.get_official_source_collector(
+        provider,
+        store,
+        pdf_extractor,
+    )
     collector = await anext(dependency)
     try:
         assert isinstance(collector, OfficialSourceCollectorImpl)
@@ -439,6 +600,7 @@ async def test_dependency_wires_bounded_collector_without_network(
         assert collector._user_agent == "EquityLens dependency admin@example.com"
         assert collector._min_host_interval == 0.1
         assert collector._client.follow_redirects is False
+        assert collector._pdf_text_extractor is pdf_extractor
     finally:
         await dependency.aclose()
 
@@ -495,6 +657,29 @@ async def test_provider_error_maps_to_retryable_safe_code() -> None:
 
 
 @pytest.mark.anyio
+async def test_malformed_provider_payload_maps_to_retryable_safe_code() -> None:
+    collector = OfficialSourceCollectorImpl(
+        sec_provider=SubmissionsProvider({"filings": []}),
+        client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: None)),
+        artifact_store=InMemoryGraphArtifactStore(),
+        resolver=PublicResolver(),
+        user_agent="EquityLens test admin@example.com",
+        source_limit=24,
+        per_source_bytes=100,
+        total_source_bytes=100,
+    )
+    try:
+        with pytest.raises(SourceCollectionError) as error:
+            await collector.prepare_catalog(company=company("apple.example.com"))
+
+        assert error.value.code == "SOURCE_PROVIDER_INVALID"
+        assert error.value.retryable is True
+        assert error.value.__cause__ is None
+    finally:
+        await collector._client.aclose()
+
+
+@pytest.mark.anyio
 async def test_rejects_unsupported_content_type() -> None:
     payload = submissions()
     url = "https://www.sec.gov/Archives/edgar/data/320193/000032019325000001/aapl-1.htm"
@@ -517,13 +702,30 @@ async def test_rejects_unsupported_content_type() -> None:
 
 @pytest.mark.anyio
 async def test_rejects_compressed_response_bomb() -> None:
-    payload = submissions()
+    payload = submissions(website="https://apple.example.com/investor/report")
 
     class CompressedStream(httpx.AsyncByteStream):
         async def __aiter__(self):
             yield gzip.compress(b"x" * 10_000)
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
+        if request.url.path == "/newsroom/releases":
+            return httpx.Response(
+                200,
+                content=(
+                    b'<html><a href="/newsroom/supplier-update">'
+                    b"Official supplier press release</a></html>"
+                ),
+                headers={"content-type": "text/html"},
+                request=request,
+            )
         return httpx.Response(
             200,
             stream=CompressedStream(),
@@ -544,7 +746,7 @@ async def test_rejects_compressed_response_bomb() -> None:
         listed = await tools.list_official_sources(
             company=company("apple.example.com"),
             query="",
-            source_types=("sec_filing",),
+            source_types=("ir_page",),
         )
         with pytest.raises(SourceCollectionError) as error:
             await tools.fetch_official_source(source_id=listed[0].source_id)
@@ -555,9 +757,16 @@ async def test_rejects_compressed_response_bomb() -> None:
 
 @pytest.mark.anyio
 async def test_timeout_maps_to_retryable_fetch_error() -> None:
-    payload = submissions()
+    payload = submissions(website="https://apple.example.com/investor/report")
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
         raise httpx.ReadTimeout("fixture timeout", request=request)
 
     tools, client, _, _, _ = await prepared_tools(payload=payload, handler=handler)
@@ -565,7 +774,7 @@ async def test_timeout_maps_to_retryable_fetch_error() -> None:
         listed = await tools.list_official_sources(
             company=company("apple.example.com"),
             query="",
-            source_types=("sec_filing",),
+            source_types=("ir_page",),
         )
         with pytest.raises(SourceCollectionError) as error:
             await tools.fetch_official_source(source_id=listed[0].source_id)
@@ -592,6 +801,16 @@ async def test_issuer_robots_rules_are_enforced_and_cached() -> None:
                 headers={"content-type": "text/plain"},
                 request=request,
             )
+        if request.url.path == "/newsroom/releases":
+            return httpx.Response(
+                200,
+                content=(
+                    b'<html><a href="/newsroom/supplier-update">'
+                    b"Official supplier press release</a></html>"
+                ),
+                headers={"content-type": "text/html"},
+                request=request,
+            )
         return httpx.Response(
             200,
             text="Official newsroom fixture content with enough text.",
@@ -606,14 +825,65 @@ async def test_issuer_robots_rules_are_enforced_and_cached() -> None:
             query="",
             source_types=("ir_page", "official_press_release"),
         )
-        by_type = {source.source_type: source for source in sources}
-        with pytest.raises(SourceCollectionError) as error:
-            await tools.fetch_official_source(source_id=by_type["ir_page"].source_id)
-        assert error.value.code == "SOURCE_ROBOTS_DISALLOWED"
-        await tools.fetch_official_source(
-            source_id=by_type["official_press_release"].source_id
+        investor_page = next(
+            source
+            for source in sources
+            if source.canonical_url.endswith("/investor/overview")
         )
+        press_release = next(
+            source
+            for source in sources
+            if source.source_type == "official_press_release"
+        )
+        with pytest.raises(SourceCollectionError) as error:
+            await tools.fetch_official_source(source_id=investor_page.source_id)
+        assert error.value.code == "SOURCE_ROBOTS_DISALLOWED"
+        await tools.fetch_official_source(source_id=press_release.source_id)
         assert [request.url.path for request in seen].count("/robots.txt") == 1
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_compressed_robots_rules_are_decoded_before_enforcement() -> None:
+    payload = submissions(website="https://apple.example.com/investor/overview")
+    seen: list[httpx.Request] = []
+
+    class CompressedRobotsStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield gzip.compress(b"User-agent: *\nDisallow: /investor")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                stream=CompressedRobotsStream(),
+                headers={
+                    "content-type": "text/plain",
+                    "content-encoding": "gzip",
+                },
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            text="Official issuer content with enough text.",
+            headers={"content-type": "text/plain"},
+            request=request,
+        )
+
+    tools, client, _, _, _ = await prepared_tools(payload=payload, handler=handler)
+    try:
+        listed = await tools.list_official_sources(
+            company=company("apple.example.com"),
+            query="",
+            source_types=("ir_page",),
+        )
+        with pytest.raises(SourceCollectionError) as error:
+            await tools.fetch_official_source(source_id=listed[0].source_id)
+
+        assert error.value.code == "SOURCE_ROBOTS_DISALLOWED"
+        assert [request.url.path for request in seen] == ["/robots.txt"]
     finally:
         await client.aclose()
 
@@ -670,11 +940,18 @@ async def test_requests_are_paced_per_host_and_send_sec_user_agent() -> None:
 
 @pytest.mark.anyio
 async def test_redirect_target_is_revalidated_before_second_request() -> None:
-    payload = submissions()
+    payload = submissions(website="https://apple.example.com/investor/report")
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
         return httpx.Response(
             302,
             headers={"location": "http://127.0.0.1/admin"},
@@ -686,23 +963,33 @@ async def test_redirect_target_is_revalidated_before_second_request() -> None:
         listed = await tools.list_official_sources(
             company=company("apple.example.com"),
             query="",
-            source_types=("sec_filing",),
+            source_types=("ir_page",),
         )
         with pytest.raises(SourceCollectionError) as error:
             await tools.fetch_official_source(source_id=listed[0].source_id)
         assert error.value.code == "SOURCE_URL_SCHEME_UNSUPPORTED"
-        assert len(seen) == 1
+        assert [request.url.path for request in seen] == [
+            "/robots.txt",
+            "/investor/report",
+        ]
     finally:
         await client.aclose()
 
 
 @pytest.mark.anyio
 async def test_download_redirect_limit_is_three() -> None:
-    payload = submissions()
+    payload = submissions(website="https://apple.example.com/investor/report")
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
         return httpx.Response(
             302,
             headers={"location": f"/redirect-{len(seen)}"},
@@ -714,13 +1001,58 @@ async def test_download_redirect_limit_is_three() -> None:
         listed = await tools.list_official_sources(
             company=company("apple.example.com"),
             query="",
-            source_types=("sec_filing",),
+            source_types=("ir_page",),
         )
         with pytest.raises(SourceCollectionError) as error:
             await tools.fetch_official_source(source_id=listed[0].source_id)
 
         assert error.value.code == "SOURCE_REDIRECT_LIMIT"
-        assert len(seen) == 4
+        assert len(seen) == 5
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_redirect_bodies_share_the_run_byte_budget() -> None:
+    payload = submissions(website="https://apple.example.com/investor/report")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
+        if request.url.path == "/investor/report":
+            return httpx.Response(
+                302,
+                content=b"r" * 40,
+                headers={"location": "/final"},
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            content=b"Official final source body text.",
+            headers={"content-type": "text/plain"},
+            request=request,
+        )
+
+    tools, client, _, _, _ = await prepared_tools(
+        payload=payload,
+        handler=handler,
+        total_source_bytes=80,
+    )
+    try:
+        listed = await tools.list_official_sources(
+            company=company("apple.example.com"),
+            query="",
+            source_types=("ir_page",),
+        )
+        with pytest.raises(SourceCollectionError) as error:
+            await tools.fetch_official_source(source_id=listed[0].source_id)
+
+        assert error.value.code == "SOURCE_RUN_BYTE_BUDGET_EXCEEDED"
     finally:
         await client.aclose()
 
@@ -755,6 +1087,45 @@ async def test_robots_redirect_target_is_revalidated_before_second_request() -> 
 
 
 @pytest.mark.anyio
+async def test_issuer_redirect_target_rechecks_robots_before_request() -> None:
+    payload = submissions(website="https://apple.example.com/public/report")
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(
+                200,
+                text="User-agent: *\nAllow: /public\nDisallow: /private",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
+        return httpx.Response(
+            302,
+            headers={"location": "/private/report"},
+            request=request,
+        )
+
+    tools, client, _, _, _ = await prepared_tools(payload=payload, handler=handler)
+    try:
+        listed = await tools.list_official_sources(
+            company=company("apple.example.com"),
+            query="",
+            source_types=("ir_page",),
+        )
+        with pytest.raises(SourceCollectionError) as error:
+            await tools.fetch_official_source(source_id=listed[0].source_id)
+
+        assert error.value.code == "SOURCE_ROBOTS_DISALLOWED"
+        assert [request.url.path for request in seen] == [
+            "/robots.txt",
+            "/public/report",
+        ]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
 async def test_artifact_failure_maps_to_retryable_safe_error() -> None:
     payload = submissions()
     url = "https://www.sec.gov/Archives/edgar/data/320193/000032019325000001/aapl-1.htm"
@@ -767,7 +1138,6 @@ async def test_artifact_failure_maps_to_retryable_safe_error() -> None:
         async def get(self, *, artifact_key: str) -> bytes:
             raise AssertionError("get should not be called")
 
-    provider = SubmissionsProvider(payload)
     client = httpx.AsyncClient(
         transport=httpx.MockTransport(
             response_handler(
@@ -776,6 +1146,7 @@ async def test_artifact_failure_maps_to_retryable_safe_error() -> None:
         ),
         timeout=1,
     )
+    provider = SubmissionsProvider(payload, client=client)
     collector = OfficialSourceCollectorImpl(
         sec_provider=provider,
         client=client,

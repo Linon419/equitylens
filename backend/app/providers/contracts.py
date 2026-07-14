@@ -4,6 +4,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
+from app.providers.sec import FilingContent, FilingReference
+
 
 class JobState(StrEnum):
     QUEUED = "queued"
@@ -66,3 +68,10 @@ class DocumentParser(Protocol):
 
 class OfficialSourceDiscoveryProvider(Protocol):
     async def get_submissions(self, cik: str) -> dict[str, Any]: ...
+
+    async def download_official_filing(
+        self,
+        filing: FilingReference,
+        *,
+        max_bytes: int,
+    ) -> FilingContent: ...

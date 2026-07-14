@@ -8,7 +8,10 @@ from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 
 import tldextract
 
-PUBLIC_SUFFIX_EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=())
+PUBLIC_SUFFIX_EXTRACTOR = tldextract.TLDExtract(
+    suffix_list_urls=(),
+    include_psl_private_domains=True,
+)
 
 SEC_HOSTS = frozenset(
     {
@@ -63,7 +66,7 @@ class SourceUrlPolicy:
             )
         except (TypeError, ValueError, UnicodeError):
             raise SourcePolicyError("SOURCE_ISSUER_HOST_INVALID") from None
-        if not normalized_hosts or "" in issuer_domains:
+        if "" in issuer_domains:
             raise SourcePolicyError("SOURCE_ISSUER_HOST_INVALID")
         self._issuer_hosts = frozenset(normalized_hosts)
         self._issuer_domains = issuer_domains

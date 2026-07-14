@@ -113,6 +113,19 @@ def test_rejects_sibling_unrelated_and_suffix_trick_hosts(url: str) -> None:
     assert error.value.code == "SOURCE_URL_HOST_FORBIDDEN"
 
 
+def test_private_suffix_tenants_do_not_share_an_issuer_boundary() -> None:
+    policy = SourceUrlPolicy(issuer_hosts=("acme.github.io",))
+
+    assert (
+        policy.validate_url("https://investor.acme.github.io/results").hostname
+        == "investor.acme.github.io"
+    )
+    with pytest.raises(SourcePolicyError) as error:
+        policy.validate_url("https://investor.attacker.github.io/results")
+
+    assert error.value.code == "SOURCE_URL_HOST_FORBIDDEN"
+
+
 def test_normalizes_idna_hostname_against_sec_registered_host() -> None:
     policy = SourceUrlPolicy(issuer_hosts=("m\u00fcnich.com",))
 

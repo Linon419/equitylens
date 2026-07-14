@@ -53,6 +53,28 @@ class SecClient:
         return await self._get_json(SUBMISSIONS_URL.format(cik=normalized))
 
     async def download_filing(self, filing: FilingReference) -> FilingContent:
+        return await self._download_filing(
+            filing,
+            max_bytes=self._max_filing_bytes,
+        )
+
+    async def download_official_filing(
+        self,
+        filing: FilingReference,
+        *,
+        max_bytes: int,
+    ) -> FilingContent:
+        return await self._download_filing(
+            filing,
+            max_bytes=min(self._max_filing_bytes, max_bytes),
+        )
+
+    async def _download_filing(
+        self,
+        filing: FilingReference,
+        *,
+        max_bytes: int,
+    ) -> FilingContent:
         try:
             async with self._client.stream(
                 "GET",
@@ -64,7 +86,7 @@ class SecClient:
                 size = 0
                 async for chunk in response.aiter_bytes():
                     size += len(chunk)
-                    if size > self._max_filing_bytes:
+                    if size > max_bytes:
                         raise DomainError("FILING_TOO_LARGE", 413)
                     chunks.append(chunk)
                 return FilingContent(
@@ -149,7 +171,7 @@ def _raise_for_sec_status(response: httpx.Response) -> None:
             503,
             {"retryable": True},
         )
-    if response.is_error:
+    if response.is_error or response.is_redirect:
         raise DomainError(
             "SEC_DATA_UNAVAILABLE",
             502,

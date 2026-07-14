@@ -106,9 +106,7 @@ async def test_sec_client_streams_with_size_limit(submissions: dict) -> None:
             request=request,
         )
 
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(handler)
-    ) as client:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         sec = SecClient(
             client,
             "EquityLens test admin@example.com",
@@ -116,5 +114,31 @@ async def test_sec_client_streams_with_size_limit(submissions: dict) -> None:
         )
         with pytest.raises(DomainError) as error:
             await sec.download_filing(filing)
+
+    assert error.value.code == "FILING_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_sec_client_official_download_uses_run_specific_limit(
+    submissions: dict,
+) -> None:
+    filing = latest_10k("0000320193", submissions)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b"x" * 51,
+            headers={"content-type": "text/html"},
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        sec = SecClient(
+            client,
+            "EquityLens test admin@example.com",
+            max_filing_bytes=100,
+        )
+        with pytest.raises(DomainError) as error:
+            await sec.download_official_filing(filing, max_bytes=50)
 
     assert error.value.code == "FILING_TOO_LARGE"

@@ -6,15 +6,18 @@ import time
 import zlib
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from io import BytesIO
 from typing import Any
 from urllib import robotparser
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core.errors import DomainError
 from app.providers.contracts import OfficialSourceDiscoveryProvider
+from app.providers.sec import FilingContent, FilingReference
 from app.supply_chain.artifacts import GraphArtifactError
 from app.supply_chain.contracts import GraphArtifactStore
 from app.supply_chain.schemas import (
@@ -52,6 +55,11 @@ class _CollectedResponse:
     status_code: int
     headers: httpx.Headers
     content: bytes
+
+
+@dataclass(slots=True)
+class _SourceByteBudget:
+    remaining: int
 
 
 class OfficialSourceCollectorImpl:
@@ -116,21 +124,42 @@ class OfficialSourceCollectorImpl:
                 "SOURCE_PROVIDER_UNAVAILABLE",
                 retryable=True,
             )
-        policy = SourceUrlPolicy(issuer_hosts=company.official_hosts)
-        catalog = _build_catalog(
-            company=company,
-            submissions=submissions,
-            policy=policy,
-            limit=self._source_limit,
+        bootstrap_policy = SourceUrlPolicy(issuer_hosts=company.official_hosts)
+        try:
+            catalog, filings, discovery_ids = _build_catalog(
+                company=company,
+                submissions=submissions,
+                policy=bootstrap_policy,
+                limit=self._source_limit,
+            )
+        except (AttributeError, TypeError, ValueError):
+            raise SourceCollectionError(
+                "SOURCE_PROVIDER_INVALID",
+                retryable=True,
+            ) from None
+        anchored_hosts = tuple(
+            sorted(
+                {
+                    urlsplit(source.canonical_url).hostname
+                    for source in catalog
+                    if source.source_type != "sec_filing"
+                    and urlsplit(source.canonical_url).hostname is not None
+                }
+            )
         )
-        return PreparedOfficialSourceTools(
+        policy = SourceUrlPolicy(issuer_hosts=anchored_hosts)
+        tools = PreparedOfficialSourceTools(
             company=company,
             catalog=catalog,
+            filings=filings,
+            discovery_ids=discovery_ids,
+            sec_provider=self._sec_provider,
             client=self._client,
             artifact_store=self._artifact_store,
             resolver=self._resolver,
             policy=policy,
             user_agent=self._user_agent,
+            source_limit=self._source_limit,
             per_source_bytes=self._per_source_bytes,
             total_source_bytes=self._total_source_bytes,
             max_model_chars=self._max_model_chars,
@@ -140,6 +169,8 @@ class OfficialSourceCollectorImpl:
             sleeper=self._sleeper,
             pdf_text_extractor=self._pdf_text_extractor,
         )
+        await tools.discover_issuer_documents()
+        return tools
 
 
 class PreparedOfficialSourceTools:
@@ -148,11 +179,15 @@ class PreparedOfficialSourceTools:
         *,
         company: CompanyIdentity,
         catalog: list[OfficialSourceMetadata],
+        filings: dict[str, FilingReference],
+        discovery_ids: tuple[str, ...],
+        sec_provider: OfficialSourceDiscoveryProvider,
         client: httpx.AsyncClient,
         artifact_store: GraphArtifactStore,
         resolver: HostResolver,
         policy: SourceUrlPolicy,
         user_agent: str,
+        source_limit: int,
         per_source_bytes: int,
         total_source_bytes: int,
         max_model_chars: int,
@@ -164,6 +199,9 @@ class PreparedOfficialSourceTools:
     ) -> None:
         self._company = company
         self._catalog = {source.source_id: source for source in catalog}
+        self._filings = filings
+        self._discovery_ids = discovery_ids
+        self._sec_provider = sec_provider
         self._client = client
         self._artifact_store = artifact_store
         self._resolver = resolver
@@ -177,11 +215,77 @@ class PreparedOfficialSourceTools:
         self._monotonic = monotonic
         self._sleeper = sleeper
         self._pdf_text_extractor = pdf_text_extractor
+        self._source_limit = source_limit
         self._fetched: dict[str, OfficialSourceDocument] = {}
-        self._total_bytes = 0
+        self._remaining_total = total_source_bytes
         self._robots: dict[str, robotparser.RobotFileParser] = {}
         self._last_request: dict[str, float] = {}
         self._pace_lock = asyncio.Lock()
+        self._fetch_lock = asyncio.Lock()
+
+    async def discover_issuer_documents(self) -> None:
+        for source_id in self._discovery_ids:
+            try:
+                document = await self.fetch_official_source(source_id=source_id)
+                if document.content_type not in HTML_TYPES:
+                    continue
+                compressed = await self._artifact_store.get(
+                    artifact_key=document.artifact_key
+                )
+                body = gzip.decompress(compressed)
+            except (GraphArtifactError, OSError, SourceCollectionError):
+                continue
+            for metadata in _discover_issuer_links(
+                body,
+                index=document,
+                company=self._company,
+                policy=self._policy,
+            ):
+                if metadata.canonical_url in {
+                    source.canonical_url for source in self._catalog.values()
+                }:
+                    continue
+                self._catalog[metadata.source_id] = metadata
+        self._trim_catalog()
+
+    def _trim_catalog(self) -> None:
+        sec_sources = sorted(
+            (
+                source
+                for source in self._catalog.values()
+                if source.source_type == "sec_filing"
+            ),
+            key=lambda source: (
+                -(source.published_at.toordinal() if source.published_at else 0),
+                source.source_id,
+            ),
+        )
+        issuer_sources = sorted(
+            (
+                source
+                for source in self._catalog.values()
+                if source.source_type != "sec_filing"
+            ),
+            key=lambda source: (
+                source.source_id not in self._discovery_ids,
+                source.source_type,
+                source.source_id,
+            ),
+        )
+        issuer_limit = min(len(issuer_sources), max(1, self._source_limit // 2))
+        selected = [
+            *issuer_sources[:issuer_limit],
+            *sec_sources[: self._source_limit - issuer_limit],
+        ]
+        if len(selected) < self._source_limit:
+            remaining = self._source_limit - len(selected)
+            selected.extend(issuer_sources[issuer_limit : issuer_limit + remaining])
+        self._catalog = {source.source_id: source for source in selected}
+        self._filings = {
+            source_id: filing
+            for source_id, filing in self._filings.items()
+            if source_id in self._catalog
+        }
 
     async def list_official_sources(
         self,
@@ -225,32 +329,35 @@ class PreparedOfficialSourceTools:
         *,
         source_id: str,
     ) -> OfficialSourceDocument:
+        async with self._fetch_lock:
+            return await self._fetch_official_source(source_id)
+
+    async def _fetch_official_source(
+        self,
+        source_id: str,
+    ) -> OfficialSourceDocument:
         existing = self._fetched.get(source_id)
         if existing is not None:
             return existing
         metadata = self._catalog.get(source_id)
         if metadata is None:
             raise SourceCollectionError("SOURCE_NOT_IN_CATALOG")
+        if self._remaining_total <= 0:
+            raise SourceCollectionError("SOURCE_RUN_BYTE_BUDGET_EXCEEDED")
+        budget = _SourceByteBudget(self._per_source_bytes)
         validated = await self._authorize(metadata.canonical_url)
-        if validated.hostname not in SEC_HOSTS:
-            await self._require_robots_allowed(validated)
-        remaining = self._total_source_bytes - self._total_bytes
-        if remaining <= 0:
-            raise SourceCollectionError("SOURCE_RUN_BYTE_BUDGET_EXCEEDED")
-        byte_limit = min(self._per_source_bytes, remaining)
-        budget_code = (
-            "SOURCE_RUN_BYTE_BUDGET_EXCEEDED"
-            if remaining < self._per_source_bytes
-            else "SOURCE_BYTE_BUDGET_EXCEEDED"
-        )
-        body, content_type = await self._download(
-            validated,
-            byte_limit=byte_limit,
-            budget_code=budget_code,
-        )
-        if len(body) > remaining:
-            raise SourceCollectionError("SOURCE_RUN_BYTE_BUDGET_EXCEEDED")
-        self._total_bytes += len(body)
+        filing = self._filings.get(source_id)
+        if filing is None:
+            body, content_type = await self._download(
+                validated,
+                budget=budget,
+            )
+        else:
+            body, content_type = await self._download_sec_filing(
+                filing,
+                expected=validated,
+                budget=budget,
+            )
         text = (
             await asyncio.to_thread(
                 extract_official_text,
@@ -309,39 +416,112 @@ class PreparedOfficialSourceTools:
         self,
         initial: ValidatedSourceUrl,
         *,
-        byte_limit: int,
-        budget_code: str,
+        budget: _SourceByteBudget,
     ) -> tuple[bytes, str]:
-        _, response = await self._request_with_redirects(
+        _, response, _ = await self._request_with_redirects(
             initial,
-            byte_limit=byte_limit,
-            budget_code=budget_code,
+            budget=budget,
+            budget_code="SOURCE_BYTE_BUDGET_EXCEEDED",
+            enforce_robots=True,
         )
         _raise_for_status(response.status_code)
         content_type = _normalized_content_type(response.headers.get("content-type"))
+        decoded_limit = len(response.content) + min(
+            budget.remaining,
+            self._remaining_total,
+        )
         body = _decode_http_content(
             response.content,
             content_encoding=response.headers.get("content-encoding", ""),
-            byte_limit=byte_limit,
+            byte_limit=decoded_limit,
             max_ratio=self._max_decompression_ratio,
         )
+        self._consume_bytes(
+            budget,
+            max(0, len(body) - len(response.content)),
+            budget_code="SOURCE_BYTE_BUDGET_EXCEEDED",
+        )
         return body, content_type
+
+    async def _download_sec_filing(
+        self,
+        filing: FilingReference,
+        *,
+        expected: ValidatedSourceUrl,
+        budget: _SourceByteBudget,
+    ) -> tuple[bytes, str]:
+        max_bytes = min(budget.remaining, self._remaining_total)
+        global_limit = self._remaining_total <= budget.remaining
+        await self._pace(expected.hostname)
+        try:
+            content = await self._sec_provider.download_official_filing(
+                filing,
+                max_bytes=max_bytes,
+            )
+        except Exception as error:
+            if isinstance(error, DomainError) and error.code == "FILING_TOO_LARGE":
+                self._consume_bytes(
+                    budget,
+                    max_bytes,
+                    budget_code="SOURCE_BYTE_BUDGET_EXCEEDED",
+                )
+                code = (
+                    "SOURCE_RUN_BYTE_BUDGET_EXCEEDED"
+                    if global_limit
+                    else "SOURCE_BYTE_BUDGET_EXCEEDED"
+                )
+                raise SourceCollectionError(code) from None
+            retryable = isinstance(error, DomainError) and (
+                error.status_code >= 500 or bool((error.details or {}).get("retryable"))
+            )
+            raise SourceCollectionError(
+                "SOURCE_FETCH_UNAVAILABLE",
+                retryable=retryable,
+            ) from None
+        if not isinstance(content, FilingContent):
+            raise SourceCollectionError(
+                "SOURCE_PROVIDER_INVALID",
+                retryable=True,
+            )
+        returned = await self._authorize(content.source_url)
+        if (
+            returned.hostname not in SEC_HOSTS
+            or returned.normalized_url != expected.normalized_url
+        ):
+            raise SourceCollectionError("SOURCE_PROVIDER_INVALID", retryable=True)
+        self._consume_bytes(
+            budget,
+            len(content.body),
+            budget_code="SOURCE_BYTE_BUDGET_EXCEEDED",
+        )
+        return content.body, _normalized_content_type(content.content_type)
 
     async def _request_with_redirects(
         self,
         initial: ValidatedSourceUrl,
         *,
-        byte_limit: int,
+        budget: _SourceByteBudget,
         budget_code: str,
-    ) -> tuple[ValidatedSourceUrl, _CollectedResponse]:
+        enforce_robots: bool,
+        request_limit: int | None = None,
+    ) -> tuple[ValidatedSourceUrl, _CollectedResponse, int | None]:
         current = initial
+        remaining_limit = request_limit
         for redirect_count in range(4):
+            if enforce_robots and current.hostname not in SEC_HOSTS:
+                await self._require_robots_allowed(current, budget)
             await self._pace(current.hostname)
+            effective_limit = budget.remaining
+            if remaining_limit is not None:
+                effective_limit = min(effective_limit, remaining_limit)
             response = await self._request(
                 current.normalized_url,
-                byte_limit,
+                budget=budget,
+                request_limit=effective_limit,
                 budget_code=budget_code,
             )
+            if remaining_limit is not None:
+                remaining_limit -= len(response.content)
             if response.status_code in {301, 302, 303, 307, 308}:
                 location = response.headers.get("location")
                 if redirect_count >= 3 or location is None:
@@ -356,14 +536,15 @@ class PreparedOfficialSourceTools:
                 except SourcePolicyError as error:
                     raise SourceCollectionError(error.code) from None
                 continue
-            return current, response
+            return current, response, remaining_limit
         raise SourceCollectionError("SOURCE_REDIRECT_LIMIT")
 
     async def _request(
         self,
         url: str,
-        byte_limit: int,
         *,
+        budget: _SourceByteBudget,
+        request_limit: int,
         budget_code: str,
     ) -> _CollectedResponse:
         failure: Exception | None = None
@@ -379,17 +560,37 @@ class PreparedOfficialSourceTools:
                 follow_redirects=False,
             ) as streamed:
                 chunks: list[bytes] = []
-                size = 0
+                remaining_limit = request_limit
                 if streamed.is_stream_consumed:
-                    chunks.append(streamed.content)
-                    size = len(streamed.content)
-                    if size > byte_limit:
+                    content = streamed.content
+                    if len(content) > remaining_limit:
+                        self._consume_bytes(
+                            budget,
+                            remaining_limit,
+                            budget_code=budget_code,
+                        )
                         raise SourceCollectionError(budget_code)
+                    self._consume_bytes(
+                        budget,
+                        len(content),
+                        budget_code=budget_code,
+                    )
+                    chunks.append(content)
                 else:
                     async for chunk in streamed.aiter_raw():
-                        size += len(chunk)
-                        if size > byte_limit:
+                        if len(chunk) > remaining_limit:
+                            self._consume_bytes(
+                                budget,
+                                remaining_limit,
+                                budget_code=budget_code,
+                            )
                             raise SourceCollectionError(budget_code)
+                        self._consume_bytes(
+                            budget,
+                            len(chunk),
+                            budget_code=budget_code,
+                        )
+                        remaining_limit -= len(chunk)
                         chunks.append(chunk)
                 response = _CollectedResponse(
                     status_code=streamed.status_code,
@@ -407,21 +608,65 @@ class PreparedOfficialSourceTools:
             )
         return response
 
-    async def _require_robots_allowed(self, source: ValidatedSourceUrl) -> None:
+    def _consume_bytes(
+        self,
+        budget: _SourceByteBudget,
+        size: int,
+        *,
+        budget_code: str,
+    ) -> None:
+        if size <= 0:
+            return
+        if size > self._remaining_total:
+            consumed = self._remaining_total
+            self._remaining_total = 0
+            budget.remaining = max(0, budget.remaining - consumed)
+            raise SourceCollectionError("SOURCE_RUN_BYTE_BUDGET_EXCEEDED")
+        if size > budget.remaining:
+            self._remaining_total -= budget.remaining
+            budget.remaining = 0
+            raise SourceCollectionError(budget_code)
+        self._remaining_total -= size
+        budget.remaining -= size
+
+    async def _require_robots_allowed(
+        self,
+        source: ValidatedSourceUrl,
+        budget: _SourceByteBudget,
+    ) -> None:
         rules = self._robots.get(source.hostname)
         if rules is None:
             robots_url = f"https://{source.hostname}/robots.txt"
             validated = await self._authorize(robots_url)
-            _, response = await self._request_with_redirects(
+            _, response, remaining_limit = await self._request_with_redirects(
                 validated,
-                byte_limit=ROBOTS_LIMIT,
+                budget=budget,
                 budget_code="SOURCE_ROBOTS_TOO_LARGE",
+                enforce_robots=False,
+                request_limit=ROBOTS_LIMIT,
             )
             if response.status_code == 404:
                 lines: list[str] = []
             else:
                 _raise_for_status(response.status_code)
-                lines = response.content.decode("utf-8", errors="replace").splitlines()
+                assert remaining_limit is not None
+                decoded_limit = len(response.content) + min(
+                    remaining_limit,
+                    budget.remaining,
+                    self._remaining_total,
+                )
+                robots_body = _decode_http_content(
+                    response.content,
+                    content_encoding=response.headers.get("content-encoding", ""),
+                    byte_limit=decoded_limit,
+                    max_ratio=self._max_decompression_ratio,
+                )
+                self._consume_bytes(
+                    budget,
+                    max(0, len(robots_body) - len(response.content)),
+                    budget_code="SOURCE_ROBOTS_TOO_LARGE",
+                )
+                lines = robots_body.decode("utf-8", errors="replace").splitlines()
             rules = robotparser.RobotFileParser()
             rules.set_url(robots_url)
             rules.parse(lines)
@@ -449,38 +694,48 @@ def _build_catalog(
     submissions: dict[str, Any],
     policy: SourceUrlPolicy,
     limit: int,
-) -> list[OfficialSourceMetadata]:
+) -> tuple[
+    list[OfficialSourceMetadata],
+    dict[str, FilingReference],
+    tuple[str, ...],
+]:
     candidates: list[OfficialSourceMetadata] = []
+    filings: dict[str, FilingReference] = {}
+    discovery_ids: list[str] = []
     recent = submissions.get("filings", {}).get("recent", {})
     if isinstance(recent, dict):
         columns = (
             recent.get("accessionNumber", []),
             recent.get("filingDate", []),
+            recent.get("reportDate", []),
             recent.get("form", []),
             recent.get("primaryDocument", []),
         )
-        for accession, filing_date, form, primary_document in zip(
+        for accession, filing_date, report_date, form, primary_document in zip(
             *columns,
             strict=False,
         ):
-            metadata = _filing_metadata(
+            candidate = _filing_candidate(
                 company=company,
                 accession=str(accession),
                 filing_date=str(filing_date),
+                report_date=str(report_date),
                 form=str(form),
                 primary_document=str(primary_document),
             )
-            if metadata is not None:
+            if candidate is not None:
+                metadata, filing = candidate
                 candidates.append(metadata)
+                filings[metadata.source_id] = filing
     issuer_values = (
-        (submissions.get("website"), "ir_page", "Investor relations"),
+        (submissions.get("website"), "Official website", False),
         (
             submissions.get("investorWebsite"),
-            "official_press_release",
-            "Official newsroom",
+            "Investor relations",
+            True,
         ),
     )
-    for url, source_type, title in issuer_values:
+    for url, title, discover in issuer_values:
         if not isinstance(url, str) or not url:
             continue
         try:
@@ -488,31 +743,108 @@ def _build_catalog(
         except SourcePolicyError:
             continue
         url_hash = hashlib.sha256(canonical_url.encode()).hexdigest()[:20]
-        candidates.append(
-            OfficialSourceMetadata(
-                source_id=f"issuer:{url_hash}",
-                source_key=f"issuer:{company.cik}:{url_hash}",
-                source_type=source_type,
-                publisher=company.legal_name,
-                title=f"{company.legal_name} {title}",
-                canonical_url=canonical_url,
-                published_at=None,
-            )
+        metadata = OfficialSourceMetadata(
+            source_id=f"issuer:{url_hash}",
+            source_key=f"issuer:{company.cik}:{url_hash}",
+            source_type="ir_page",
+            publisher=company.legal_name,
+            title=f"{company.legal_name} {title}",
+            canonical_url=canonical_url,
+            published_at=None,
         )
+        candidates.append(metadata)
+        if discover:
+            discovery_ids.append(metadata.source_id)
     unique: dict[str, OfficialSourceMetadata] = {}
     for candidate in candidates:
         unique.setdefault(candidate.canonical_url, candidate)
-    return sorted(unique.values(), key=lambda item: item.source_id)[:limit]
+    selected = sorted(unique.values(), key=lambda item: item.source_id)[:limit]
+    return (
+        selected,
+        {
+            source.source_id: filings[source.source_id]
+            for source in selected
+            if source.source_id in filings
+        },
+        tuple(
+            source_id
+            for source_id in discovery_ids
+            if any(source.source_id == source_id for source in selected)
+        ),
+    )
 
 
-def _filing_metadata(
+def _discover_issuer_links(
+    body: bytes,
+    *,
+    index: OfficialSourceDocument,
+    company: CompanyIdentity,
+    policy: SourceUrlPolicy,
+) -> list[OfficialSourceMetadata]:
+    soup = BeautifulSoup(body, "html.parser")
+    discovered: dict[str, OfficialSourceMetadata] = {}
+    for anchor in soup.find_all("a", href=True):
+        href = anchor.get("href")
+        if not isinstance(href, str):
+            continue
+        try:
+            target = policy.validate_url(
+                urljoin(index.canonical_url, href)
+            ).normalized_url
+        except SourcePolicyError:
+            continue
+        if target == index.canonical_url:
+            continue
+        title = " ".join(anchor.get_text(" ", strip=True).split())
+        source_type = _classify_issuer_link(target, title)
+        if source_type is None:
+            continue
+        digest = hashlib.sha256(target.encode()).hexdigest()[:20]
+        discovered.setdefault(
+            target,
+            OfficialSourceMetadata(
+                source_id=f"issuer-doc:{digest}",
+                source_key=f"issuer:{company.cik}:{digest}",
+                source_type=source_type,
+                publisher=company.legal_name,
+                title=(title or target.rsplit("/", 1)[-1])[:500],
+                canonical_url=target,
+                published_at=None,
+            ),
+        )
+    return sorted(discovered.values(), key=lambda source: source.source_id)
+
+
+def _classify_issuer_link(url: str, title: str) -> SourceType | None:
+    haystack = f"{url} {title}".casefold()
+    if urlsplit(url).path.casefold().endswith(".pdf") or "annual report" in haystack:
+        return "annual_report"
+    if any(marker in haystack for marker in ("newsroom", "press", "release", "news/")):
+        return "official_press_release"
+    if any(
+        marker in haystack
+        for marker in (
+            "investor",
+            "financial-results",
+            "earnings",
+            "supplier",
+            "supply-chain",
+            "manufacturing",
+        )
+    ):
+        return "ir_page"
+    return None
+
+
+def _filing_candidate(
     *,
     company: CompanyIdentity,
     accession: str,
     filing_date: str,
+    report_date: str,
     form: str,
     primary_document: str,
-) -> OfficialSourceMetadata | None:
+) -> tuple[OfficialSourceMetadata, FilingReference] | None:
     compact_accession = re.sub(r"[^0-9]", "", accession)
     if not compact_accession or not primary_document or "/" in primary_document:
         return None
@@ -526,7 +858,7 @@ def _filing_metadata(
         f"{cik_number}/{compact_accession}/{primary_document}"
     )
     normalized_form = form.strip().upper() or "FILING"
-    return OfficialSourceMetadata(
+    metadata = OfficialSourceMetadata(
         source_id=f"sec:{compact_accession}:{primary_document}",
         source_key=f"sec:{company.cik}:{normalized_form.casefold()}:{compact_accession}",
         source_type="sec_filing",
@@ -534,6 +866,14 @@ def _filing_metadata(
         title=f"{company.legal_name} {normalized_form} filed {filing_date}",
         canonical_url=url,
         published_at=published_at,
+    )
+    return metadata, FilingReference(
+        accession_number=accession,
+        form=normalized_form,
+        filed_at=datetime.combine(published_at, datetime.min.time(), tzinfo=UTC),
+        report_date=report_date,
+        primary_document=primary_document,
+        source_url=url,
     )
 
 
@@ -591,7 +931,7 @@ def extract_official_text(
             if line.strip()
         )
     if content_type in PDF_TYPES:
-        extractor = pdf_text_extractor or _extract_pdf_text
+        extractor = pdf_text_extractor or extract_pdf_text
         return extractor(body)
     if content_type not in HTML_TYPES:
         raise SourceCollectionError("SOURCE_CONTENT_TYPE_UNSUPPORTED")
@@ -601,7 +941,9 @@ def extract_official_text(
     ):
         tag.decompose()
     lines: list[str] = []
-    for element in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "tr", "li"]):
+    for element in soup.find_all(
+        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "tr", "li", "a"]
+    ):
         value = " ".join(element.get_text(" ", strip=True).split())
         if value and (not lines or value != lines[-1]):
             lines.append(value)
@@ -612,7 +954,7 @@ def extract_official_text(
     return "\n".join(lines)
 
 
-def _extract_pdf_text(body: bytes) -> str:
+def extract_pdf_text(body: bytes) -> str:
     try:
         from pypdf import PdfReader
 

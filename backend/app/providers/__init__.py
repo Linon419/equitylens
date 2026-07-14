@@ -5,6 +5,7 @@ from app.providers.contracts import (
     JobState,
     JobSubmission,
     ObjectStorageProvider,
+    OfficialSourceDiscoveryProvider,
     ParsedPage,
     UploadIntent,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "JobSubmission",
     "MarketDataProvider",
     "ObjectStorageProvider",
+    "OfficialSourceDiscoveryProvider",
     "ParsedPage",
     "QuoteSnapshot",
     "SecDataProvider",

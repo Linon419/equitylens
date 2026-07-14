@@ -36,3 +36,10 @@ class SecDataProvider(Protocol):
     async def get_company_facts(self, cik: str) -> dict[str, Any]: ...
 
     async def download_filing(self, filing: FilingReference) -> FilingContent: ...
+
+    async def download_official_filing(
+        self,
+        filing: FilingReference,
+        *,
+        max_bytes: int,
+    ) -> FilingContent: ...

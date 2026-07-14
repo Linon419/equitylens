@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Generator
+from collections.abc import AsyncIterator, Callable, Generator
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated
@@ -39,7 +39,7 @@ from app.supply_chain.artifacts import (
     S3GraphArtifactStore,
     VercelBlobGraphArtifactStore,
 )
-from app.supply_chain.collector import OfficialSourceCollectorImpl
+from app.supply_chain.collector import OfficialSourceCollectorImpl, extract_pdf_text
 from app.supply_chain.contracts import GraphArtifactStore, OfficialSourceCollector
 from app.supply_chain.source_policy import SystemHostResolver
 
@@ -68,7 +68,7 @@ def get_market_data_provider() -> MarketDataProvider:
 
 
 async def get_sec_data_provider() -> AsyncIterator[SecDataProvider]:
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
         yield SecClient(
             client=client,
             user_agent=settings.SEC_USER_AGENT,
@@ -262,9 +262,20 @@ GraphArtifactStoreDep = Annotated[
 ]
 
 
+def get_official_pdf_text_extractor() -> Callable[[bytes], str]:
+    return extract_pdf_text
+
+
+OfficialPdfTextExtractorDep = Annotated[
+    Callable[[bytes], str],
+    Depends(get_official_pdf_text_extractor),
+]
+
+
 async def get_official_source_collector(
     sec_provider: SecDataProviderDep,
     artifact_store: GraphArtifactStoreDep,
+    pdf_text_extractor: OfficialPdfTextExtractorDep,
 ) -> AsyncIterator[OfficialSourceCollector]:
     async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
         yield OfficialSourceCollectorImpl(
@@ -280,6 +291,7 @@ async def get_official_source_collector(
             ),
             total_source_bytes=settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES,
             min_host_interval=0.1,
+            pdf_text_extractor=pdf_text_extractor,
         )
 
 
