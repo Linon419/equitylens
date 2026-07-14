@@ -61,10 +61,14 @@ def test_docker_profile_accepts_docker_providers() -> None:
 
 
 def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
-    monkeypatch.setenv("RESEARCH_MODEL", "gpt-5-mini")
+    research_model = "test-research-model"
+    monkeypatch.setenv("RESEARCH_MODEL", research_model)
+    monkeypatch.delenv("SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE", raising=False)
     settings = Settings(_env_file=None)
 
-    assert settings.SUPPLY_CHAIN_GRAPH_MODEL == "gpt-5-mini"
+    assert research_model == settings.RESEARCH_MODEL
+    assert settings.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE is None
+    assert research_model == settings.SUPPLY_CHAIN_GRAPH_MODEL
     assert settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION == "supply-chain-graph.v1"
     assert (
         settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION
@@ -73,6 +77,18 @@ def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_NODES == 40
     assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 25
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD == 0.75
+
+
+def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None:
+    research_model = "test-research-model"
+    graph_model = "test-graph-model"
+    monkeypatch.setenv("RESEARCH_MODEL", research_model)
+    monkeypatch.setenv("SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE", graph_model)
+    settings = Settings(_env_file=None)
+
+    assert research_model == settings.RESEARCH_MODEL
+    assert graph_model == settings.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE
+    assert graph_model == settings.SUPPLY_CHAIN_GRAPH_MODEL
 
 
 @pytest.mark.parametrize(
