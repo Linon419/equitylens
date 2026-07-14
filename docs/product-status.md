@@ -42,12 +42,12 @@ Release stage: Phase 2 beta
 | Graph evidence | Private S3/MinIO or Vercel Blob artifacts with public capped excerpts |
 | Jobs | Database state machine with Vercel Workflow and Redis/RQ adapters |
 | Identity | Signed guest principal, rotating Google sessions, same-origin BFF |
-| Quality | Backend suite, 125 frontend tests, production build, and 9 Playwright journeys |
+| Quality | Backend suite, 126 frontend tests, production build, and 9 Playwright journeys |
 
 ## Release validation (Docker host gate pending)
 
 The native and Vercel-build graph slice passed the backend suite, Ruff,
-deployment contract tests, 125 frontend tests, TypeScript, ESLint, the Next.js
+deployment contract tests, 126 frontend tests, TypeScript, ESLint, the Next.js
 production build, and all 9 Chromium journeys on 2026-07-14. Docker descriptor
 structure passed YAML and contract validation. Release status remains pending
 until Docker Compose config and image builds pass on a Docker-enabled release host.

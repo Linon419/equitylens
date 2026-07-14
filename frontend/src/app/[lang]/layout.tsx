@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { getDictionary } from "@/dictionaries";
 import { isLocale, locales } from "@/lib/i18n";
+import "@xyflow/react/dist/style.css";
 import "../globals.css";
 
 const bodyFont = IBM_Plex_Sans({
