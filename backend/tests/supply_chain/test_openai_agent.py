@@ -11,6 +11,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.api import deps
+from app.supply_chain import openai_agent as openai_agent_module
 from app.supply_chain.openai_agent import (
     FetchOfficialSource,
     ListOfficialSources,
@@ -475,6 +476,31 @@ async def test_extraction_preserves_model_proposed_company_aliases(
 
 
 @pytest.mark.anyio
+async def test_evidence_budget_can_be_smaller_than_source_count(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+    draft: GraphDraft,
+) -> None:
+    def count_nonempty(value: str) -> int:
+        return int(bool(value))
+
+    model = RecordingModel(structured_outputs={GraphDraft: [draft.model_dump()]})
+    agent = OpenAISupplyChainAgent(
+        model=model,
+        model_id="gpt-fixture",
+        max_source_tokens=1,
+        token_counter=count_nonempty,
+    )
+
+    await agent.extract_graph(company=company, sources=sources)
+
+    payload = json.loads(model.structured_calls[0][2][1].content)
+    assert (
+        sum(count_nonempty(source["body_text"]) for source in payload["sources"]) <= 1
+    )
+
+
+@pytest.mark.anyio
 async def test_unknown_draft_citation_exhausts_repair(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],
@@ -623,6 +649,90 @@ async def test_source_result_validation_failure_maps_to_tool_failure(
         await agent.plan_sources(company=company, tools=tools)
 
     assert error.value.code == "SOURCE_TOOL_FAILED"
+
+
+@pytest.mark.anyio
+async def test_tool_loop_logs_safe_provider_usage(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RecordingLogger:
+        def __init__(self) -> None:
+            self.records: list[dict[str, object]] = []
+
+        def bind(self, **values: object) -> "RecordingLogger":
+            self.records.append(values)
+            return self
+
+        def info(self, message: str) -> None:
+            pass
+
+    selected_id = sources[0].source_id
+    responses = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                tool_call(
+                    "ListOfficialSources",
+                    {"query": "suppliers", "source_types": ["sec_filing"]},
+                    "list-1",
+                )
+            ],
+            response_metadata={"id": "request-tool-1"},
+            usage_metadata={"input_tokens": 10, "output_tokens": 4, "total_tokens": 14},
+        ),
+        AIMessage(
+            content="",
+            tool_calls=[
+                tool_call(
+                    "FetchOfficialSource",
+                    {"source_id": selected_id},
+                    "fetch-1",
+                )
+            ],
+            response_metadata={"id": "request-tool-2"},
+            usage_metadata={"input_tokens": 20, "output_tokens": 5, "total_tokens": 25},
+        ),
+        AIMessage(
+            content="Source inspection complete.",
+            response_metadata={"id": "request-tool-3"},
+            usage_metadata={"input_tokens": 30, "output_tokens": 6, "total_tokens": 36},
+        ),
+    ]
+    model = RecordingModel(
+        tool_outputs=responses,
+        structured_outputs={
+            SourcePlan: [
+                {
+                    "selected_source_ids": [selected_id],
+                    "rationale_en": "The filing supports the selected source.",
+                    "relevant_sections": ["Business"],
+                }
+            ]
+        },
+    )
+    recording_logger = RecordingLogger()
+    monkeypatch.setattr(openai_agent_module, "logger", recording_logger)
+    agent = OpenAISupplyChainAgent(model=model, model_id="gpt-fixture")
+
+    await agent.plan_sources(
+        company=company,
+        tools=RecordingOfficialSourceTools(sources),
+    )
+
+    tool_records = [
+        record
+        for record in recording_logger.records
+        if record.get("stage") == "plan_sources.tool"
+    ]
+    assert [record["request_id"] for record in tool_records] == [
+        "request-tool-1",
+        "request-tool-2",
+        "request-tool-3",
+    ]
+    assert sum(int(record["input_tokens"]) for record in tool_records) == 60
+    assert all("content" not in record for record in tool_records)
 
 
 @pytest.mark.anyio

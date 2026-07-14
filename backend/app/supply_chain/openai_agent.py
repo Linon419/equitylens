@@ -284,6 +284,10 @@ class OpenAISupplyChainAgent:
             raise SupplyChainAgentError.from_provider(error) from None
         if not isinstance(result, AIMessage):
             raise SupplyChainAgentError("SOURCE_TOOL_RESPONSE_INVALID")
+        self._log_provider_call(
+            stage="plan_sources.tool",
+            metadata=_message_metadata(result),
+        )
         return result
 
     async def _execute_tool(
@@ -409,7 +413,7 @@ class OpenAISupplyChainAgent:
         payloads: list[dict[str, object]] = []
         for index, source in enumerate(sources):
             source_count = len(sources) - index
-            allocation = max(1, remaining // source_count)
+            allocation = remaining // source_count
             payload = source.model_dump(mode="json")
             payload["body_text"] = _truncate_to_tokens(
                 source.body_text,
@@ -441,6 +445,20 @@ class OpenAISupplyChainAgent:
             output_tokens=metadata.get("output_tokens"),
         ).info("Supply chain Agent stage completed")
 
+    def _log_provider_call(
+        self,
+        *,
+        stage: str,
+        metadata: dict[str, object],
+    ) -> None:
+        logger.bind(
+            model_id=self.model_id,
+            stage=stage,
+            request_id=metadata.get("request_id"),
+            input_tokens=metadata.get("input_tokens"),
+            output_tokens=metadata.get("output_tokens"),
+        ).info("Supply chain Agent provider call completed")
+
 
 def _parse_structured_result[ResultT: BaseModel](
     schema: type[ResultT],
@@ -453,14 +471,18 @@ def _parse_structured_result[ResultT: BaseModel](
             raise ValueError("structured parsing failed")
         result = raw_result.get("parsed")
         raw_message = raw_result.get("raw")
-        response_metadata = getattr(raw_message, "response_metadata", {}) or {}
-        usage_metadata = getattr(raw_message, "usage_metadata", {}) or {}
-        metadata = {
-            "request_id": response_metadata.get("id"),
-            "input_tokens": usage_metadata.get("input_tokens"),
-            "output_tokens": usage_metadata.get("output_tokens"),
-        }
+        metadata = _message_metadata(raw_message)
     return schema.model_validate(result), metadata
+
+
+def _message_metadata(message: Any) -> dict[str, object]:
+    response_metadata = getattr(message, "response_metadata", {}) or {}
+    usage_metadata = getattr(message, "usage_metadata", {}) or {}
+    return {
+        "request_id": response_metadata.get("id"),
+        "input_tokens": usage_metadata.get("input_tokens"),
+        "output_tokens": usage_metadata.get("output_tokens"),
+    }
 
 
 def _strict_output_schema(model: type[BaseModel]) -> dict[str, Any]:
