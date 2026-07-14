@@ -30,7 +30,10 @@ export function AnalysisControl({
   symbol: string;
 }) {
   const { user } = useSession();
-  const [quota, setQuota] = useState(initialQuota);
+  const [quotaOverride, setQuotaOverride] = useState<{
+    baseline: QuotaStatus;
+    value: QuotaStatus;
+  } | null>(null);
   const [job, setJob] = useState<IngestionJob | null>(null);
   const [activity, setActivity] = useState<"idle" | "retrying">("idle");
   const [pending, setPending] = useState(false);
@@ -38,6 +41,9 @@ export function AnalysisControl({
   const [requestError, setRequestError] = useState(false);
   const jobId = job?.id;
   const jobState = job?.state;
+  const quota = quotaOverride?.baseline === initialQuota
+    ? quotaOverride.value
+    : initialQuota;
 
   useEffect(() => {
     if (!jobId || !jobState || ["completed", "failed"].includes(jobState)) return;
@@ -52,7 +58,7 @@ export function AnalysisControl({
         const nextJob = parseResearchResponse("job", await response.json());
         if (nextJob.state === "completed") {
           await refreshCompletedResearch(symbol, locale, controller.signal, (data, nextQuota) => {
-            setQuota(nextQuota);
+            setQuotaOverride({ baseline: initialQuota, value: nextQuota });
             onCompleted(data, nextQuota);
           });
         }
@@ -66,7 +72,7 @@ export function AnalysisControl({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [jobId, jobState, locale, onCompleted, symbol]);
+  }, [initialQuota, jobId, jobState, locale, onCompleted, symbol]);
 
   async function startAnalysis() {
     if (pending) return;
@@ -83,7 +89,7 @@ export function AnalysisControl({
       }
       if (!response.ok) throw new Error("analysis start failed");
       const payload = parseResearchResponse("sync", await response.json());
-      setQuota(payload.quota);
+      setQuotaOverride({ baseline: initialQuota, value: payload.quota });
       if (payload.job) setJob(payload.job);
       if (payload.status === "reused_snapshot") {
         await refreshCompletedResearch(symbol, locale, undefined, onCompleted);

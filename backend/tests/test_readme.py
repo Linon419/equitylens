@@ -37,8 +37,10 @@ EXPECTED_DEPLOYS = {
             "QUOTA_HASH_SECRET",
             "INTERNAL_JOB_SECRET",
             "WORKFLOW_TRIGGER_URL",
+            "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
             "MARKET_DATA_PROVIDER",
             "RESEARCH_MODEL",
+            "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE",
         },
     },
     "Web": {
@@ -130,3 +132,17 @@ def test_supporting_docs_use_equitylens_project_names() -> None:
     assert "API Project first" in vercel
     assert "# EquityLens Web" in frontend
     assert "../deploy/vercel/README.md" in frontend
+
+
+def test_readme_links_graph_design_plan_and_documents_guest_quota() -> None:
+    content = readme_text()
+
+    assert (
+        "docs/superpowers/specs/2026-07-14-agentic-supply-chain-graph-design.md"
+        in content
+    )
+    assert (
+        "docs/superpowers/plans/2026-07-14-agentic-supply-chain-graph.md"
+        in content
+    )
+    assert "two accepted graph jobs per UTC day" in content

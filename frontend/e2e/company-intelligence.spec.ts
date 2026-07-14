@@ -38,27 +38,169 @@ test("guest completes bilingual evidence-first company research", async ({
   await page.getByRole("button", { name: "Run agent analysis" }).click();
   await expect(page.getByText("Queued")).toBeVisible();
   await expect(page.getByText(/1 daily analyses remaining/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Upstream" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Key businesses" })).toBeVisible({
     timeout: 15_000,
   });
   await expect(page.getByText("Analysis complete")).toBeVisible();
 
-  const lanes = page.locator(".evidence-flow__lane");
-  for (let index = 0; index < 3; index += 1) {
-    await lanes.nth(index).getByRole("button", { name: /Citation/ }).click();
-    await expect(
-      page.getByRole("dialog", { name: "Source evidence" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Close evidence" }).last().click();
-  }
+  await page.getByRole("button", { name: /Citation/ }).first().click();
+  await expect(
+    page.getByRole("dialog", { name: "Source evidence" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close evidence" }).last().click();
 
   await page.getByRole("combobox", { name: "Language" }).selectOption("zh-CN");
   await expect(page).toHaveURL(/\/zh-CN\/companies\/AAPL$/);
-  await expect(page.getByRole("heading", { name: "上游" })).toBeVisible();
-  await expect(page.getByText("测试：Manufacturing supply")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "关键业务" })).toBeVisible();
+  await expect(page.getByText("测试：Devices and services")).toBeVisible();
   await expect(page.getByRole("button", { name: "运行 Agent 分析" })).toBeVisible();
   await page.reload();
   await expect(page.getByText(/1.*次今日分析剩余/)).toBeVisible();
+});
+
+test("guest generates and explores an evidence-backed supply chain graph", async ({
+  page,
+}) => {
+  await page.goto("/en-US/companies/AAPL");
+  await page.getByRole("button", { name: "Generate graph" }).click();
+  await expect(page.getByText("Queued")).toBeVisible();
+  await expect(page.getByText("Collecting official sources")).toBeVisible({
+    timeout: 8_000,
+  });
+  await expect(
+    page.getByRole("button", { name: /Select Apple Inc\./ }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/1 daily graph runs remaining/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Relationship list" }).click();
+  await page.getByRole("button", {
+    name: /TSMC Semiconductor Manufacturing Supplies Apple Silicon.*Verified relationship/i,
+  }).click();
+  await expect(
+    page.getByRole("heading", { name: "Relationship evidence" }),
+  ).toBeVisible();
+  await expect(page.getByText(/TSMC Semiconductor Manufacturing fabricates/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open official source" })).toHaveAttribute(
+    "href",
+    /apple\.com/,
+  );
+
+  await page.getByRole("button", { name: "Close evidence" }).click();
+  await page.getByRole("switch", { name: "Potential relationships" }).click();
+  await expect(page.getByRole("button", {
+    name: /SK hynix Memory Supplies Apple Silicon.*Potential relationship/i,
+  })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText(/1 daily graph runs remaining/)).toBeVisible();
+  await expect(page.getByText(/Apple combines a concentrated component/)).toBeVisible();
+
+  await page.getByRole("combobox", { name: "Language" }).selectOption("zh-CN");
+  await expect(page).toHaveURL(/\/zh-CN\/companies\/AAPL$/);
+  await expect(page.getByRole("heading", { name: "AI 产业链图谱" })).toBeVisible();
+  await expect(page.getByRole("button", {
+    name: /选择 中文 TSMC Semiconductor Manufacturing \(TSM\)/,
+  })).toBeVisible();
+  await page.getByRole("button", { name: "关系列表" }).click();
+  const localizedRelationship = page.getByRole("button", {
+    name: /中文 TSMC Semiconductor Manufacturing 供应 中文 Apple Silicon.*已核验关系/i,
+  });
+  await localizedRelationship.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(
+    "TSMC Semiconductor Manufacturing fabricates Apple-designed silicon used across Apple products.",
+  )).toBeVisible();
+  await expect(page.getByRole("link", { name: "打开官方来源" })).toHaveAttribute(
+    "href",
+    /apple\.com/,
+  );
+});
+
+test("graph refresh failure preserves the cited snapshot and refunds quota", async ({
+  page,
+}) => {
+  await generateAppleGraph(page);
+  const thesis = /Apple combines a concentrated component/;
+  await expect(page.getByText(thesis)).toBeVisible();
+
+  await page.getByRole("button", { name: "Refresh graph" }).click();
+  await expect(page.getByText("Queued")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry graph research" })).toBeVisible({
+    timeout: 8_000,
+  });
+  await expect(page.getByText(thesis)).toBeVisible();
+  await expect(page.getByText(/1 daily graph runs remaining/)).toBeVisible();
+});
+
+test("guest graph quota counts completed jobs and cached reuse costs zero", async ({
+  page,
+}) => {
+  await page.goto("/en-US/companies/AAPL");
+  const result = await page.evaluate(async () => {
+    const sync = async (symbol: string) => {
+      const response = await fetch(
+        `/api/research/companies/${symbol}/supply-chain-graph/sync`,
+        {
+          body: JSON.stringify({ force_refresh: false }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
+      return { body: await response.json(), status: response.status };
+    };
+    const waitForCompletion = async (jobId: string) => {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        const response = await fetch(`/api/research/jobs/${jobId}`);
+        const job = await response.json();
+        if (["completed", "failed"].includes(job.state)) return job;
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+      throw new Error("graph job did not reach a terminal state");
+    };
+
+    const first = await sync("AAPL");
+    const firstJob = await waitForCompletion(first.body.job.id);
+    const cached = await sync("AAPL");
+    const second = await sync("MSFT");
+    const secondJob = await waitForCompletion(second.body.job.id);
+    const limited = await sync("NVDA");
+    return { cached, first, firstJob, limited, second, secondJob };
+  });
+
+  expect(result.first.status).toBe(202);
+  expect(result.firstJob.state).toBe("completed");
+  expect(result.cached.status).toBe(200);
+  expect(result.cached.body.status).toBe("reused_snapshot");
+  expect(result.cached.body.quota.remaining).toBe(1);
+  expect(result.second.status).toBe(202);
+  expect(result.secondJob.state).toBe("completed");
+  expect(result.limited.status).toBe(429);
+});
+
+test("mobile users start in the relationship list and can open evidence", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await generateAppleGraph(page);
+
+  await expect(page.getByRole("button", { name: "Relationship list" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("button", {
+    name: /TSMC Semiconductor Manufacturing Supplies Apple Silicon.*Verified relationship/i,
+  }).click();
+  await expect(page.locator(".supply-chain-inspector")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Relationship evidence" })).toBeVisible();
+});
+
+test("a resolved neighbor can become the next research center", async ({ page }) => {
+  await generateAppleGraph(page);
+  await page.getByRole("button", {
+    name: /Select TSMC Semiconductor Manufacturing \(TSM\)/,
+  }).click();
+  await page.getByRole("button", { name: "Center on this company" }).click();
+  await expect(page).toHaveURL(/\/en-US\/companies\/TSM$/);
 });
 
 test("authenticated watchlist persists and ten-analysis limit is enforced", async ({
@@ -125,4 +267,12 @@ async function installFakeGoogle(page: import("@playwright/test").Page) {
       },
     });
   });
+}
+
+async function generateAppleGraph(page: import("@playwright/test").Page) {
+  await page.goto("/en-US/companies/AAPL");
+  await page.getByRole("button", { name: "Generate graph" }).click();
+  await expect(
+    page.getByText(/Apple combines a concentrated component/),
+  ).toBeVisible({ timeout: 15_000 });
 }

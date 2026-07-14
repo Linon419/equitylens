@@ -204,7 +204,6 @@ export function CompanyPage({
         <AnalysisControl
           copy={copy.analysis}
           initialQuota={resources.quota}
-          key={`${resources.quota.used}-${resources.quota.resets_at}`}
           locale={locale}
           symbol={symbol}
           onCompleted={handleCompleted}

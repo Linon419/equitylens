@@ -112,6 +112,31 @@ describe("AnalysisControl", () => {
     expect(screen.getByRole("link", { name: "Sign in for 10 daily analyses" })).toBeVisible();
   });
 
+  it("applies a refunded quota update without resetting job state", () => {
+    const view = render(
+      <AnalysisControl
+        copy={analysisCopy.en}
+        initialQuota={{ ...quotaFixture, used: 1, remaining: 1 }}
+        locale="en-US"
+        symbol="AAPL"
+        onCompleted={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("1 daily analyses remaining")).toBeVisible();
+
+    view.rerender(
+      <AnalysisControl
+        copy={analysisCopy.en}
+        initialQuota={{ ...quotaFixture, used: 0, remaining: 2 }}
+        locale="en-US"
+        symbol="AAPL"
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("2 daily analyses remaining")).toBeVisible();
+  });
+
   it("retries an eligible failed job once", async () => {
     const failedJob = {
       ...jobFixture,

@@ -15,9 +15,34 @@ def test_compose_defines_the_complete_application_stack() -> None:
     assert services["db"]["environment"]["POSTGRES_DB"] == (
         "${POSTGRES_DB:-equitylens}"
     )
-    assert {"db", "redis", "minio", "migrate", "api", "worker", "web"} <= set(
-        services
+    assert {
+        "db",
+        "redis",
+        "minio",
+        "minio-init",
+        "migrate",
+        "api",
+        "worker",
+        "web",
+    } <= set(services)
+    init = services["minio-init"]
+    assert init["depends_on"]["minio"]["condition"] == "service_healthy"
+    assert "ports" not in services["minio"]
+    assert services["minio"]["environment"]["MINIO_ROOT_USER"].startswith(
+        "${MINIO_ROOT_USER:?"
     )
+    assert services["minio"]["environment"]["MINIO_ROOT_PASSWORD"].startswith(
+        "${MINIO_ROOT_PASSWORD:?"
+    )
+    assert "mc ready local" in init["command"]
+    assert "mc mb --ignore-existing" in init["command"]
+    assert "mc anonymous set none" in init["command"]
+    assert "mc admin user add" in init["command"]
+    assert "mc admin policy create" in init["command"]
+    assert "mc admin policy attach" in init["command"]
+    assert '"arn:aws:s3:::%s/*"' in init["command"]
+    assert '"$${S3_BUCKET}" "$${S3_BUCKET}"' in init["command"]
+    assert init["environment"]["S3_BUCKET"] == "${S3_BUCKET:-filings}"
     assert services["api"]["build"]["target"] == "api"
     assert services["worker"]["build"]["target"] == "worker"
     assert services["web"]["build"]["context"] == "./frontend"
@@ -30,6 +55,27 @@ def test_compose_defines_the_complete_application_stack() -> None:
     assert services["api"]["depends_on"]["migrate"]["condition"] == (
         "service_completed_successfully"
     )
+    for service_name in ("api", "worker"):
+        service = services[service_name]
+        assert service["depends_on"]["minio-init"]["condition"] == (
+            "service_completed_successfully"
+        )
+        assert service["environment"]["OBJECT_STORAGE_PROVIDER"] == (
+            "${OBJECT_STORAGE_PROVIDER:-s3}"
+        )
+        assert service["environment"]["S3_ENDPOINT_URL"] == (
+            "${S3_ENDPOINT_URL:-http://minio:9000}"
+        )
+        assert service["environment"]["S3_BUCKET"] == "${S3_BUCKET:-filings}"
+        assert service["environment"]["S3_ACCESS_KEY_ID"].startswith(
+            "${S3_ACCESS_KEY_ID:?"
+        )
+        assert service["environment"]["S3_SECRET_ACCESS_KEY"].startswith(
+            "${S3_SECRET_ACCESS_KEY:?"
+        )
+        assert service["environment"]["SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE"] == (
+            "${SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE:-}"
+        )
 
 
 def test_dockerfiles_use_pinned_runtimes_and_reproducible_installs() -> None:
@@ -62,6 +108,20 @@ def test_migration_runtime_includes_alembic() -> None:
     )
 
 
+def test_worker_image_packages_the_graph_runtime_and_s3_client() -> None:
+    pyproject = tomllib.loads((ROOT / "backend" / "pyproject.toml").read_text())
+    dockerfile = (ROOT / "backend" / "Dockerfile").read_text()
+    tasks = (ROOT / "backend" / "app" / "jobs" / "tasks.py").read_text()
+
+    assert any(
+        dependency.startswith("boto3")
+        for dependency in pyproject["project"]["dependencies"]
+    )
+    assert "COPY app ./app" in dockerfile
+    assert "SupplyChainGraphPipeline" in tasks
+    assert "run_supply_chain_graph" in tasks
+
+
 def test_environment_template_contains_placeholders_only() -> None:
     template = (ROOT / ".env.example").read_text()
 
@@ -73,6 +133,12 @@ def test_environment_template_contains_placeholders_only() -> None:
     assert "GOOGLE_CLIENT_ID=replace-with-google-client-id" in template
     assert "BACKEND_URL=http://api:8000" in template
     assert "NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id" in template
+    assert "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=" in template
+    assert "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=" in template
+    assert "MINIO_ROOT_USER=replace-with-minio-root-user" in template
+    assert "MINIO_ROOT_PASSWORD=replace-with-minio-root-password" in template
+    assert "S3_ACCESS_KEY_ID=replace-with-minio-app-user" in template
+    assert "S3_SECRET_ACCESS_KEY=replace-with-minio-app-password" in template
 
 
 def test_native_backend_template_uses_local_service_addresses() -> None:

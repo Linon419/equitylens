@@ -16,6 +16,10 @@ def test_vercel_bundle_excludes_tests() -> None:
     function = config["functions"]["app/app.py"]
 
     assert "tests/**" in function["excludeFiles"]
+    assert "app/ingestion/**" in function["excludeFiles"]
+    assert "data/**" in function["excludeFiles"]
+    assert "app/supply_chain/**" not in function["excludeFiles"]
+    assert "app/jobs/**" not in function["excludeFiles"]
     assert function["maxDuration"] == 300
 
 
@@ -25,4 +29,8 @@ def test_vercel_docs_include_workflow_wiring() -> None:
 
     assert "INTERNAL_JOB_SECRET" in guide
     assert "WORKFLOW_TRIGGER_URL" in guide
+    assert "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL" in guide
     assert "/api/internal/workflows/company-intelligence" in guide
+    assert "/api/internal/workflows/supply-chain-graph" in guide
+    assert "BLOB_READ_WRITE_TOKEN" in guide
+    assert "private Vercel Blob" in guide

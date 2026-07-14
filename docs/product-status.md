@@ -13,11 +13,20 @@ Release stage: Phase 2 beta
    income, operating cash flow, capital expenditure, and free cash flow.
 5. The research Agent retrieves the latest 10-K and moves through durable
    download, parse, analyze, verify, and localize states.
-6. Key businesses and upstream/company/downstream claims retain citation IDs,
-   filing sections, capped excerpts, and source links.
-7. Visitors receive two Agent analyses per UTC day. Authenticated users receive
-   ten. A shared IP ceiling protects the guest path.
-8. Google users can persist and remove watchlist companies.
+6. Key businesses retain citation IDs, filing sections, capped excerpts, and
+   source links.
+7. The supply-chain Agent plans official sources, extracts relationships,
+   resolves entities, verifies evidence, localizes labels, and publishes a
+   25–40 node graph.
+8. Investors can inspect verified and potential relationships, exact official
+   excerpts, evidence URLs, upstream/downstream layers, and related public
+   companies that can become the next research center.
+9. Visitors receive two accepted Agent jobs per UTC day across the shared
+   intelligence and graph quota pool. Authenticated users receive ten. Active
+   jobs and cached graph snapshots cost zero additional units.
+10. Retryable graph failures refund quota idempotently and preserve the latest
+    published graph during refresh.
+11. Google users can persist and remove watchlist companies.
 
 ## Implemented engineering surface
 
@@ -29,9 +38,19 @@ Release stage: Phase 2 beta
 | Financials | SEC XBRL Company Facts mapping with annual/TTM provenance |
 | Filings | Latest 10-K selection, compressed artifact persistence, section parsing |
 | Intelligence | Structured generation, verification, localization invariants, citations |
+| Supply-chain graph | AI source planning/extraction/verification/localization plus deterministic publication gates |
+| Graph evidence | Private S3/MinIO or Vercel Blob artifacts with public capped excerpts |
 | Jobs | Database state machine with Vercel Workflow and Redis/RQ adapters |
 | Identity | Signed guest principal, rotating Google sessions, same-origin BFF |
-| Quality | Unit, API, integration, migration, build, and Playwright journeys |
+| Quality | Backend suite, 125 frontend tests, production build, and 9 Playwright journeys |
+
+## Release validation (Docker host gate pending)
+
+The native and Vercel-build graph slice passed the backend suite, Ruff,
+deployment contract tests, 125 frontend tests, TypeScript, ESLint, the Next.js
+production build, and all 9 Chromium journeys on 2026-07-14. Docker descriptor
+structure passed YAML and contract validation. Release status remains pending
+until Docker Compose config and image builds pass on a Docker-enabled release host.
 
 ## Launch gates
 
@@ -41,6 +60,7 @@ Release stage: Phase 2 beta
 - Model evaluation set for business and value-chain claim quality
 - Abuse telemetry, rate monitoring, privacy review, and incident runbooks
 - Accessibility and cross-browser release audit
+- Docker Compose config and image build on a Docker-enabled release host
 
 ## Planned product work
 

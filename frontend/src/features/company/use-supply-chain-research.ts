@@ -14,6 +14,8 @@ const POLL_INTERVAL_MS = 2_000;
 const GRAPH_EVIDENCE = "verified,potential";
 type PollMode = "job" | "graph" | null;
 
+class GraphNotFoundError extends Error {}
+
 export function useSupplyChainResearch({
   initialGraph,
   initialQuota,
@@ -48,12 +50,24 @@ export function useSupplyChainResearch({
       `/api/research/companies/${symbol}/supply-chain-graph?${params}`,
       { cache: "no-store", signal },
     );
+    if (response.status === 404) throw new GraphNotFoundError();
     if (!response.ok) throw new Error("graph reload failed");
     const next = parseResearchResponse("supplyChainGraph", await response.json());
     setGraph(next);
     updateQuota(next.quota);
     return next;
   }, [language, symbol, updateQuota]);
+
+  const reloadQuota = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch("/api/research/agent-quota", {
+      cache: "no-store",
+      signal,
+    });
+    if (!response.ok) throw new Error("quota reload failed");
+    const next = parseResearchResponse("quota", await response.json());
+    updateQuota(next);
+    return next;
+  }, [updateQuota]);
 
   useEffect(() => {
     if (!pollMode) return;
@@ -63,7 +77,16 @@ export function useSupplyChainResearch({
       try {
         if (pollMode === "graph") {
           const previousSnapshot = graph?.snapshot.id;
-          const nextGraph = await reloadGraph(controller.signal);
+          let nextGraph: SupplyChainGraphResponse;
+          try {
+            nextGraph = await reloadGraph(controller.signal);
+          } catch (error) {
+            if (error instanceof GraphNotFoundError) {
+              setPollVersion((current) => current + 1);
+              return;
+            }
+            throw error;
+          }
           if (nextGraph.snapshot.id !== previousSnapshot || !nextGraph.refresh_job) {
             setJob(nextGraph.refresh_job);
             setPollMode(nextGraph.refresh_job ? "job" : null);
@@ -78,16 +101,29 @@ export function useSupplyChainResearch({
         });
         if (!response.ok) throw new Error("job poll failed");
         const nextJob = parseResearchResponse("job", await response.json());
-        setJob(nextJob);
         if (nextJob.state === "completed" && nextJob.graph_snapshot_id) {
           await reloadGraph(controller.signal);
           setJob(null);
           setPollMode(null);
         } else if (nextJob.state === "failed") {
+          try {
+            await reloadGraph(controller.signal);
+          } catch (error) {
+            if (isAbortError(error)) throw error;
+            try {
+              await reloadQuota(controller.signal);
+            } catch (quotaError) {
+              if (isAbortError(quotaError)) throw quotaError;
+              setRequestError(true);
+            }
+          }
+          setJob(nextJob);
           setPollMode(null);
+        } else {
+          setJob(nextJob);
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (isAbortError(error)) return;
         setRequestError(true);
         setPollMode(null);
       }
@@ -96,7 +132,7 @@ export function useSupplyChainResearch({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [graph?.snapshot.id, job, pollMode, pollVersion, reloadGraph]);
+  }, [graph?.snapshot.id, job, pollMode, pollVersion, reloadGraph, reloadQuota]);
 
   async function startGraph(forceRefresh: boolean) {
     if (pending) return;
@@ -164,4 +200,8 @@ export function useSupplyChainResearch({
 
 export function isTerminalGraphJob(state: JobStatus) {
   return state === "completed" || state === "failed";
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }

@@ -42,10 +42,12 @@ Variables:
 - `QUOTA_HASH_SECRET`
 - `INTERNAL_JOB_SECRET`
 - `WORKFLOW_TRIGGER_URL`
+- `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`
 - `CORS_ORIGINS`
 - `SEC_USER_AGENT`
 - `MARKET_DATA_PROVIDER`
 - `RESEARCH_MODEL`
+- `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` (optional)
 
 Use a temporary trusted origin for `CORS_ORIGINS` during the first deployment.
 The production Web origin is applied in step 3.
@@ -67,10 +69,11 @@ GUEST_SIGNING_SECRET=replace-with-shared-32-character-secret
 INTERNAL_JOB_SECRET=replace-with-shared-32-character-secret
 ```
 
-Set the API Project's `WORKFLOW_TRIGGER_URL` to the Web Project trigger route:
+Set both API Project trigger variables to their Web Project routes:
 
 ```dotenv
 WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/company-intelligence
+SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/supply-chain-graph
 ```
 
 Use the same `GUEST_SIGNING_SECRET` and `INTERNAL_JOB_SECRET` values in both
@@ -80,7 +83,31 @@ idempotent FastAPI step request using only the database job ID.
 
 Use exact HTTPS origins and omit trailing slashes.
 
-## 3. Data and artifact constraints
+## 3. Private graph evidence storage
+
+Create a private Vercel Blob store and connect it to the API Project. Set its
+generated `BLOB_READ_WRITE_TOKEN` in Production and Preview environments. The
+graph collector writes compressed official-source artifacts with
+`access="private"`; the public API exposes capped evidence excerpts and source
+URLs while the raw artifacts stay behind the server-side token.
+
+Keep these defaults aligned across deployments so cached graph snapshots remain
+reproducible:
+
+```dotenv
+SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION=supply-chain-graph.v1
+SUPPLY_CHAIN_GRAPH_PROMPT_VERSION=supply-chain-graph.2026-07-14
+SUPPLY_CHAIN_GRAPH_MAX_NODES=40
+SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT=24
+SUPPLY_CHAIN_GRAPH_SOURCE_BYTES=8000000
+SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET=100000
+GRAPH_ARTIFACT_PREFIX=supply-chain
+```
+
+`SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` selects a graph-specific model. An empty
+value applies `RESEARCH_MODEL` to both research pipelines.
+
+## 4. Data-source and quota constraints
 
 Set `SEC_USER_AGENT` to an application name and monitored contact email. SEC
 traffic follows the published [automated-access guidance](https://www.sec.gov/about/webmaster-frequently-asked-questions).
@@ -88,12 +115,22 @@ traffic follows the published [automated-access guidance](https://www.sec.gov/ab
 The current Yahoo adapter supports research and evaluation. Complete a market
 data licensing review before public or commercial distribution.
 
-The compact 10-K pipeline persists compressed source bytes and integrity
-metadata in PostgreSQL. Workflow steps depend exclusively on durable database
-records. `BLOB_READ_WRITE_TOKEN`
-reserves the configured object-storage boundary for the larger artifact adapter.
+The compact 10-K pipeline persists its source bytes and integrity metadata in
+PostgreSQL. The supply-chain graph pipeline stores compressed official-source
+artifacts in private Vercel Blob and durable stage records in PostgreSQL.
+Workflow steps depend on durable records and object keys.
 
-## 4. Connect both origins
+Official-source collection accepts at most 24 sources and 8 MB total under the
+default profile. `SEC_USER_AGENT` remains mandatory for SEC requests. The
+collector also enforces host allowlists, DNS pinning, redirect controls, content
+types, decompression bounds, and per-host pacing.
+
+Each newly accepted graph job reserves one Agent quota unit. Cached snapshots
+and active jobs reuse the current result at zero cost. System and retryable
+collection failures refund the reservation idempotently; a completed
+insufficient-evidence result consumes the accepted unit.
+
+## 5. Connect both origins
 
 Set the API Project's `CORS_ORIGINS` to the Web production origin, then redeploy
 the API:
@@ -111,7 +148,7 @@ Set the same `GOOGLE_CLIENT_ID` value in the Backend project and
 | Frontend | `BACKEND_URL`, `FRONTEND_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `COOKIE_SECURE=true`, shared guest/job secrets |
 | Backend | `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, `SECRET_KEY_ACCESS_API`, `DATABASE_URL`, shared guest/job secrets |
 
-## 5. Verify production
+## 6. Verify production
 
 ```bash
 WEB_BASE_URL=https://equitylens-web.example.com \
@@ -127,6 +164,10 @@ The expected endpoints are:
 - API smoke alias: `GET /api/v1/health`
 - API liveness: `GET /api/v1/health/live`
 - API readiness: `GET /api/v1/health/ready`
+
+Generate an AAPL graph from the English company page, open one verified
+relationship, enable potential relationships, switch to Chinese, and refresh
+the page. The published snapshot and quota count should remain stable.
 
 ## Local Vercel builds
 

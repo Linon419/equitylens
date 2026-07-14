@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -184,6 +184,38 @@ describe("SupplyChainGraph", () => {
     expect(screen.queryByText("Collecting official sources")).toBeNull();
   });
 
+  it("keeps polling an active initial job until its first graph is published", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "active_job",
+          job: { ...jobFixture, result_kind: "supply_chain_graph" },
+          job_id: jobFixture.id,
+          snapshot_id: null,
+          quota: { ...quotaFixture, remaining: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ code: "GRAPH_NOT_FOUND" }, { status: 404 }),
+      )
+      .mockResolvedValueOnce(Response.json(supplyChainGraphCachedFixture));
+    renderGraph({ graph: null });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Generate graph" }));
+      await Promise.resolve();
+    });
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(
+      screen.getByText(supplyChainGraphCachedFixture.snapshot.thesis),
+    ).toBeVisible();
+  });
+
   it("shows retry for eligible failures and retries the job", async () => {
     const user = userEvent.setup();
     const failedGraph = structuredClone(supplyChainGraphFixture);
@@ -202,6 +234,48 @@ describe("SupplyChainGraph", () => {
     expect(globalThis.fetch).toHaveBeenCalledWith(
       `/api/research/jobs/${failedGraph.refresh_job.id}/retry`,
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("keeps a failed initial job retryable and refreshes refunded quota", async () => {
+    vi.useFakeTimers();
+    const onQuotaChange = vi.fn();
+    const failedJob = {
+      ...jobFixture,
+      state: "failed" as const,
+      result_kind: "supply_chain_graph" as const,
+      retry_eligible: true,
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "accepted",
+          job: { ...jobFixture, result_kind: "supply_chain_graph" },
+          job_id: jobFixture.id,
+          snapshot_id: null,
+          quota: { ...quotaFixture, used: 1, remaining: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(failedJob))
+      .mockResolvedValueOnce(
+        Response.json({ code: "GRAPH_NOT_FOUND" }, { status: 404 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ...quotaFixture, used: 0, remaining: 2 }),
+      );
+    renderGraph({ graph: null, onQuotaChange });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Generate graph" }));
+      await Promise.resolve();
+    });
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+
+    expect(
+      screen.getByRole("button", { name: "Retry graph research" }),
+    ).toBeVisible();
+    expect(onQuotaChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remaining: 2 }),
     );
   });
 

@@ -15,7 +15,7 @@ financial performance, market price, and valuation in one research workspace.
 
 | Deploy the API | Deploy the Web app |
 |---|---|
-| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CWORKFLOW_TRIGGER_URL%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+shared+signing+secrets%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
+| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CWORKFLOW_TRIGGER_URL%2CSUPPLY_CHAIN_WORKFLOW_TRIGGER_URL%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+shared+signing+secrets%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
 
 [Quick start](#quick-start) · [Architecture](#architecture) · [Deployment](#deployment) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
@@ -23,7 +23,7 @@ financial performance, market price, and valuation in one research workspace.
 
 > [!IMPORTANT]
 > **Phase 2 Beta.** Public company search, compact valuation context, four-year
-> SEC financials, automated 10-K analysis, cited value-chain research, guest
+> SEC financials, automated 10-K analysis, an AI-generated supply-chain graph, guest
 > quotas, Google authentication, and persistent watchlists are implemented.
 > Market-data licensing review and production infrastructure remain launch gates.
 
@@ -53,7 +53,8 @@ and six connected questions:
 | Current price, market cap, EPS, trailing P/E, and forward P/E | Available |
 | Four fiscal years plus TTM from SEC Company Facts | Available |
 | Automated 10-K retrieval and durable analysis jobs | Available |
-| Cited core-business and upstream/company/downstream Evidence Flow | Available |
+| AI-generated supply-chain graph with verified and potential edges | Available |
+| Relationship evidence drawers with official-source excerpts | Available |
 | Guest two/day and authenticated ten/day Agent quotas | Available |
 | Google sign-in, rotating sessions, and persistent watchlists | Available |
 | Manual filing upload, research chat, DCF, and peer valuation | Planned |
@@ -62,6 +63,9 @@ The detailed product design lives in
 [`docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md`](docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md).
 The shipped surface and launch gates are tracked in
 [`docs/product-status.md`](docs/product-status.md).
+The graph-specific decisions and implementation sequence live in the
+[`agentic graph design`](docs/superpowers/specs/2026-07-14-agentic-supply-chain-graph-design.md)
+and [`agentic graph plan`](docs/superpowers/plans/2026-07-14-agentic-supply-chain-graph.md).
 
 ## Architecture
 
@@ -73,6 +77,7 @@ flowchart LR
     api --> db[("PostgreSQL + pgvector")]
     api --> storage["Document storage"]
     api --> jobs["Durable job record"]
+    jobs --> graph["Supply-chain graph Agent"]
     jobs --> workflow["Vercel Workflow"]
     jobs --> worker["RQ worker"]
     workflow --> api
@@ -82,6 +87,8 @@ flowchart LR
     worker --> sec
     worker --> llm
     worker --> db
+    graph --> storage
+    graph --> llm
     db --> api
 ```
 
@@ -89,8 +96,16 @@ The provider contracts keep deployment-specific infrastructure at the edges:
 
 | Profile | Web / API | Storage | Jobs | Document parsing |
 |---|---|---|---|---|
-| Vercel | Two Vercel Projects | PostgreSQL artifacts; Blob adapter reserved | Vercel Workflow | Managed profile |
-| Docker | Next.js + FastAPI containers | PostgreSQL artifacts; S3 adapter reserved | Redis + RQ | Local parser |
+| Vercel | Two Vercel Projects | PostgreSQL + private Vercel Blob evidence | Vercel Workflow | Managed profile |
+| Docker | Next.js + FastAPI containers | PostgreSQL + private MinIO evidence bucket | Redis + RQ | Local parser |
+
+Graph generation uses AI for source planning, relationship extraction,
+entity interpretation, claim verification, and Chinese localization.
+Deterministic publication gates enforce source allowlists, evidence excerpts,
+confidence thresholds, graph size, and schema invariants. The shared guest pool
+permits two accepted graph jobs per UTC day when devoted to graph research;
+company intelligence uses the same pool. Active jobs and cached snapshots reuse
+the existing result at zero quota cost.
 
 ## Repository layout
 
@@ -168,6 +183,16 @@ uv run pytest tests/integration/test_company_research_journey.py -q
 
 This test mode exercises the real routes, database models, quotas, pipeline,
 citations, and serializers with deterministic provider responses.
+
+Graph Agent deployment variables:
+
+| Variable | Purpose |
+|---|---|
+| `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` | Optional graph-specific model; `RESEARCH_MODEL` remains the default |
+| `WORKFLOW_TRIGGER_URL` | Company-intelligence Workflow trigger |
+| `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Supply-chain graph Workflow trigger |
+| `BLOB_READ_WRITE_TOKEN` | Private Vercel Blob access for official-source artifacts |
+| `S3_ENDPOINT_URL`, `S3_BUCKET` | MinIO or S3-compatible graph artifact storage |
 
 ### Google authentication
 

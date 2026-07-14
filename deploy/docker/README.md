@@ -32,11 +32,34 @@ Health endpoints:
 
 The API creates durable job records and Redis dispatches them to the
 `company-intelligence` RQ queue. The worker runs the same idempotent five-step
-pipeline used by Vercel Workflow.
+company-intelligence pipeline and the six-step supply-chain graph pipeline used
+by Vercel Workflow.
 
 The current compact filing path stores compressed 10-K source bytes in
-PostgreSQL. MinIO and the S3 profile reserve the object-storage adapter boundary
-for larger filing libraries.
+PostgreSQL. Supply-chain research stores compressed official-source artifacts
+in the private MinIO bucket configured by `S3_BUCKET`. The one-shot
+`minio-init` service creates the bucket, removes anonymous access, creates a
+bucket-scoped application user, and attaches its least-privilege policy before
+the API and worker start. MinIO stays on the private Compose network;
+administration runs through `docker compose exec` from the host.
+
+Graph profile values:
+
+```dotenv
+OBJECT_STORAGE_PROVIDER=s3
+S3_ENDPOINT_URL=http://minio:9000
+S3_BUCKET=filings
+S3_ACCESS_KEY_ID=replace-with-minio-app-user
+S3_SECRET_ACCESS_KEY=replace-with-minio-app-password
+MINIO_ROOT_USER=replace-with-minio-root-user
+MINIO_ROOT_PASSWORD=replace-with-minio-root-password
+SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=
+```
+
+The shared guest pool permits two accepted graph jobs per UTC day when devoted
+to graph research; company intelligence uses the same pool. Active-job and
+cached-result reuse costs zero additional units, and retryable system failures
+refund the reservation idempotently.
 
 Run the full smoke path after startup:
 

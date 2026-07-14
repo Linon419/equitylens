@@ -30,17 +30,39 @@ services:
     image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    ports:
-      - "9001:9001"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 10
     volumes:
       - minio_data:/data
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-07-21T05-28-08Z
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      set -eu;
+      until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 1; done;
+      until mc ready local; do sleep 1; done;
+      mc mb --ignore-existing "local/$${S3_BUCKET}";
+      mc anonymous set none "local/$${S3_BUCKET}";
+      printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::%s"]},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],"Resource":["arn:aws:s3:::%s/*"]}]}' "$${S3_BUCKET}" "$${S3_BUCKET}" > /tmp/equitylens-graph-policy.json;
+      mc admin policy create local equitylens-graph /tmp/equitylens-graph-policy.json;
+      mc admin user add local "$${S3_ACCESS_KEY_ID}" "$${S3_SECRET_ACCESS_KEY}";
+      mc admin policy attach local equitylens-graph --user "$${S3_ACCESS_KEY_ID}"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}"
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}"
+      S3_BUCKET: ${S3_BUCKET:-filings}
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
 
   migrate:
     build:
@@ -59,6 +81,12 @@ services:
     env_file: .env
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OBJECT_STORAGE_PROVIDER: ${OBJECT_STORAGE_PROVIDER:-s3}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-filings}
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}"
+      SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE: ${SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE:-}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -66,8 +94,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -76,13 +104,19 @@ services:
     env_file: .env
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OBJECT_STORAGE_PROVIDER: ${OBJECT_STORAGE_PROVIDER:-s3}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-filings}
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}"
+      SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE: ${SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   web:
     build:
