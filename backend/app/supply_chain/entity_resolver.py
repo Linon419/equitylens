@@ -27,6 +27,14 @@ _BASIS_RANK: dict[ResolutionBasis, int] = {
     "unresolved_hash": 4,
     "ambiguous_name": 5,
 }
+_BASIS_CONFIDENCE: dict[ResolutionBasis, float] = {
+    "cik": 1.0,
+    "ticker": 0.98,
+    "legal_name": 0.9,
+    "deterministic_key": 1.0,
+    "unresolved_hash": 0.5,
+    "ambiguous_name": 0.4,
+}
 _STATUS_RANK = {"verified": 0, "potential": 1, "internal": 2}
 
 
@@ -119,6 +127,7 @@ class DeterministicEntityResolver:
                     cik=node.cik,
                 )
             )
+            resolved = _preserve_resolution_audit(node, resolved)
             redirects[node.node_key] = resolved.node_key
             node_groups[resolved.node_key].append((node, resolved))
 
@@ -155,7 +164,6 @@ def _resolved_company(
     *,
     basis: Literal["cik", "ticker", "legal_name"],
 ) -> ResolvedEntity:
-    confidence = {"cik": 1.0, "ticker": 0.98, "legal_name": 0.9}[basis]
     return ResolvedEntity(
         node_key=f"company:{entry.cik}",
         company_id=entry.company_id,
@@ -164,7 +172,7 @@ def _resolved_company(
         legal_name=entry.legal_name,
         resolution_status="resolved",
         resolution_basis=basis,
-        confidence=confidence,
+        confidence=_BASIS_CONFIDENCE[basis],
     )
 
 
@@ -302,7 +310,27 @@ def _deduplicate_evidence(
         evidence.items(),
         key=lambda item: (not item[1][0], -item[1][1].confidence, item[0]),
     )
-    return [record[1] for _, record in ordered[:12]]
+    retained = sorted(ordered[:12], key=lambda item: item[0])
+    return [record[1] for _, record in retained]
+
+
+def _preserve_resolution_audit(
+    node: GraphNodeDraft,
+    resolved: ResolvedEntity,
+) -> ResolvedEntity:
+    if (
+        node.node_key != resolved.node_key
+        or node.resolution_status is None
+        or node.resolution_basis is None
+    ):
+        return resolved
+    return resolved.model_copy(
+        update={
+            "resolution_status": node.resolution_status,
+            "resolution_basis": node.resolution_basis,
+            "confidence": _BASIS_CONFIDENCE[node.resolution_basis],
+        }
+    )
 
 
 def _merged_aliases(

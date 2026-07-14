@@ -402,6 +402,8 @@ async def test_verified_evidence_survives_mixed_status_merge_limit(
     assert "verified:primary" in {
         reference.source_key for reference in resolved.edges[0].evidence_refs
     }
+    second_pass = await resolver.resolve_draft(resolved)
+    assert second_pass.model_dump() == resolved.model_dump()
 
 
 @pytest.mark.anyio
