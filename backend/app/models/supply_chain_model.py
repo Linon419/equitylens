@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    ForeignKeyConstraint,
     Numeric,
     Text,
     UniqueConstraint,
@@ -100,6 +101,11 @@ class SupplyChainGraphNode(SQLModel, table=True):
             "node_key",
             name="uq_supply_chain_graph_node_key",
         ),
+        UniqueConstraint(
+            "snapshot_id",
+            "id",
+            name="uq_supply_chain_graph_node_snapshot_identity",
+        ),
         CheckConstraint(
             "kind IN ('company', 'product', 'category', 'business')",
             name="ck_supply_chain_graph_node_kind",
@@ -153,6 +159,29 @@ class SupplyChainGraphEdge(SQLModel, table=True):
             "edge_key",
             name="uq_supply_chain_graph_edge_key",
         ),
+        UniqueConstraint(
+            "snapshot_id",
+            "id",
+            name="uq_supply_chain_graph_edge_snapshot_identity",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id", "source_node_id"],
+            [
+                "supply_chain_graph_node.snapshot_id",
+                "supply_chain_graph_node.id",
+            ],
+            name="fk_supply_chain_graph_edge_source_node_owner",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id", "target_node_id"],
+            [
+                "supply_chain_graph_node.snapshot_id",
+                "supply_chain_graph_node.id",
+            ],
+            name="fk_supply_chain_graph_edge_target_node_owner",
+            ondelete="CASCADE",
+        ),
         CheckConstraint(
             "relationship_type IN ('supplies', 'manufactures_for', "
             "'distributes_for', 'sells_to', 'licenses_to', 'platform_for', "
@@ -180,16 +209,8 @@ class SupplyChainGraphEdge(SQLModel, table=True):
         index=True,
     )
     edge_key: str = Field(max_length=255)
-    source_node_id: UUID = Field(
-        foreign_key="supply_chain_graph_node.id",
-        ondelete="CASCADE",
-        index=True,
-    )
-    target_node_id: UUID = Field(
-        foreign_key="supply_chain_graph_node.id",
-        ondelete="CASCADE",
-        index=True,
-    )
+    source_node_id: UUID = Field(index=True)
+    target_node_id: UUID = Field(index=True)
     relationship_type: str = Field(max_length=64)
     evidence_status: str = Field(max_length=16)
     confidence: str = Field(max_length=16)
@@ -206,6 +227,11 @@ class GraphOfficialSource(SQLModel, table=True):
             "snapshot_id",
             "content_hash",
             name="uq_graph_official_source_hash",
+        ),
+        UniqueConstraint(
+            "snapshot_id",
+            "id",
+            name="uq_graph_official_source_snapshot_identity",
         ),
         CheckConstraint(
             "source_type IN ('sec_filing', 'annual_report', 'ir_page', "
@@ -237,10 +263,29 @@ class GraphEdgeCitation(SQLModel, table=True):
     __tablename__ = "graph_edge_citation"
     __table_args__ = (
         UniqueConstraint(
+            "snapshot_id",
             "edge_id",
             "source_id",
             "source_anchor",
             name="uq_graph_edge_citation_anchor",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id", "edge_id"],
+            [
+                "supply_chain_graph_edge.snapshot_id",
+                "supply_chain_graph_edge.id",
+            ],
+            name="fk_graph_edge_citation_edge_owner",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id", "source_id"],
+            [
+                "graph_official_source.snapshot_id",
+                "graph_official_source.id",
+            ],
+            name="fk_graph_edge_citation_source_owner",
+            ondelete="CASCADE",
         ),
         CheckConstraint(
             "support_role IN ('primary', 'corroborating')",
@@ -249,16 +294,13 @@ class GraphEdgeCitation(SQLModel, table=True):
     )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    edge_id: UUID = Field(
-        foreign_key="supply_chain_graph_edge.id",
+    snapshot_id: UUID = Field(
+        foreign_key="supply_chain_graph_snapshot.id",
         ondelete="CASCADE",
         index=True,
     )
-    source_id: UUID = Field(
-        foreign_key="graph_official_source.id",
-        ondelete="CASCADE",
-        index=True,
-    )
+    edge_id: UUID = Field(index=True)
+    source_id: UUID = Field(index=True)
     excerpt: str = Field(max_length=1500)
     source_anchor: str = Field(max_length=500)
     support_role: str = Field(max_length=24)

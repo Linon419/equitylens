@@ -57,11 +57,16 @@ def named(items: list[dict[str, object]]) -> set[str]:
     return {str(item["name"]) for item in items}
 
 
-def foreign_key_targets(inspector, table: str) -> dict[str, tuple[str, str]]:
+def foreign_key_relationships(
+    inspector,
+    table: str,
+) -> set[tuple[tuple[str, ...], str, tuple[str, ...], str | None]]:
     return {
-        str(foreign_key["constrained_columns"][0]): (
+        (
+            tuple(str(column) for column in foreign_key["constrained_columns"]),
             str(foreign_key["referred_table"]),
-            str(foreign_key["referred_columns"][0]),
+            tuple(str(column) for column in foreign_key["referred_columns"]),
+            foreign_key.get("options", {}).get("ondelete"),
         )
         for foreign_key in inspector.get_foreign_keys(table)
     }
@@ -90,10 +95,20 @@ def test_supply_chain_migration_upgrade_downgrade_round_trip(
             "graph_snapshot_id",
             "snapshot_id",
         } <= {column["name"] for column in inspector.get_columns("ingestion_job")}
-        assert foreign_key_targets(inspector, "ingestion_job") == {
-            "company_id": ("company", "id"),
-            "snapshot_id": ("company_intelligence_snapshot", "id"),
-            "graph_snapshot_id": ("supply_chain_graph_snapshot", "id"),
+        assert foreign_key_relationships(inspector, "ingestion_job") == {
+            (("company_id",), "company", ("id",), "CASCADE"),
+            (
+                ("snapshot_id",),
+                "company_intelligence_snapshot",
+                ("id",),
+                "SET NULL",
+            ),
+            (
+                ("graph_snapshot_id",),
+                "supply_chain_graph_snapshot",
+                ("id",),
+                "SET NULL",
+            ),
         }
         assert "ix_ingestion_job_graph_snapshot_id" in named(
             inspector.get_indexes("ingestion_job")
@@ -122,29 +137,85 @@ def test_supply_chain_migration_upgrade_downgrade_round_trip(
         }
         assert node_columns["description_en"]["nullable"] is False
         assert node_columns["description_zh"]["nullable"] is False
-        assert foreign_key_targets(inspector, "supply_chain_graph_node") == {
-            "snapshot_id": ("supply_chain_graph_snapshot", "id"),
-            "company_id": ("company", "id"),
+        assert foreign_key_relationships(
+            inspector,
+            "supply_chain_graph_node",
+        ) == {
+            (("snapshot_id",), "supply_chain_graph_snapshot", ("id",), "CASCADE"),
+            (("company_id",), "company", ("id",), None),
         }
+        assert {
+            "uq_supply_chain_graph_node_key",
+            "uq_supply_chain_graph_node_snapshot_identity",
+        } <= named(inspector.get_unique_constraints("supply_chain_graph_node"))
 
-        assert foreign_key_targets(inspector, "supply_chain_graph_edge") == {
-            "snapshot_id": ("supply_chain_graph_snapshot", "id"),
-            "source_node_id": ("supply_chain_graph_node", "id"),
-            "target_node_id": ("supply_chain_graph_node", "id"),
+        assert foreign_key_relationships(
+            inspector,
+            "supply_chain_graph_edge",
+        ) == {
+            (("snapshot_id",), "supply_chain_graph_snapshot", ("id",), "CASCADE"),
+            (
+                ("snapshot_id", "source_node_id"),
+                "supply_chain_graph_node",
+                ("snapshot_id", "id"),
+                "CASCADE",
+            ),
+            (
+                ("snapshot_id", "target_node_id"),
+                "supply_chain_graph_node",
+                ("snapshot_id", "id"),
+                "CASCADE",
+            ),
         }
-        assert "uq_supply_chain_graph_edge_key" in named(
-            inspector.get_unique_constraints("supply_chain_graph_edge")
-        )
+        assert {
+            "uq_supply_chain_graph_edge_key",
+            "uq_supply_chain_graph_edge_snapshot_identity",
+        } <= named(inspector.get_unique_constraints("supply_chain_graph_edge"))
+        assert {
+            "fk_supply_chain_graph_edge_source_node_owner",
+            "fk_supply_chain_graph_edge_target_node_owner",
+        } <= named(inspector.get_foreign_keys("supply_chain_graph_edge"))
         assert {
             "ix_supply_chain_graph_edge_snapshot_id",
             "ix_supply_chain_graph_edge_source_node_id",
             "ix_supply_chain_graph_edge_target_node_id",
         } <= named(inspector.get_indexes("supply_chain_graph_edge"))
 
-        assert foreign_key_targets(inspector, "graph_edge_citation") == {
-            "edge_id": ("supply_chain_graph_edge", "id"),
-            "source_id": ("graph_official_source", "id"),
+        assert {
+            "uq_graph_official_source_hash",
+            "uq_graph_official_source_snapshot_identity",
+        } <= named(inspector.get_unique_constraints("graph_official_source"))
+
+        citation_columns = {
+            column["name"]: column
+            for column in inspector.get_columns("graph_edge_citation")
         }
+        assert citation_columns["snapshot_id"]["nullable"] is False
+        assert foreign_key_relationships(inspector, "graph_edge_citation") == {
+            (("snapshot_id",), "supply_chain_graph_snapshot", ("id",), "CASCADE"),
+            (
+                ("snapshot_id", "edge_id"),
+                "supply_chain_graph_edge",
+                ("snapshot_id", "id"),
+                "CASCADE",
+            ),
+            (
+                ("snapshot_id", "source_id"),
+                "graph_official_source",
+                ("snapshot_id", "id"),
+                "CASCADE",
+            ),
+        }
+        assert {
+            "fk_graph_edge_citation_edge_owner",
+            "fk_graph_edge_citation_source_owner",
+        } <= named(inspector.get_foreign_keys("graph_edge_citation"))
+        assert "uq_graph_edge_citation_anchor" in named(
+            inspector.get_unique_constraints("graph_edge_citation")
+        )
+        assert "ix_graph_edge_citation_snapshot_id" in named(
+            inspector.get_indexes("graph_edge_citation")
+        )
         assert "uq_agent_quota_reservation_job_id" in named(
             inspector.get_unique_constraints("agent_quota_reservation")
         )

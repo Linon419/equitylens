@@ -132,6 +132,11 @@ def upgrade() -> None:
             "node_key",
             name="uq_supply_chain_graph_node_key",
         ),
+        sa.UniqueConstraint(
+            "snapshot_id",
+            "id",
+            name="uq_supply_chain_graph_node_snapshot_identity",
+        ),
     )
     op.create_index(
         "ix_supply_chain_graph_node_snapshot_id",
@@ -177,13 +182,21 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["source_node_id"],
-            ["supply_chain_graph_node.id"],
+            ["snapshot_id", "source_node_id"],
+            [
+                "supply_chain_graph_node.snapshot_id",
+                "supply_chain_graph_node.id",
+            ],
+            name="fk_supply_chain_graph_edge_source_node_owner",
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["target_node_id"],
-            ["supply_chain_graph_node.id"],
+            ["snapshot_id", "target_node_id"],
+            [
+                "supply_chain_graph_node.snapshot_id",
+                "supply_chain_graph_node.id",
+            ],
+            name="fk_supply_chain_graph_edge_target_node_owner",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -191,6 +204,11 @@ def upgrade() -> None:
             "snapshot_id",
             "edge_key",
             name="uq_supply_chain_graph_edge_key",
+        ),
+        sa.UniqueConstraint(
+            "snapshot_id",
+            "id",
+            name="uq_supply_chain_graph_edge_snapshot_identity",
         ),
     )
     op.create_index(
@@ -237,6 +255,11 @@ def upgrade() -> None:
             "content_hash",
             name="uq_graph_official_source_hash",
         ),
+        sa.UniqueConstraint(
+            "snapshot_id",
+            "id",
+            name="uq_graph_official_source_snapshot_identity",
+        ),
     )
     op.create_index(
         "ix_graph_official_source_snapshot_id",
@@ -247,6 +270,7 @@ def upgrade() -> None:
     op.create_table(
         "graph_edge_citation",
         sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("snapshot_id", sa.Uuid(), nullable=False),
         sa.Column("edge_id", sa.Uuid(), nullable=False),
         sa.Column("source_id", sa.Uuid(), nullable=False),
         sa.Column("excerpt", sa.String(length=1500), nullable=False),
@@ -257,22 +281,41 @@ def upgrade() -> None:
             name="ck_graph_edge_citation_support_role",
         ),
         sa.ForeignKeyConstraint(
-            ["edge_id"],
-            ["supply_chain_graph_edge.id"],
+            ["snapshot_id"],
+            ["supply_chain_graph_snapshot.id"],
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["source_id"],
-            ["graph_official_source.id"],
+            ["snapshot_id", "edge_id"],
+            [
+                "supply_chain_graph_edge.snapshot_id",
+                "supply_chain_graph_edge.id",
+            ],
+            name="fk_graph_edge_citation_edge_owner",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["snapshot_id", "source_id"],
+            [
+                "graph_official_source.snapshot_id",
+                "graph_official_source.id",
+            ],
+            name="fk_graph_edge_citation_source_owner",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
+            "snapshot_id",
             "edge_id",
             "source_id",
             "source_anchor",
             name="uq_graph_edge_citation_anchor",
         ),
+    )
+    op.create_index(
+        "ix_graph_edge_citation_snapshot_id",
+        "graph_edge_citation",
+        ["snapshot_id"],
     )
     op.create_index(
         "ix_graph_edge_citation_edge_id",

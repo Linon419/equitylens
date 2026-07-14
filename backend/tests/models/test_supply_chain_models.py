@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
@@ -22,12 +22,19 @@ from app.models.supply_chain_model import (
 NOW = datetime(2026, 7, 14, 12, tzinfo=UTC)
 
 
+def enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 def build_session() -> Session:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    event.listen(engine, "connect", enable_sqlite_foreign_keys)
     SQLModel.metadata.create_all(engine)
     return Session(engine)
 
@@ -43,9 +50,106 @@ def constraint_names(model: type[SQLModel], kind: type) -> set[str | None]:
 def foreign_key(
     model: type[SQLModel],
     column_name: str,
+    target: str,
 ):
     column = model.__table__.columns[column_name]
-    return next(iter(column.foreign_keys))
+    return next(
+        reference
+        for reference in column.foreign_keys
+        if reference.target_fullname == target
+    )
+
+
+def composite_foreign_keys(
+    model: type[SQLModel],
+) -> dict[str | None, tuple[tuple[str, ...], tuple[str, ...]]]:
+    return {
+        constraint.name: (
+            tuple(column.name for column in constraint.columns),
+            tuple(element.target_fullname for element in constraint.elements),
+        )
+        for constraint in model.__table__.constraints
+        if isinstance(constraint, ForeignKeyConstraint) and len(constraint.elements) > 1
+    }
+
+
+def add_company_and_snapshots(
+    session: Session,
+) -> tuple[SupplyChainGraphSnapshot, SupplyChainGraphSnapshot]:
+    company = Company(symbol="AAPL", cik="0000320193", name="Apple Inc.")
+    session.add(company)
+    session.commit()
+    session.refresh(company)
+    assert company.id is not None
+
+    snapshots = (
+        SupplyChainGraphSnapshot(
+            company_id=company.id,
+            status="drafted",
+            schema_version="supply-chain-graph.v1",
+            prompt_version="supply-chain-graph.2026-07-14",
+            model_id="gpt-5-mini",
+            source_fingerprint="a" * 64,
+        ),
+        SupplyChainGraphSnapshot(
+            company_id=company.id,
+            status="drafted",
+            schema_version="supply-chain-graph.v1",
+            prompt_version="supply-chain-graph.2026-07-14",
+            model_id="gpt-5-mini",
+            source_fingerprint="b" * 64,
+        ),
+    )
+    session.add_all(snapshots)
+    session.commit()
+    for snapshot in snapshots:
+        session.refresh(snapshot)
+    return snapshots
+
+
+def graph_node(snapshot_id: UUID, node_key: str) -> SupplyChainGraphNode:
+    return SupplyChainGraphNode(
+        snapshot_id=snapshot_id,
+        node_key=node_key,
+        kind="company",
+        layer="core",
+        label_en=node_key,
+        label_zh=node_key,
+        description_en="Graph node.",
+        description_zh="图节点。",
+        importance=Decimal("1.0000"),
+        confidence="High",
+    )
+
+
+def graph_edge(
+    snapshot_id: UUID,
+    source_node_id: UUID,
+    target_node_id: UUID,
+) -> SupplyChainGraphEdge:
+    return SupplyChainGraphEdge(
+        snapshot_id=snapshot_id,
+        edge_key=f"{source_node_id}|supplies|{target_node_id}",
+        source_node_id=source_node_id,
+        target_node_id=target_node_id,
+        relationship_type="supplies",
+        evidence_status="verified",
+        confidence="High",
+        explanation_en="Supplier relationship.",
+        explanation_zh="供应关系。",
+    )
+
+
+def graph_source(snapshot_id: UUID, content_hash: str) -> GraphOfficialSource:
+    return GraphOfficialSource(
+        snapshot_id=snapshot_id,
+        source_type="sec_filing",
+        publisher="Apple Inc.",
+        title="Form 10-K",
+        canonical_url="https://www.sec.gov/example",
+        content_hash=content_hash,
+        artifact_key="supply-chain/apple/source.html",
+    )
 
 
 def test_graph_snapshot_has_versioned_publication_metadata() -> None:
@@ -128,6 +232,7 @@ def test_graph_models_have_uuid_identities_and_expected_tables() -> None:
             artifact_key="supply-chain/apple/source.html",
         ).id,
         GraphEdgeCitation(
+            snapshot_id=uuid4(),
             edge_id=uuid4(),
             source_id=uuid4(),
             excerpt="Supplier concentration disclosure.",
@@ -172,11 +277,23 @@ def test_graph_unique_constraints_are_named() -> None:
         SupplyChainGraphNode,
         UniqueConstraint,
     )
+    assert "uq_supply_chain_graph_node_snapshot_identity" in constraint_names(
+        SupplyChainGraphNode,
+        UniqueConstraint,
+    )
     assert "uq_supply_chain_graph_edge_key" in constraint_names(
         SupplyChainGraphEdge,
         UniqueConstraint,
     )
+    assert "uq_supply_chain_graph_edge_snapshot_identity" in constraint_names(
+        SupplyChainGraphEdge,
+        UniqueConstraint,
+    )
     assert "uq_graph_official_source_hash" in constraint_names(
+        GraphOfficialSource,
+        UniqueConstraint,
+    )
+    assert "uq_graph_official_source_snapshot_identity" in constraint_names(
         GraphOfficialSource,
         UniqueConstraint,
     )
@@ -261,6 +378,12 @@ def test_graph_foreign_keys_expose_cascade_relationships() -> None:
         ),
         (
             GraphEdgeCitation,
+            "snapshot_id",
+            "supply_chain_graph_snapshot.id",
+            "CASCADE",
+        ),
+        (
+            GraphEdgeCitation,
             "edge_id",
             "supply_chain_graph_edge.id",
             "CASCADE",
@@ -275,9 +398,44 @@ def test_graph_foreign_keys_expose_cascade_relationships() -> None:
     )
 
     for model, column_name, target, ondelete in relationships:
-        reference = foreign_key(model, column_name)
+        reference = foreign_key(model, column_name, target)
         assert reference.target_fullname == target
         assert reference.ondelete == ondelete
+
+
+def test_graph_ownership_uses_named_composite_foreign_keys() -> None:
+    assert composite_foreign_keys(SupplyChainGraphEdge) == {
+        "fk_supply_chain_graph_edge_source_node_owner": (
+            ("snapshot_id", "source_node_id"),
+            (
+                "supply_chain_graph_node.snapshot_id",
+                "supply_chain_graph_node.id",
+            ),
+        ),
+        "fk_supply_chain_graph_edge_target_node_owner": (
+            ("snapshot_id", "target_node_id"),
+            (
+                "supply_chain_graph_node.snapshot_id",
+                "supply_chain_graph_node.id",
+            ),
+        ),
+    }
+    assert composite_foreign_keys(GraphEdgeCitation) == {
+        "fk_graph_edge_citation_edge_owner": (
+            ("snapshot_id", "edge_id"),
+            (
+                "supply_chain_graph_edge.snapshot_id",
+                "supply_chain_graph_edge.id",
+            ),
+        ),
+        "fk_graph_edge_citation_source_owner": (
+            ("snapshot_id", "source_id"),
+            (
+                "graph_official_source.snapshot_id",
+                "graph_official_source.id",
+            ),
+        ),
+    }
 
 
 def test_ingestion_job_exposes_nullable_graph_snapshot_relationship() -> None:
@@ -436,6 +594,7 @@ def test_graph_entities_round_trip_with_citations_and_job_reference() -> None:
         session.refresh(source)
 
         citation = GraphEdgeCitation(
+            snapshot_id=snapshot.id,
             edge_id=edge.id,
             source_id=source.id,
             excerpt="Supplier concentration disclosure.",
@@ -458,6 +617,75 @@ def test_graph_entities_round_trip_with_citations_and_job_reference() -> None:
         assert citation.edge_id == edge.id
         assert citation.source_id == source.id
         assert job.graph_snapshot_id == snapshot.id
+
+
+def test_same_snapshot_edge_and_citation_commit_with_foreign_keys_enabled() -> None:
+    with build_session() as session:
+        snapshot, _ = add_company_and_snapshots(session)
+        source_node = graph_node(snapshot.id, "source")
+        target_node = graph_node(snapshot.id, "target")
+        session.add_all([source_node, target_node])
+        session.commit()
+
+        edge = graph_edge(snapshot.id, source_node.id, target_node.id)
+        source = graph_source(snapshot.id, "c" * 64)
+        session.add_all([edge, source])
+        session.commit()
+
+        citation = GraphEdgeCitation(
+            snapshot_id=snapshot.id,
+            edge_id=edge.id,
+            source_id=source.id,
+            excerpt="Supplier concentration disclosure.",
+            source_anchor="item-1-business",
+            support_role="primary",
+        )
+        session.add(citation)
+        session.commit()
+
+        assert citation.snapshot_id == snapshot.id
+
+
+def test_cross_snapshot_edge_is_rejected_with_foreign_keys_enabled() -> None:
+    with build_session() as session:
+        snapshot_a, snapshot_b = add_company_and_snapshots(session)
+        node_a = graph_node(snapshot_a.id, "node-a")
+        node_b = graph_node(snapshot_b.id, "node-b")
+        session.add_all([node_a, node_b])
+        session.commit()
+
+        invalid_edge = graph_edge(snapshot_a.id, node_b.id, node_a.id)
+        session.add(invalid_edge)
+
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+
+def test_cross_snapshot_citation_is_rejected_with_foreign_keys_enabled() -> None:
+    with build_session() as session:
+        snapshot_a, snapshot_b = add_company_and_snapshots(session)
+        source_node = graph_node(snapshot_a.id, "source-a")
+        target_node = graph_node(snapshot_a.id, "target-a")
+        session.add_all([source_node, target_node])
+        session.commit()
+
+        edge = graph_edge(snapshot_a.id, source_node.id, target_node.id)
+        source = graph_source(snapshot_b.id, "d" * 64)
+        session.add_all([edge, source])
+        session.commit()
+
+        invalid_citation = GraphEdgeCitation(
+            snapshot_id=snapshot_a.id,
+            edge_id=edge.id,
+            source_id=source.id,
+            excerpt="Supplier concentration disclosure.",
+            source_anchor="item-1-business",
+            support_role="primary",
+        )
+        session.add(invalid_citation)
+
+        with pytest.raises(IntegrityError):
+            session.commit()
 
 
 def test_database_rejects_invalid_graph_values() -> None:
