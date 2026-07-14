@@ -9,10 +9,19 @@ from app.models.research_model import (
     FilingArtifact,
     FilingSection,
 )
+from app.models.supply_chain_model import (
+    AgentQuotaReservation,
+    GraphEdgeCitation,
+    GraphOfficialSource,
+    SupplyChainGraphEdge,
+    SupplyChainGraphNode,
+    SupplyChainGraphSnapshot,
+)
 from app.models.user_model import Item, User
 
 __all__ = [
     "AgentDailyUsage",
+    "AgentQuotaReservation",
     "AuthSession",
     "Company",
     "CompanyIntelligenceSnapshot",
@@ -22,9 +31,14 @@ __all__ = [
     "FilingArtifact",
     "FilingSection",
     "FinancialMetric",
+    "GraphEdgeCitation",
+    "GraphOfficialSource",
     "IngestionJob",
     "Item",
     "MarketSnapshot",
+    "SupplyChainGraphEdge",
+    "SupplyChainGraphNode",
+    "SupplyChainGraphSnapshot",
     "User",
     "Watchlist",
 ]

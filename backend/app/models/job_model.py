@@ -37,6 +37,12 @@ class IngestionJob(SQLModel, table=True):
         foreign_key="company_intelligence_snapshot.id",
         ondelete="SET NULL",
     )
+    graph_snapshot_id: UUID | None = Field(
+        default=None,
+        foreign_key="supply_chain_graph_snapshot.id",
+        ondelete="SET NULL",
+        index=True,
+    )
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
