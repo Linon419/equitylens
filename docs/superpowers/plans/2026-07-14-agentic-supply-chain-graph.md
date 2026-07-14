@@ -428,7 +428,7 @@ cd backend
 uv run alembic revision --autogenerate -m "add agentic supply chain graph"
 ```
 
-Rename the file to `20260714_0004_agentic_supply_chain_graph.py`, set `revision = "20260714_0004"`, `down_revision = "20260713_0003"`, and review every foreign key, unique constraint, check constraint, and index. Add explicit checks for confidence values within `[0, 1]`, supported node layers, supported edge statuses, and reservation states.
+Rename the file to `20260714_0004_agentic_supply_chain_graph.py`, set `revision = "20260714_0004"`, `down_revision = "20260713_0003"`, and review every foreign key, unique constraint, check constraint, and index. Add explicit checks for importance within `[0, 1]`, nonnegative counts/ranks, supported snapshot statuses, evidence-coverage labels, confidence labels, node kinds/layers, edge relationship/evidence statuses, source/support-role types, and reservation states.
 
 - [ ] **Step 7: Run model and migration tests**
 
