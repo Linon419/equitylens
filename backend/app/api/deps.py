@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator, Generator
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Annotated
 
 import httpx
@@ -34,6 +35,11 @@ from app.quota.repository import (
 )
 from app.research.openai_generator import OpenAIIntelligenceGenerator
 from app.research.service import IntelligenceGenerator
+from app.supply_chain.artifacts import (
+    S3GraphArtifactStore,
+    VercelBlobGraphArtifactStore,
+)
+from app.supply_chain.contracts import GraphArtifactStore
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
@@ -184,6 +190,74 @@ async def get_job_backend() -> AsyncIterator[JobBackend]:
 
 
 JobBackendDep = Annotated[JobBackend, Depends(get_job_backend)]
+
+
+@lru_cache(maxsize=8)
+def _get_s3_graph_client(
+    endpoint_url: str,
+    access_key_id: str,
+    secret_access_key: str,
+    region_name: str,
+):
+    import boto3
+
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+        region_name=region_name,
+    )
+
+
+@lru_cache(maxsize=8)
+def _get_vercel_blob_client(token: str):
+    from vercel.blob import AsyncBlobClient
+
+    return AsyncBlobClient(token=token)
+
+
+def get_graph_artifact_store() -> GraphArtifactStore:
+    if settings.OBJECT_STORAGE_PROVIDER.value == "s3":
+        required = (
+            settings.S3_ENDPOINT_URL,
+            settings.S3_BUCKET,
+            settings.S3_ACCESS_KEY_ID,
+            settings.S3_SECRET_ACCESS_KEY,
+        )
+        if not all(required):
+            raise RuntimeError("S3 graph artifact storage is not configured")
+        endpoint, bucket, access_key, secret_key = required
+        assert endpoint is not None
+        assert bucket is not None
+        assert access_key is not None
+        assert secret_key is not None
+        client = _get_s3_graph_client(
+            endpoint,
+            access_key,
+            secret_key,
+            "us-east-1",
+        )
+        return S3GraphArtifactStore(
+            client=client,
+            bucket=bucket,
+            prefix=settings.GRAPH_ARTIFACT_PREFIX,
+        )
+    if settings.OBJECT_STORAGE_PROVIDER.value == "vercel_blob":
+        token = settings.BLOB_READ_WRITE_TOKEN
+        if token is None:
+            raise RuntimeError("Vercel graph artifact storage is not configured")
+        return VercelBlobGraphArtifactStore(
+            client=_get_vercel_blob_client(token),
+            prefix=settings.GRAPH_ARTIFACT_PREFIX,
+        )
+    raise RuntimeError("Graph artifact storage provider is unsupported")
+
+
+GraphArtifactStoreDep = Annotated[
+    GraphArtifactStore,
+    Depends(get_graph_artifact_store),
+]
 
 
 def get_intelligence_generator() -> IntelligenceGenerator:
