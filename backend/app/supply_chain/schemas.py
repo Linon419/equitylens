@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Annotated, Literal, Self
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import (
@@ -39,6 +40,7 @@ SourceType = Literal[
 SupportRole = Literal["primary", "corroborating"]
 ConfidenceLabel = Literal["High", "Medium", "Low"]
 AcceptedGraphStatus = Literal["completed", "insufficient_evidence"]
+EvidenceCoverage = Literal["complete", "partial", "insufficient_evidence"]
 
 StableKey = Annotated[
     str,
@@ -54,16 +56,6 @@ Description = Annotated[
         strict=True, strip_whitespace=True, min_length=1, max_length=2000
     ),
 ]
-CanonicalUrl = Annotated[
-    str,
-    StringConstraints(
-        strict=True,
-        strip_whitespace=True,
-        min_length=10,
-        max_length=2000,
-        pattern=r"^https://[^\s]+$",
-    ),
-]
 Score = Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
 PositiveId = Annotated[int, Field(strict=True, gt=0)]
 Rank = Annotated[int, Field(strict=True, ge=0)]
@@ -71,8 +63,6 @@ Symbol = Annotated[
     str,
     StringConstraints(
         strict=True,
-        strip_whitespace=True,
-        to_upper=True,
         min_length=1,
         max_length=16,
         pattern=r"^[A-Z0-9.-]+$",
@@ -81,6 +71,32 @@ Symbol = Annotated[
 Cik = Annotated[
     str,
     StringConstraints(strict=True, pattern=r"^[0-9]{10}$"),
+]
+ModelId = Annotated[
+    str,
+    StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=128),
+]
+
+
+def _validate_canonical_url(value: str) -> str:
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError("canonical URL is malformed") from error
+    if parsed.scheme != "https" or parsed.hostname is None:
+        raise ValueError("canonical URL requires HTTPS and a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("canonical URL cannot contain user information")
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError("canonical URL port is invalid")
+    return value
+
+
+CanonicalUrl = Annotated[
+    str,
+    StringConstraints(strict=True, min_length=10, max_length=2000),
+    AfterValidator(_validate_canonical_url),
 ]
 
 
@@ -316,7 +332,9 @@ class EdgeVerification(StrictValueModel):
 
 
 class GraphVerification(StrictValueModel):
-    edge_verifications: list[EdgeVerification] = Field(min_length=1, max_length=120)
+    edge_verifications: list[EdgeVerification] = Field(
+        default_factory=list, max_length=120
+    )
 
     @model_validator(mode="after")
     def validate_unique_edges(self) -> Self:
@@ -423,9 +441,11 @@ class GraphLocalization(StrictValueModel):
 class PublicGraphSnapshotSummary(StrictValueModel):
     id: UUID
     status: AcceptedGraphStatus
+    symbol: Symbol
+    model_id: ModelId
     focus_node_key: StableKey
     thesis: Description
-    evidence_coverage: Score
+    evidence_coverage: EvidenceCoverage
     overall_confidence: ConfidenceLabel | None
     node_count: Annotated[int, Field(strict=True, ge=0, le=40)]
     edge_count: Annotated[int, Field(strict=True, ge=0, le=240)]
@@ -500,3 +520,15 @@ class GraphRefreshResponse(StrictValueModel):
     job_id: UUID | None = None
     snapshot_id: UUID | None = None
     quota: QuotaStatus
+
+    @model_validator(mode="after")
+    def validate_status_reference(self) -> Self:
+        if (
+            self.status in {"accepted", "active_job"}
+            and self.job is None
+            and self.job_id is None
+        ):
+            raise ValueError(f"{self.status} requires job or job_id")
+        if self.status == "reused_snapshot" and self.snapshot_id is None:
+            raise ValueError("reused_snapshot requires snapshot_id")
+        return self

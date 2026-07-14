@@ -24,10 +24,12 @@ from app.supply_chain.schemas import (
     GraphDraft,
     GraphLocalization,
     GraphRefreshRequest,
+    GraphRefreshResponse,
     GraphVerification,
     OfficialSourceDocument,
     OfficialSourceMetadata,
     PublicGraphCitation,
+    PublicGraphSnapshotSummary,
     SourcePlan,
 )
 
@@ -105,6 +107,10 @@ def test_aapl_draft_fixture_has_required_supply_chain_coverage(
         "Consumer End Markets",
     }
     assert sum(edge.evidence_status == "potential" for edge in draft.edges) >= 2
+    assert len(draft.edges) == 28
+    assert sum(edge.evidence_status == "verified" for edge in draft.edges) == 23
+    assert sum(edge.evidence_status == "potential" for edge in draft.edges) == 4
+    assert sum(edge.evidence_status == "internal" for edge in draft.edges) == 1
     assert all(edge.evidence_refs for edge in draft.edges)
 
 
@@ -145,11 +151,126 @@ def test_aapl_verification_fixture_includes_adversarial_rejection(
         for decision in verification.edge_verifications
         if decision.verdict == "rejected"
     ]
-    assert {decision.edge_key for decision in verification.edge_verifications} == {
+    assert [decision.edge_key for decision in verification.edge_verifications] == [
         edge.edge_key for edge in draft.edges
-    }
+    ]
     assert rejected
     assert any("unsupported" in decision.reason_en.lower() for decision in rejected)
+
+
+def test_empty_draft_has_representable_empty_verification() -> None:
+    draft = GraphDraft.model_validate(
+        {
+            "focus_node_key": "company:focus",
+            "thesis_en": "A valid graph can contain a focus node with zero edges.",
+            "nodes": [
+                {
+                    "node_key": "company:focus",
+                    "kind": "company",
+                    "layer": "core",
+                    "label_en": "Focus Company",
+                    "description_en": "The focus company for an empty-edge graph.",
+                    "importance": 1.0,
+                    "confidence": 1.0,
+                }
+            ],
+            "edges": [],
+        }
+    )
+    verification = GraphVerification.model_validate({"edge_verifications": []})
+
+    assert draft.edges == []
+    assert verification.edge_verifications == []
+
+
+def test_public_snapshot_matches_designed_api_shape() -> None:
+    snapshot = PublicGraphSnapshotSummary.model_validate(
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "status": "completed",
+            "symbol": "AAPL",
+            "model_id": "gpt-5-mini-2026-07-14",
+            "focus_node_key": "company:0000320193",
+            "thesis": "Apple operates a multi-layer supply-chain graph.",
+            "evidence_coverage": "complete",
+            "overall_confidence": "High",
+            "node_count": 25,
+            "edge_count": 27,
+            "generated_at": "2026-07-14T00:00:00Z",
+        }
+    )
+
+    assert snapshot.symbol == "AAPL"
+    assert snapshot.model_id == "gpt-5-mini-2026-07-14"
+    assert snapshot.evidence_coverage == "complete"
+
+
+def test_public_snapshot_rejects_numeric_evidence_coverage() -> None:
+    with pytest.raises(ValidationError):
+        PublicGraphSnapshotSummary.model_validate(
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "status": "completed",
+                "symbol": "AAPL",
+                "model_id": "gpt-5-mini-2026-07-14",
+                "focus_node_key": "company:0000320193",
+                "thesis": "Apple operates a multi-layer supply-chain graph.",
+                "evidence_coverage": 1.0,
+                "overall_confidence": "High",
+                "node_count": 25,
+                "edge_count": 27,
+                "generated_at": "2026-07-14T00:00:00Z",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "status_payload",
+    [
+        {
+            "status": "accepted",
+            "job_id": "00000000-0000-0000-0000-000000000001",
+        },
+        {
+            "status": "active_job",
+            "job_id": "00000000-0000-0000-0000-000000000001",
+        },
+        {
+            "status": "reused_snapshot",
+            "snapshot_id": "00000000-0000-0000-0000-000000000002",
+        },
+    ],
+)
+def test_refresh_response_accepts_usable_status_reference(status_payload: dict) -> None:
+    response = GraphRefreshResponse.model_validate(
+        {
+            **status_payload,
+            "quota": {
+                "limit": 2,
+                "used": 1,
+                "remaining": 1,
+                "resets_at": "2026-07-15T00:00:00Z",
+            },
+        }
+    )
+
+    assert response.status == status_payload["status"]
+
+
+@pytest.mark.parametrize("status", ["accepted", "active_job", "reused_snapshot"])
+def test_refresh_response_rejects_status_without_usable_reference(status: str) -> None:
+    with pytest.raises(ValidationError, match="requires"):
+        GraphRefreshResponse.model_validate(
+            {
+                "status": status,
+                "quota": {
+                    "limit": 2,
+                    "used": 1,
+                    "remaining": 1,
+                    "resets_at": "2026-07-15T00:00:00Z",
+                },
+            }
+        )
 
 
 @pytest.mark.parametrize("value", [-0.01, 1.01])
@@ -304,6 +425,46 @@ def test_source_rejects_unsupported_source_type(source_payload: dict) -> None:
 
     with pytest.raises(ValidationError):
         OfficialSourceDocument.model_validate(invalid)
+
+
+@pytest.mark.parametrize(
+    "canonical_url",
+    [
+        "https:///x",
+        "https://user:password@apple.com/fixture",
+        "https://apple.com:invalid/fixture",
+    ],
+)
+def test_source_rejects_malformed_or_credentialed_https_url(
+    source_payload: dict,
+    canonical_url: str,
+) -> None:
+    invalid = deepcopy(source_payload["documents"][0])
+    invalid["canonical_url"] = canonical_url
+
+    with pytest.raises(ValidationError, match="canonical_url"):
+        OfficialSourceDocument.model_validate(invalid)
+
+
+def test_source_preserves_valid_canonical_url_exactly(source_payload: dict) -> None:
+    payload = deepcopy(source_payload["documents"][0])
+    payload["canonical_url"] = "https://Apple.com:443/fixture%20path?x=1#section"
+
+    source = OfficialSourceDocument.model_validate(payload)
+
+    assert source.canonical_url == payload["canonical_url"]
+
+
+@pytest.mark.parametrize("symbol", ["aapl", " AAPL "])
+def test_company_identity_rejects_normalized_symbol(
+    source_payload: dict,
+    symbol: str,
+) -> None:
+    invalid = deepcopy(source_payload["company"])
+    invalid["symbol"] = symbol
+
+    with pytest.raises(ValidationError, match="symbol"):
+        CompanyIdentity.model_validate(invalid)
 
 
 def test_verification_rejects_duplicate_edge_decisions(
