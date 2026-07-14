@@ -10,11 +10,16 @@ class VercelWorkflowBackend:
         client: httpx.AsyncClient,
         trigger_url: str,
         internal_secret: str,
+        *,
+        supply_chain_trigger_url: str | None = None,
     ) -> None:
         self._client = client
-        self._trigger_url = trigger_url
+        self._trigger_urls = {
+            "company_intelligence": trigger_url,
+            "supply_chain_graph": supply_chain_trigger_url,
+        }
         self._internal_secret = internal_secret
-        self._submissions: dict[str, JobSubmission] = {}
+        self._submissions: dict[tuple[str, str], JobSubmission] = {}
 
     async def enqueue(
         self,
@@ -22,18 +27,20 @@ class VercelWorkflowBackend:
         job_type: str,
         payload: dict,
     ) -> JobSubmission:
-        if job_type != "company_intelligence" or set(payload) != {"job_id"}:
+        trigger_url = self._trigger_urls.get(job_type)
+        if trigger_url is None or set(payload) != {"job_id"}:
             raise JobDispatchError(
                 "unsupported Workflow payload",
                 retryable=False,
             )
         job_id = str(payload["job_id"])
-        existing = self._submissions.get(job_id)
+        submission_key = job_type, job_id
+        existing = self._submissions.get(submission_key)
         if existing is not None:
             return existing
         try:
             response = await self._client.post(
-                self._trigger_url,
+                trigger_url,
                 json={"job_id": job_id},
                 headers={
                     "Authorization": f"Bearer {self._internal_secret}",
@@ -57,5 +64,5 @@ class VercelWorkflowBackend:
                 retryable=False,
             ) from error
         submission = JobSubmission(job_id=run_id)
-        self._submissions[job_id] = submission
+        self._submissions[submission_key] = submission
         return submission

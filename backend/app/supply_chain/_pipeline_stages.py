@@ -1,6 +1,5 @@
-from typing import TYPE_CHECKING
-
 from app.models.supply_chain_model import SupplyChainGraphSnapshot
+from app.supply_chain.pipeline_types import SupplyChainPipelineServices
 from app.supply_chain.schemas import (
     AcceptedGraph,
     CompanyIdentity,
@@ -10,12 +9,9 @@ from app.supply_chain.schemas import (
     OfficialSourceDocument,
 )
 
-if TYPE_CHECKING:
-    from app.supply_chain.pipeline import SupplyChainPipelineServices
-
 
 class SupplyChainStageRunner:
-    def __init__(self, services: "SupplyChainPipelineServices") -> None:
+    def __init__(self, services: SupplyChainPipelineServices) -> None:
         self._services = services
 
     async def draft(

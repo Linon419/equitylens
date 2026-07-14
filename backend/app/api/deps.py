@@ -24,6 +24,7 @@ from app.jobs.service import UnconfiguredJobBackend
 from app.jobs.vercel_backend import VercelWorkflowBackend
 from app.market_data.yahoo import YahooMarketDataProvider
 from app.models.auth_model import AuthSession
+from app.models.company_model import Company
 from app.models.user_model import User
 from app.providers.market import MarketDataProvider
 from app.providers.sec import SecDataProvider
@@ -41,12 +42,23 @@ from app.supply_chain.artifacts import (
 )
 from app.supply_chain.collector import OfficialSourceCollectorImpl, extract_pdf_text
 from app.supply_chain.contracts import (
+    EntityResolver,
     GraphArtifactStore,
     OfficialSourceCollector,
     SupplyChainAgent,
 )
+from app.supply_chain.entity_resolver import (
+    CompanyDirectoryEntry,
+    DeterministicEntityResolver,
+)
 from app.supply_chain.openai_agent import OpenAISupplyChainAgent
+from app.supply_chain.pipeline import (
+    SupplyChainGraphPipeline,
+    SupplyChainPipelineServices,
+)
+from app.supply_chain.repository import SqlSupplyChainGraphRepository
 from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
+from app.supply_chain.validator import validate_for_publication
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
@@ -184,13 +196,19 @@ async def get_job_backend() -> AsyncIterator[JobBackend]:
         yield RQJobBackend(queue)
         return
     if settings.JOB_BACKEND.value == "vercel_workflow":
-        if settings.WORKFLOW_TRIGGER_URL is None:
-            raise RuntimeError("WORKFLOW_TRIGGER_URL is required")
+        if (
+            settings.WORKFLOW_TRIGGER_URL is None
+            or settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL is None
+        ):
+            raise RuntimeError("Workflow trigger URLs are required")
         async with httpx.AsyncClient(timeout=15) as client:
             yield VercelWorkflowBackend(
                 client,
                 settings.WORKFLOW_TRIGGER_URL,
                 settings.INTERNAL_JOB_SECRET,
+                supply_chain_trigger_url=(
+                    settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL
+                ),
             )
         return
     yield UnconfiguredJobBackend()
@@ -331,6 +349,60 @@ def get_supply_chain_agent() -> SupplyChainAgent:
 SupplyChainAgentDep = Annotated[
     SupplyChainAgent,
     Depends(get_supply_chain_agent),
+]
+
+
+def get_supply_chain_entity_resolver(session: SessionDep) -> EntityResolver:
+    companies = session.exec(select(Company).order_by(Company.id)).all()
+    return DeterministicEntityResolver(
+        tuple(
+            CompanyDirectoryEntry(
+                company_id=company.id,
+                symbol=company.symbol,
+                cik=company.cik,
+                legal_name=company.name,
+            )
+            for company in companies
+            if company.id is not None
+        )
+    )
+
+
+SupplyChainEntityResolverDep = Annotated[
+    EntityResolver,
+    Depends(get_supply_chain_entity_resolver),
+]
+
+
+def get_supply_chain_graph_pipeline(
+    session: SessionDep,
+    collector: OfficialSourceCollectorDep,
+    agent: SupplyChainAgentDep,
+    resolver: SupplyChainEntityResolverDep,
+    quota_repository: QuotaRepositoryDep,
+) -> SupplyChainGraphPipeline:
+    return SupplyChainGraphPipeline(
+        SupplyChainPipelineServices(
+            session=session,
+            collector=collector,
+            agent=agent,
+            resolver=resolver,
+            repository=SqlSupplyChainGraphRepository(session),
+            quota_repository=quota_repository,
+            validator=validate_for_publication,
+            schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
+            prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
+            model_id=settings.SUPPLY_CHAIN_GRAPH_MODEL,
+            min_nodes=settings.SUPPLY_CHAIN_GRAPH_MIN_NODES,
+            max_nodes=settings.SUPPLY_CHAIN_GRAPH_MAX_NODES,
+            evidence_threshold=settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD,
+        )
+    )
+
+
+SupplyChainGraphPipelineDep = Annotated[
+    SupplyChainGraphPipeline,
+    Depends(get_supply_chain_graph_pipeline),
 ]
 
 

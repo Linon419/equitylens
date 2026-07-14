@@ -1,285 +1,288 @@
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlmodel import Session, select
+from pydantic import BaseModel
 
 from app.core.errors import DomainError
-from app.jobs.state import states_for
-from app.models.company_model import Company
 from app.models.job_model import IngestionJob
 from app.models.supply_chain_model import SupplyChainGraphSnapshot
-from app.quota.repository import QuotaRepository
-from app.quota.service import consume_job_analysis, refund_job_analysis
+from app.supply_chain._pipeline_lifecycle import GraphPipelineLifecycle
 from app.supply_chain._pipeline_stages import SupplyChainStageRunner
 from app.supply_chain._pipeline_support import (
     PUBLIC_GRAPH_STATUSES,
-    STAGE_ERROR_CODES,
     company_identity,
     source_fingerprint,
 )
 from app.supply_chain.collector import SourceCollectionError
-from app.supply_chain.contracts import (
-    EntityResolver,
-    OfficialSourceCollector,
-    SupplyChainAgent,
-    SupplyChainGraphRepository,
-)
-from app.supply_chain.repository import (
-    CreateWorkingSnapshotCommand,
-    GraphVersionConflict,
-    GraphVersionKey,
-    PublishGraphCommand,
-)
+from app.supply_chain.pipeline_types import SupplyChainPipelineServices
+from app.supply_chain.repository import PublishGraphCommand
 from app.supply_chain.schemas import (
     AcceptedGraph,
+    CompanyIdentity,
+    GraphDraft,
+    GraphLocalization,
     OfficialSourceDocument,
+    SourcePlan,
 )
 
-type GraphValidator = Callable[..., AcceptedGraph]
-
-
-@dataclass
-class SupplyChainPipelineServices:
-    session: Session
-    collector: OfficialSourceCollector
-    agent: SupplyChainAgent
-    resolver: EntityResolver
-    repository: SupplyChainGraphRepository
-    quota_repository: QuotaRepository
-    validator: GraphValidator
-    schema_version: str
-    prompt_version: str
-    model_id: str
-    min_nodes: int
-    max_nodes: int
-    evidence_threshold: float
-    now: datetime | None = None
+__all__ = [
+    "SupplyChainGraphPipeline",
+    "SupplyChainPipelineServices",
+    "source_fingerprint",
+]
+_STEP_ARTIFACTS = {
+    "collect": "source_plan",
+    "extract": "draft",
+    "resolve": "resolved",
+    "verify": "accepted",
+    "localize": "localization",
+}
 
 
 class SupplyChainGraphPipeline:
     def __init__(self, services: SupplyChainPipelineServices) -> None:
         self.services = services
-        self._session = services.session
+        self._lifecycle = GraphPipelineLifecycle(services)
         self._stages = SupplyChainStageRunner(services)
+        self._source_cache: dict[
+            UUID,
+            tuple[CompanyIdentity, list[OfficialSourceDocument]],
+        ] = {}
 
     async def run(self, job_id: UUID) -> SupplyChainGraphSnapshot:
-        job = self._lock_job(job_id)
-        self._require_graph_job(job)
-        completed = self._completed_snapshot(job)
+        await self.collect(job_id)
+        completed = self._terminal(job_id)
         if completed is not None:
             return completed
+        await self.extract(job_id)
+        await self.resolve(job_id)
+        await self.verify(job_id)
+        await self.localize(job_id)
+        result = await self.publish(job_id)
+        assert isinstance(result, SupplyChainGraphSnapshot)
+        return result
 
-        step = "collecting"
-        snapshot: SupplyChainGraphSnapshot | None = None
+    def is_step_complete(self, job_id: UUID, step: str) -> bool:
+        job = self._job(job_id)
+        if self._lifecycle.completed_snapshot(job) is not None:
+            return True
+        if step == "publish":
+            return False
+        artifact = _STEP_ARTIFACTS.get(step)
+        if artifact is None:
+            raise DomainError("GRAPH_STEP_INVALID", 422)
+        snapshot = self._lifecycle.snapshot(job.graph_snapshot_id)
+        return snapshot is not None and self._stage(snapshot, artifact) is not None
+
+    def resume_retry(self, job_id: UUID) -> None:
+        job = self._job(job_id)
+        if job.state == "failed":
+            self._lifecycle.resume_retry(job_id)
+
+    async def collect(self, job_id: UUID) -> SupplyChainGraphSnapshot:
+        job = self._job(job_id)
+        completed = self._lifecycle.completed_snapshot(job)
+        if completed is not None:
+            return completed
+        linked = self._lifecycle.snapshot(job.graph_snapshot_id)
+        if linked is not None and self._stage(linked, "source_plan") is not None:
+            self._lifecycle.revive_snapshot(linked)
+            return linked
         try:
-            company = self._company(job)
+            company = self._lifecycle.company(job)
             identity = company_identity(company)
-            self._advance_to(job, step)
+            self._lifecycle.advance_to(job, "collecting")
             tools = await self.services.collector.prepare_catalog(company=identity)
             plan = await self.services.agent.plan_sources(company=identity, tools=tools)
             sources = tools.selected_documents(plan.selected_source_ids)
-            if not sources:
-                raise SourceCollectionError("SOURCE_SELECTION_EMPTY")
-
-            snapshot = self._snapshot_for_sources(company, sources)
-            self._link_snapshot(job, snapshot)
+            self._require_sources(sources)
+            snapshot = self._lifecycle.snapshot_for_sources(company, sources)
+            self._lifecycle.link_snapshot(job, snapshot)
             if snapshot.status in PUBLIC_GRAPH_STATUSES:
-                return self._complete(job, snapshot)
-            self._revive_snapshot(snapshot)
+                return self._lifecycle.complete(job, snapshot)
+            self._lifecycle.revive_snapshot(snapshot)
             self.services.repository.save_stage(
                 snapshot.id,
                 stage="source_plan",
                 payload=plan,
             )
+            self._source_cache[snapshot.id] = (identity, sources)
+            return snapshot
+        except Exception as error:
+            self._lifecycle.fail(job_id, "collecting", error)
+            raise
 
-            step = "extracting"
-            self._advance_to(job, step)
-            draft = await self._stages.draft(snapshot, identity, sources)
+    async def extract(
+        self,
+        job_id: UUID,
+    ) -> GraphDraft | SupplyChainGraphSnapshot:
+        job, snapshot, completed = self._stage_context(job_id)
+        if completed is not None:
+            return completed
+        stored = self._stage(snapshot, "draft")
+        if stored is not None:
+            return GraphDraft.model_validate(stored)
+        try:
+            identity, sources = await self._sources(job, snapshot)
+            self._lifecycle.advance_to(job, "extracting")
+            return await self._stages.draft(snapshot, identity, sources)
+        except Exception as error:
+            self._lifecycle.fail(job_id, "extracting", error)
+            raise
 
-            step = "resolving"
-            self._advance_to(job, step)
-            resolved = await self._stages.resolved_draft(snapshot, draft)
+    async def resolve(
+        self,
+        job_id: UUID,
+    ) -> GraphDraft | SupplyChainGraphSnapshot:
+        job, snapshot, completed = self._stage_context(job_id)
+        if completed is not None:
+            return completed
+        stored = self._stage(snapshot, "resolved")
+        if stored is not None:
+            return GraphDraft.model_validate(stored)
+        try:
+            draft = self._required_stage(snapshot, "draft", GraphDraft)
+            self._lifecycle.advance_to(job, "resolving")
+            return await self._stages.resolved_draft(snapshot, draft)
+        except Exception as error:
+            self._lifecycle.fail(job_id, "resolving", error)
+            raise
 
-            step = "verifying"
-            self._advance_to(job, step)
-            verification = await self._stages.verification(snapshot, resolved, sources)
-            accepted = self._stages.accepted_graph(
+    async def verify(
+        self,
+        job_id: UUID,
+    ) -> AcceptedGraph | SupplyChainGraphSnapshot:
+        job, snapshot, completed = self._stage_context(job_id)
+        if completed is not None:
+            return completed
+        stored = self._stage(snapshot, "accepted")
+        if stored is not None:
+            return AcceptedGraph.model_validate(stored)
+        try:
+            resolved = self._required_stage(snapshot, "resolved", GraphDraft)
+            _, sources = await self._sources(job, snapshot)
+            self._lifecycle.advance_to(job, "verifying")
+            verification = await self._stages.verification(
+                snapshot,
+                resolved,
+                sources,
+            )
+            return self._stages.accepted_graph(
                 snapshot,
                 resolved,
                 verification,
                 sources,
             )
+        except Exception as error:
+            self._lifecycle.fail(job_id, "verifying", error)
+            raise
 
-            step = "localizing"
-            self._advance_to(job, step)
-            localization = await self._stages.localization(snapshot, accepted)
+    async def localize(
+        self,
+        job_id: UUID,
+    ) -> GraphLocalization | SupplyChainGraphSnapshot:
+        job, snapshot, completed = self._stage_context(job_id)
+        if completed is not None:
+            return completed
+        stored = self._stage(snapshot, "localization")
+        if stored is not None:
+            return GraphLocalization.model_validate(stored)
+        try:
+            graph = self._required_stage(snapshot, "accepted", AcceptedGraph)
+            self._lifecycle.advance_to(job, "localizing")
+            return await self._stages.localization(snapshot, graph)
+        except Exception as error:
+            self._lifecycle.fail(job_id, "localizing", error)
+            raise
+
+    async def publish(self, job_id: UUID) -> SupplyChainGraphSnapshot:
+        job, snapshot, completed = self._stage_context(job_id)
+        if completed is not None:
+            return completed
+        try:
+            graph = self._required_stage(snapshot, "accepted", AcceptedGraph)
+            localization = self._required_stage(
+                snapshot,
+                "localization",
+                GraphLocalization,
+            )
             published = self.services.repository.publish(
                 PublishGraphCommand(
                     snapshot_id=snapshot.id,
-                    graph=accepted,
+                    graph=graph,
                     localization=localization,
-                    now=self._now(),
+                    now=self._lifecycle.now(),
                 )
             )
-            return self._complete(job, published)
+            return self._lifecycle.complete(job, published)
         except Exception as error:
-            self._fail(job_id, snapshot, step, error)
+            self._lifecycle.fail(job_id, "localizing", error)
             raise
 
-    def _snapshot_for_sources(
-        self,
-        company: Company,
-        sources: list[OfficialSourceDocument],
-    ) -> SupplyChainGraphSnapshot:
-        assert company.id is not None
-        key = GraphVersionKey(
-            company_id=company.id,
-            source_fingerprint=source_fingerprint(sources),
-            schema_version=self.services.schema_version,
-            prompt_version=self.services.prompt_version,
-            model_id=self.services.model_id,
-        )
-        existing = self.services.repository.find_by_version_key(key)
-        if existing is not None:
-            return existing
-        try:
-            return self.services.repository.create_working_snapshot(
-                CreateWorkingSnapshotCommand(
-                    **key.__dict__,
-                    sources=sources,
-                    now=self._now(),
-                )
-            )
-        except GraphVersionConflict:
-            winner = self.services.repository.find_by_version_key(key)
-            if winner is None:
-                raise
-            return winner
-
-    def _complete(
+    async def _sources(
         self,
         job: IngestionJob,
         snapshot: SupplyChainGraphSnapshot,
-    ) -> SupplyChainGraphSnapshot:
-        job = self._lock_job(job.id)
-        if job.state == "completed" and job.graph_snapshot_id == snapshot.id:
-            return snapshot
-        job.graph_snapshot_id = snapshot.id
-        job.state = "completed"
-        job.current_step = "completed"
-        job.error_code = None
-        job.retry_eligible = False
-        job.updated_at = self._now()
-        if not consume_job_analysis(
-            self.services.quota_repository,
-            job.id,
-            now=self._now(),
-        ):
-            raise DomainError("GRAPH_QUOTA_CONSUMPTION_FAILED", 409)
-        self._session.add(job)
-        self._session.commit()
-        return snapshot
+    ) -> tuple[CompanyIdentity, list[OfficialSourceDocument]]:
+        cached = self._source_cache.get(snapshot.id)
+        if cached is not None:
+            return cached
+        plan = self._required_stage(snapshot, "source_plan", SourcePlan)
+        identity = company_identity(self._lifecycle.company(job))
+        tools = await self.services.collector.prepare_catalog(company=identity)
+        for source_id in plan.selected_source_ids:
+            await tools.fetch_official_source(source_id=source_id)
+        sources = tools.selected_documents(plan.selected_source_ids)
+        self._require_sources(sources)
+        if source_fingerprint(sources) != snapshot.source_fingerprint:
+            raise SourceCollectionError("SOURCE_VERSION_CHANGED", retryable=True)
+        self._source_cache[snapshot.id] = (identity, sources)
+        return identity, sources
 
-    def _fail(
+    def _stage_context(
         self,
         job_id: UUID,
-        snapshot: SupplyChainGraphSnapshot | None,
-        step: str,
-        error: Exception,
-    ) -> None:
-        self._session.rollback()
-        job = self._lock_job(job_id)
-        job.state = "failed"
-        job.current_step = step
-        job.error_code = getattr(error, "code", STAGE_ERROR_CODES[step])
-        job.retry_eligible = bool(getattr(error, "retryable", True))
-        job.updated_at = self._now()
-        if snapshot is not None:
-            current = self._session.get(SupplyChainGraphSnapshot, snapshot.id)
-            if current is not None and current.status not in PUBLIC_GRAPH_STATUSES:
-                current.status = "failed"
-                self._session.add(current)
-        refund_job_analysis(
-            self.services.quota_repository,
-            job.id,
-            now=self._now(),
-        )
-        self._session.add(job)
-        self._session.commit()
-
-    def _advance_to(self, job: IngestionJob, target: str) -> None:
-        job = self._lock_job(job.id)
-        states = states_for(job.job_type)
-        if job.state == "failed":
-            raise DomainError("JOB_STATE_CONFLICT", 409)
-        if states.index(job.state) >= states.index(target):
-            return
-        job.state = target
-        job.current_step = target
-        job.error_code = None
-        job.updated_at = self._now()
-        self._session.add(job)
-        self._session.commit()
-
-    def _link_snapshot(
-        self,
-        job: IngestionJob,
-        snapshot: SupplyChainGraphSnapshot,
-    ) -> None:
-        job = self._lock_job(job.id)
-        if job.graph_snapshot_id == snapshot.id:
-            return
-        job.graph_snapshot_id = snapshot.id
-        job.updated_at = self._now()
-        self._session.add(job)
-        self._session.commit()
-
-    def _revive_snapshot(self, snapshot: SupplyChainGraphSnapshot) -> None:
-        if snapshot.status != "failed":
-            return
-        snapshot = self._session.get(SupplyChainGraphSnapshot, snapshot.id)
+    ) -> tuple[
+        IngestionJob,
+        SupplyChainGraphSnapshot,
+        SupplyChainGraphSnapshot | None,
+    ]:
+        job = self._job(job_id)
+        completed = self._lifecycle.completed_snapshot(job)
+        if completed is not None:
+            return job, completed, completed
+        snapshot = self._lifecycle.snapshot(job.graph_snapshot_id)
         if snapshot is None:
             raise DomainError("GRAPH_SNAPSHOT_NOT_FOUND", 404)
-        snapshot.status = "drafted"
-        self._session.add(snapshot)
-        self._session.commit()
+        self._lifecycle.revive_snapshot(snapshot)
+        return job, snapshot, None
 
-    def _completed_snapshot(
-        self,
-        job: IngestionJob,
-    ) -> SupplyChainGraphSnapshot | None:
-        if job.state != "completed" or job.graph_snapshot_id is None:
-            return None
-        snapshot = self._session.get(SupplyChainGraphSnapshot, job.graph_snapshot_id)
-        if snapshot is None or snapshot.status not in PUBLIC_GRAPH_STATUSES:
-            raise DomainError("GRAPH_SNAPSHOT_NOT_FOUND", 404)
-        return snapshot
-
-    def _lock_job(self, job_id: UUID) -> IngestionJob:
-        job = self._session.exec(
-            select(IngestionJob)
-            .where(IngestionJob.id == job_id)
-            .with_for_update()
-        ).first()
-        if job is None:
-            raise DomainError("JOB_NOT_FOUND", 404)
+    def _job(self, job_id: UUID) -> IngestionJob:
+        job = self._lifecycle.lock_job(job_id)
+        self._lifecycle.require_graph_job(job)
         return job
 
-    def _company(self, job: IngestionJob) -> Company:
-        company = self._session.get(Company, job.company_id)
-        if company is None:
-            raise DomainError("COMPANY_NOT_FOUND", 404)
-        return company
+    def _terminal(self, job_id: UUID) -> SupplyChainGraphSnapshot | None:
+        return self._lifecycle.completed_snapshot(self._job(job_id))
+
+    def _stage(
+        self,
+        snapshot: SupplyChainGraphSnapshot,
+        name: str,
+    ) -> dict | None:
+        return self.services.repository.load_stage(snapshot.id, stage=name)
+
+    def _required_stage[ModelT: BaseModel](
+        self,
+        snapshot: SupplyChainGraphSnapshot,
+        name: str,
+        model: type[ModelT],
+    ) -> ModelT:
+        payload = self._stage(snapshot, name)
+        if payload is None:
+            raise DomainError("GRAPH_STAGE_PREREQUISITE_MISSING", 409)
+        return model.model_validate(payload)
 
     @staticmethod
-    def _require_graph_job(job: IngestionJob) -> None:
-        if job.job_type != "supply_chain_graph":
-            raise DomainError("JOB_TYPE_CONFLICT", 409)
-
-    def _now(self) -> datetime:
-        value = self.services.now or datetime.now(UTC)
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+    def _require_sources(sources: list[OfficialSourceDocument]) -> None:
+        if not sources:
+            raise SourceCollectionError("SOURCE_SELECTION_EMPTY")

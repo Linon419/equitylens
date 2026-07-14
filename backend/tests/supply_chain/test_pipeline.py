@@ -11,7 +11,6 @@ from app.quota.identity import RequestPrincipal
 from app.quota.repository import InMemoryQuotaRepository
 from app.quota.service import (
     get_quota,
-    rereserve_job_analysis,
     reserve_job_analysis,
 )
 from app.supply_chain.collector import SourceCollectionError
@@ -51,6 +50,13 @@ class FakeTools:
         self.calls.append("selected_documents")
         selected = set(source_ids)
         return [item for item in self.documents if item.source_id in selected]
+
+    async def fetch_official_source(
+        self,
+        *,
+        source_id: str,
+    ) -> OfficialSourceDocument:
+        return next(item for item in self.documents if item.source_id == source_id)
 
 
 @dataclass
@@ -264,6 +270,48 @@ async def test_completed_pipeline_replay_is_idempotent(
 
 
 @pytest.mark.asyncio
+async def test_public_stages_resume_across_pipeline_instances(
+    session: Session,
+    company: Company,
+    pipeline_harness: PipelineHarness,
+) -> None:
+    job = make_job(session, company, pipeline_harness.quota)
+    services = pipeline_harness.pipeline.services
+
+    await SupplyChainGraphPipeline(services).collect(job.id)
+    await SupplyChainGraphPipeline(services).extract(job.id)
+    await SupplyChainGraphPipeline(services).resolve(job.id)
+    await SupplyChainGraphPipeline(services).verify(job.id)
+    await SupplyChainGraphPipeline(services).localize(job.id)
+    result = await SupplyChainGraphPipeline(services).publish(job.id)
+
+    assert result.status == "completed"
+    assert pipeline_harness.calls.count("plan_sources") == 1
+    assert pipeline_harness.calls.count("extract_graph") == 1
+    assert pipeline_harness.calls.count("resolve_draft") == 1
+    assert pipeline_harness.calls.count("verify_graph") == 1
+    assert pipeline_harness.calls.count("localize_graph") == 1
+    assert pipeline_harness.calls.count("publish") == 1
+
+
+@pytest.mark.asyncio
+async def test_replayed_public_stage_returns_stored_result(
+    session: Session,
+    company: Company,
+    pipeline_harness: PipelineHarness,
+) -> None:
+    job = make_job(session, company, pipeline_harness.quota)
+    pipeline = SupplyChainGraphPipeline(pipeline_harness.pipeline.services)
+
+    first = await pipeline.collect(job.id)
+    calls = list(pipeline_harness.calls)
+    replayed = await SupplyChainGraphPipeline(pipeline.services).collect(job.id)
+
+    assert replayed.id == first.id
+    assert pipeline_harness.calls == calls
+
+
+@pytest.mark.asyncio
 async def test_retryable_collection_failure_refunds_and_preserves_previous(
     session: Session,
     company: Company,
@@ -373,12 +421,9 @@ async def test_localization_failure_resumes_from_accepted_stage(
     assert job.current_step == "localizing"
     assert pipeline_harness.quota.lease_for_job(job.id).state == "refunded"
 
-    assert rereserve_job_analysis(pipeline_harness.quota, job.id, now=NOW) is True
-    job.state = "verifying"
-    job.current_step = "verifying"
-    job.error_code = None
-    session.add(job)
-    session.commit()
+    pipeline_harness.pipeline.resume_retry(job.id)
+    session.refresh(job)
+    assert job.state == "verifying"
     pipeline_harness.agent.localization_error = None
     result = await pipeline_harness.pipeline.run(job.id)
 

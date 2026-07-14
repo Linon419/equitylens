@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from uuid import UUID
 
 import httpx
@@ -13,16 +14,61 @@ from app.filings.sec_client import SecClient
 from app.jobs.errors import PipelineStepError
 from app.jobs.pipeline import CompanyIntelligencePipeline
 from app.jobs.state import prior_state
+from app.models.company_model import Company
 from app.models.job_model import IngestionJob
+from app.quota.repository import (
+    PostgresQuotaRepository,
+    QuotaRepository,
+    SQLiteQuotaRepository,
+)
+from app.quota.service import rereserve_job_analysis
 from app.research.openai_generator import OpenAIIntelligenceGenerator
+from app.supply_chain.artifacts import (
+    S3GraphArtifactStore,
+    VercelBlobGraphArtifactStore,
+)
+from app.supply_chain.collector import (
+    OfficialSourceCollectorImpl,
+    SourceCollectionError,
+    extract_pdf_text,
+)
+from app.supply_chain.contracts import GraphArtifactStore
+from app.supply_chain.entity_resolver import (
+    CompanyDirectoryEntry,
+    DeterministicEntityResolver,
+)
+from app.supply_chain.openai_agent import OpenAISupplyChainAgent, SupplyChainAgentError
+from app.supply_chain.pipeline import (
+    SupplyChainGraphPipeline,
+    SupplyChainPipelineServices,
+)
+from app.supply_chain.repository import (
+    GraphPublicationError,
+    SqlSupplyChainGraphRepository,
+)
+from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
+from app.supply_chain.validator import validate_for_publication
 
 engine = create_engine(settings.SYNC_DATABASE_URI)
+
+
 def run_company_intelligence(job_id: str) -> Retry | None:
     try:
         asyncio.run(_run_pipeline(UUID(job_id)))
     except PipelineStepError as error:
         if error.retryable:
-            return Retry(max=3, interval=[30, 120, 300])
+            return _bounded_retry()
+    return None
+
+
+def run_supply_chain_graph(job_id: str) -> Retry | None:
+    try:
+        asyncio.run(_run_graph_pipeline(UUID(job_id)))
+    except (SourceCollectionError, SupplyChainAgentError) as error:
+        if error.retryable:
+            return _bounded_retry()
+    except GraphPublicationError:
+        return _bounded_retry()
     return None
 
 
@@ -33,6 +79,11 @@ async def _run_pipeline(job_id: UUID) -> None:
         await pipeline.analyze(job_id)
         await pipeline.verify(job_id)
         await pipeline.localize(job_id)
+
+
+async def _run_graph_pipeline(job_id: UUID) -> None:
+    async with graph_pipeline_context(job_id) as pipeline:
+        await pipeline.run(job_id)
 
 
 @asynccontextmanager
@@ -62,7 +113,84 @@ async def pipeline_context(
             )
 
 
-def _prepare_retry(session: Session, job_id: UUID) -> None:
+@asynccontextmanager
+async def graph_pipeline_context(
+    job_id: UUID,
+) -> AsyncIterator[SupplyChainGraphPipeline]:
+    with Session(engine) as session:
+        quota = _quota_repository(session)
+        _prepare_retry(session, job_id, quota_repository=quota)
+        resolver = PinningHostResolver()
+        async with (
+            httpx.AsyncClient(timeout=30, follow_redirects=False) as sec_client,
+            httpx.AsyncClient(
+                timeout=30,
+                follow_redirects=False,
+                transport=PinnedDnsTransport(resolver),
+            ) as source_client,
+        ):
+            sec = SecClient(
+                sec_client,
+                settings.SEC_USER_AGENT,
+                max_filing_bytes=settings.MAX_FILING_BYTES,
+            )
+            collector = OfficialSourceCollectorImpl(
+                sec_provider=sec,
+                client=source_client,
+                artifact_store=_graph_artifact_store(),
+                resolver=resolver,
+                user_agent=settings.SEC_USER_AGENT,
+                source_limit=settings.SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT,
+                per_source_bytes=min(
+                    settings.MAX_FILING_BYTES,
+                    settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES,
+                ),
+                total_source_bytes=settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES,
+                min_host_interval=0.1,
+                pdf_text_extractor=extract_pdf_text,
+            )
+            model_id = settings.SUPPLY_CHAIN_GRAPH_MODEL
+            agent = OpenAISupplyChainAgent(
+                model=ChatOpenAI(
+                    model=model_id,
+                    temperature=0,
+                    timeout=60,
+                    max_retries=0,
+                ),
+                model_id=model_id,
+                schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
+                prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
+                max_source_tokens=(
+                    settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET
+                ),
+            )
+            yield SupplyChainGraphPipeline(
+                SupplyChainPipelineServices(
+                    session=session,
+                    collector=collector,
+                    agent=agent,
+                    resolver=_entity_resolver(session),
+                    repository=SqlSupplyChainGraphRepository(session),
+                    quota_repository=quota,
+                    validator=validate_for_publication,
+                    schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
+                    prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
+                    model_id=model_id,
+                    min_nodes=settings.SUPPLY_CHAIN_GRAPH_MIN_NODES,
+                    max_nodes=settings.SUPPLY_CHAIN_GRAPH_MAX_NODES,
+                    evidence_threshold=(
+                        settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD
+                    ),
+                )
+            )
+
+
+def _prepare_retry(
+    session: Session,
+    job_id: UUID,
+    *,
+    quota_repository=None,
+) -> None:
     job = session.exec(
         select(IngestionJob)
         .where(IngestionJob.id == job_id)
@@ -77,9 +205,73 @@ def _prepare_retry(session: Session, job_id: UUID) -> None:
             job.error_code or "JOB_RETRY_UNAVAILABLE",
             retryable=False,
         )
+    if job.job_type == "supply_chain_graph" and (
+        quota_repository is None
+        or not rereserve_job_analysis(
+            quota_repository,
+            job.id,
+            now=datetime.now(UTC),
+        )
+    ):
+        raise PipelineStepError(
+            "GRAPH_QUOTA_RERESERVATION_FAILED",
+            retryable=False,
+        )
     job.state = prior_state(job.job_type, job.current_step)
     job.current_step = job.state
     job.attempt_count += 1
     job.error_code = None
     session.add(job)
     session.commit()
+
+
+def _quota_repository(session: Session) -> QuotaRepository:
+    if session.bind is not None and session.bind.dialect.name == "postgresql":
+        return PostgresQuotaRepository(session)
+    return SQLiteQuotaRepository(session)
+
+
+def _entity_resolver(session: Session) -> DeterministicEntityResolver:
+    companies = session.exec(select(Company).order_by(Company.id)).all()
+    return DeterministicEntityResolver(
+        tuple(
+            CompanyDirectoryEntry(
+                company_id=company.id,
+                symbol=company.symbol,
+                cik=company.cik,
+                legal_name=company.name,
+            )
+            for company in companies
+            if company.id is not None
+        )
+    )
+
+
+def _graph_artifact_store() -> GraphArtifactStore:
+    if settings.OBJECT_STORAGE_PROVIDER.value == "s3":
+        import boto3
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=settings.S3_ENDPOINT_URL,
+            aws_access_key_id=settings.S3_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
+            region_name="us-east-1",
+        )
+        assert settings.S3_BUCKET is not None
+        return S3GraphArtifactStore(
+            client=client,
+            bucket=settings.S3_BUCKET,
+            prefix=settings.GRAPH_ARTIFACT_PREFIX,
+        )
+    from vercel.blob import AsyncBlobClient
+
+    assert settings.BLOB_READ_WRITE_TOKEN is not None
+    return VercelBlobGraphArtifactStore(
+        client=AsyncBlobClient(token=settings.BLOB_READ_WRITE_TOKEN),
+        prefix=settings.GRAPH_ARTIFACT_PREFIX,
+    )
+
+
+def _bounded_retry() -> Retry:
+    return Retry(max=3, interval=[30, 120, 300])
