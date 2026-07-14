@@ -1,6 +1,6 @@
 # Company Research Chat Design
 
-Status: Approved design; written spec review pending
+Status: Approved for implementation planning
 Date: 2026-07-14
 Product: EquityLens
 Phase: 4 — evidence-backed company research chat
