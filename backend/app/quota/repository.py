@@ -1,27 +1,54 @@
-from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Protocol
+from uuid import UUID
 
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlmodel import Session, select
 
 from app.models.job_model import AgentDailyUsage
+from app.quota._in_memory_repository import InMemoryQuotaRepository
 from app.quota.errors import QuotaRowLimitReached
+from app.quota.ledger import (
+    JobQuotaLease,
+    JobQuotaReservation,
+    QuotaReservation,
+    SqlJobQuotaLedgerMixin,
+)
 
-
-@dataclass(frozen=True)
-class QuotaReservation:
-    principal_type: str
-    principal_hash: str
-    usage_date: date
-    daily_limit: int
-
-    @property
-    def key(self) -> tuple[str, str, date]:
-        return self.principal_type, self.principal_hash, self.usage_date
+__all__ = [
+    "InMemoryQuotaRepository",
+    "JobQuotaLease",
+    "JobQuotaReservation",
+    "PostgresQuotaRepository",
+    "QuotaRepository",
+    "QuotaReservation",
+    "SQLiteQuotaRepository",
+    "build_postgres_reservation_statement",
+]
 
 
 class QuotaRepository(Protocol):
+    def reserve_for_job(
+        self,
+        reservation: JobQuotaReservation,
+    ) -> JobQuotaLease: ...
+
+    def lease_for_job(self, job_id: UUID) -> JobQuotaLease | None: ...
+
+    def rereserve_for_job(
+        self,
+        job_id: UUID,
+        *,
+        usage_date: date,
+        principal_limit: int,
+        ip_limit: int,
+        now: datetime,
+    ) -> bool: ...
+
+    def consume_for_job(self, job_id: UUID, *, now: datetime) -> bool: ...
+
+    def refund_for_job(self, job_id: UUID, *, now: datetime) -> bool: ...
+
     def reserve_many(
         self,
         reservations: list[QuotaReservation],
@@ -35,34 +62,7 @@ class QuotaRepository(Protocol):
     ) -> int: ...
 
 
-class InMemoryQuotaRepository:
-    def __init__(self) -> None:
-        self._counts: dict[tuple[str, str, date], int] = {}
-
-    def reserve_many(
-        self,
-        reservations: list[QuotaReservation],
-    ) -> dict[tuple[str, str, date], int]:
-        for reservation in reservations:
-            if self._counts.get(reservation.key, 0) >= reservation.daily_limit:
-                raise QuotaRowLimitReached(reservation.principal_type)
-        result = {}
-        for reservation in reservations:
-            used = self._counts.get(reservation.key, 0) + 1
-            self._counts[reservation.key] = used
-            result[reservation.key] = used
-        return result
-
-    def get_count(
-        self,
-        principal_type: str,
-        principal_hash: str,
-        usage_date: date,
-    ) -> int:
-        return self._counts.get((principal_type, principal_hash, usage_date), 0)
-
-
-class SQLiteQuotaRepository:
+class SQLiteQuotaRepository(SqlJobQuotaLedgerMixin):
     def __init__(self, session: Session) -> None:
         self._session = session
 
@@ -71,8 +71,7 @@ class SQLiteQuotaRepository:
         reservations: list[QuotaReservation],
     ) -> dict[tuple[str, str, date], int]:
         rows = {
-            reservation.key: self._find(reservation)
-            for reservation in reservations
+            reservation.key: self._find(reservation) for reservation in reservations
         }
         for reservation in reservations:
             row = rows[reservation.key]
@@ -126,7 +125,7 @@ class SQLiteQuotaRepository:
         ).first()
 
 
-class PostgresQuotaRepository:
+class PostgresQuotaRepository(SqlJobQuotaLedgerMixin):
     def __init__(self, session: Session) -> None:
         self._session = session
 
@@ -144,7 +143,6 @@ class PostgresQuotaRepository:
             )
             used = self._session.execute(statement).scalar_one_or_none()
             if used is None:
-                self._session.rollback()
                 raise QuotaRowLimitReached(reservation.principal_type)
             result[reservation.key] = used
         return result
