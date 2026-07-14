@@ -316,6 +316,33 @@ async def test_resolve_draft_merges_nodes_redirects_edges_and_preserves_audit(
 
 
 @pytest.mark.anyio
+async def test_resolve_draft_preserves_focus_node_semantics_during_merge(
+    resolver: DeterministicEntityResolver,
+) -> None:
+    payload = _same_label_different_kind_draft()
+    focus = payload["nodes"][0]
+    payload["nodes"] = [
+        focus,
+        {
+            **focus,
+            "node_key": "company:model-apple-cik",
+            "label_en": "Apple upstream duplicate",
+            "description_en": "A conflicting upstream duplicate from model output.",
+            "layer": "upstream",
+            "symbol": None,
+            "cik": "0000320193",
+        },
+    ]
+
+    resolved = await resolver.resolve_draft(GraphDraft.model_validate(payload))
+
+    assert len(resolved.nodes) == 1
+    assert resolved.nodes[0].layer == "core"
+    assert resolved.nodes[0].description_en == focus["description_en"]
+    assert resolved.nodes[0].resolution_basis == "cik"
+
+
+@pytest.mark.anyio
 async def test_resolve_draft_caps_merged_evidence_at_schema_limit(
     resolver: DeterministicEntityResolver,
 ) -> None:
@@ -339,6 +366,41 @@ async def test_resolve_draft_caps_merged_evidence_at_schema_limit(
     assert len(resolved.edges[0].evidence_refs) == 12
     assert {reference.confidence for reference in resolved.edges[0].evidence_refs} == {
         value / 20 for value in range(7, 13)
+    }
+
+
+@pytest.mark.anyio
+async def test_verified_evidence_survives_mixed_status_merge_limit(
+    resolver: DeterministicEntityResolver,
+) -> None:
+    payload = _duplicate_company_draft()
+    payload["edges"][0]["evidence_refs"] = [
+        {
+            "source_key": "verified:primary",
+            "excerpt": "FIXTURE DATA: the verified source supports this relationship.",
+            "locator": "Verified section",
+            "confidence": 0.2,
+        }
+    ]
+    payload["edges"][1]["evidence_status"] = "potential"
+    payload["edges"][1]["evidence_refs"] = [
+        {
+            "source_key": f"potential:source:{index}",
+            "excerpt": (
+                "FIXTURE DATA: potential supporting evidence reference "
+                f"{index} for this relationship."
+            ),
+            "locator": f"Potential section {index}",
+            "confidence": 0.8,
+        }
+        for index in range(12)
+    ]
+
+    resolved = await resolver.resolve_draft(GraphDraft.model_validate(payload))
+
+    assert resolved.edges[0].evidence_status == "verified"
+    assert "verified:primary" in {
+        reference.source_key for reference in resolved.edges[0].evidence_refs
     }
 
 

@@ -9,6 +9,7 @@ from app.supply_chain.schemas import (
     EdgeType,
     EntityCandidate,
     EvidenceReference,
+    EvidenceStatus,
     GraphDraft,
     GraphEdgeDraft,
     GraphNodeDraft,
@@ -122,7 +123,12 @@ class DeterministicEntityResolver:
             node_groups[resolved.node_key].append((node, resolved))
 
         nodes = [
-            _merge_node(node_key, members) for node_key, members in node_groups.items()
+            _merge_node(
+                node_key,
+                members,
+                focus_node_key=draft.focus_node_key,
+            )
+            for node_key, members in node_groups.items()
         ]
         nodes.sort(key=lambda node: (node.rank, node.node_key))
         edges = _merge_edges(draft.edges, redirects)
@@ -165,6 +171,8 @@ def _resolved_company(
 def _merge_node(
     node_key: str,
     members: list[tuple[GraphNodeDraft, ResolvedEntity]],
+    *,
+    focus_node_key: str,
 ) -> GraphNodeDraft:
     ordered = sorted(
         members,
@@ -175,15 +183,29 @@ def _merge_node(
             item[0].node_key,
         ),
     )
-    selected_node, selected_entity = ordered[0]
-    canonical_label = selected_entity.legal_name or selected_node.label_en
+    _, selected_entity = ordered[0]
+    focus_members = [node for node, _ in members if node.node_key == focus_node_key]
+    content_node = (
+        focus_members[0]
+        if focus_members
+        else sorted(
+            (node for node, _ in members),
+            key=lambda node: (
+                -node.importance,
+                -node.confidence,
+                node.rank,
+                node.node_key,
+            ),
+        )[0]
+    )
+    canonical_label = selected_entity.legal_name or content_node.label_en
     aliases = _merged_aliases(members, canonical_label=canonical_label)
     return GraphNodeDraft(
         node_key=node_key,
-        kind=selected_node.kind,
-        layer=selected_node.layer,
+        kind=content_node.kind,
+        layer=content_node.layer,
         label_en=canonical_label,
-        description_en=selected_node.description_en,
+        description_en=content_node.description_en,
         company_id=selected_entity.company_id,
         symbol=selected_entity.symbol,
         cik=selected_entity.cik,
@@ -229,7 +251,10 @@ def _merge_edge(
             edge.edge_key,
         ),
     )[0]
-    evidence = _deduplicate_evidence(members)
+    evidence = _deduplicate_evidence(
+        members,
+        preferred_status=selected.evidence_status,
+    )
     digest_input = f"{source_key}\0{target_key}\0{relationship_type}"
     digest = hashlib.sha256(digest_input.encode()).hexdigest()[:16]
     return GraphEdgeDraft(
@@ -247,9 +272,15 @@ def _merge_edge(
 
 def _deduplicate_evidence(
     members: list[GraphEdgeDraft],
+    *,
+    preferred_status: EvidenceStatus,
 ) -> list[EvidenceReference]:
-    evidence: dict[tuple[str, str, str, str], EvidenceReference] = {}
+    evidence: dict[
+        tuple[str, str, str, str],
+        tuple[bool, EvidenceReference],
+    ] = {}
     for edge in members:
+        preferred = edge.evidence_status == preferred_status
         for reference in edge.evidence_refs:
             identity = (
                 reference.source_key,
@@ -258,13 +289,20 @@ def _deduplicate_evidence(
                 reference.support_role,
             )
             current = evidence.get(identity)
-            if current is None or reference.confidence > current.confidence:
-                evidence[identity] = reference
+            if (
+                current is None
+                or (preferred and not current[0])
+                or (
+                    preferred == current[0]
+                    and reference.confidence > current[1].confidence
+                )
+            ):
+                evidence[identity] = (preferred, reference)
     ordered = sorted(
         evidence.items(),
-        key=lambda item: (-item[1].confidence, item[0]),
+        key=lambda item: (not item[1][0], -item[1][1].confidence, item[0]),
     )
-    return [reference for _, reference in ordered[:12]]
+    return [record[1] for _, record in ordered[:12]]
 
 
 def _merged_aliases(
