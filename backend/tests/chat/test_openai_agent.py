@@ -1,3 +1,4 @@
+import asyncio
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,7 +18,6 @@ from app.chat.openai_agent import (
 )
 from app.chat.prompts import AnswerPlanningRequest
 from app.chat.schemas import AnswerEvidencePack, ResearchAnswerPlan
-from app.core.errors import DomainError
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "chat"
 
@@ -67,7 +67,7 @@ async def test_agent_repairs_invalid_citations_once(
 
 
 @pytest.mark.asyncio
-async def test_agent_stops_after_one_failed_repair(
+async def test_agent_returns_citation_safe_fallback_after_one_failed_repair(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
 ) -> None:
@@ -76,12 +76,12 @@ async def test_agent_stops_after_one_failed_repair(
     )
     agent = CitationBoundAnswerAgent(model)
 
-    with pytest.raises(DomainError) as raised:
-        await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
+    plan = await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
 
-    assert raised.value.code == "CHAT_ANSWER_VERIFICATION_FAILED"
     assert len(model.requests) == 2
-    assert str(raised.value) == "CHAT_ANSWER_VERIFICATION_FAILED"
+    assert plan.evidence_coverage == "complete"
+    assert plan.sources
+    assert "999" not in plan.direct_conclusion.text
 
 
 @pytest.mark.asyncio
@@ -122,18 +122,37 @@ async def test_agent_downgrades_complete_coverage_when_server_has_evidence_gap(
 
 
 @pytest.mark.asyncio
-async def test_provider_failure_has_stable_generation_error(
+async def test_provider_failure_returns_citation_safe_evidence_fallback(
     evidence_pack: AnswerEvidencePack,
 ) -> None:
     agent = CitationBoundAnswerAgent(
         FakePlanningModel([RuntimeError("provider secret")])
     )
 
-    with pytest.raises(DomainError) as raised:
-        await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
+    plan = await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
 
-    assert raised.value.code == "CHAT_ANSWER_GENERATION_FAILED"
-    assert "provider secret" not in str(raised.value)
+    assert plan.evidence_coverage == "complete"
+    assert plan.sources
+    assert "provider secret" not in plan.direct_conclusion.text
+
+
+@pytest.mark.asyncio
+async def test_answer_stage_timeout_returns_citation_safe_evidence_fallback(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    class SlowPlanningModel:
+        model_id = "slow-model"
+
+        async def plan(self, request: AnswerPlanningRequest) -> ResearchAnswerPlan:
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+    agent = CitationBoundAnswerAgent(SlowPlanningModel(), overall_timeout=0.01)
+
+    plan = await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
+
+    assert plan.evidence_coverage == "complete"
+    assert plan.sources
 
 
 def test_prompt_keeps_typed_and_untrusted_evidence_in_separate_blocks(
@@ -301,6 +320,55 @@ async def test_router_retries_one_transient_provider_failure() -> None:
 
 
 @pytest.mark.asyncio
+async def test_router_handles_exact_greeting_without_a_model_call() -> None:
+    class UnusedRoutingModel:
+        model_id = "deepseek-chat"
+        calls = 0
+
+        async def route(self, request: IntentRoutingRequest) -> AgentRouteDecision:
+            self.calls += 1
+            raise AssertionError("greetings should use the local fast path")
+
+    model = UnusedRoutingModel()
+    router = ModelDirectedIntentRouter(model)
+
+    result = await router.route(
+        question="你好",
+        company_name="SanDisk Corporation",
+        symbol="SNDK",
+        locale="zh-CN",
+        history=[],
+    )
+
+    assert result.interaction_mode == "conversation"
+    assert "财报" in (result.response or "")
+    assert model.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_router_timeout_preserves_an_obvious_research_question() -> None:
+    class SlowRoutingModel:
+        model_id = "deepseek-chat"
+
+        async def route(self, request: IntentRoutingRequest) -> AgentRouteDecision:
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+    router = ModelDirectedIntentRouter(SlowRoutingModel(), overall_timeout=0.01)
+
+    result = await router.route(
+        question="SNDK 财报怎么样",
+        company_name="SanDisk Corporation",
+        symbol="SNDK",
+        locale="zh-CN",
+        history=[],
+    )
+
+    assert result.interaction_mode == "research"
+    assert result.resolved_question == "SNDK 财报怎么样"
+
+
+@pytest.mark.asyncio
 async def test_openai_responses_adapter_uses_pydantic_structured_output(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
@@ -387,8 +455,8 @@ def test_chat_answer_dependency_routes_custom_llm_to_chat_completions(
     assert recorded == {
         "model": "deepseek-v4-pro",
         "temperature": 0,
-        "timeout": 180,
-        "max_tokens": 8_000,
+        "timeout": 55,
+        "max_tokens": 4_000,
         "max_retries": 0,
     }
 
@@ -421,7 +489,7 @@ def test_chat_intent_dependency_routes_custom_llm_to_chat_completions(
     assert recorded == {
         "model": "deepseek-chat",
         "temperature": 0,
-        "timeout": 60,
+        "timeout": 15,
         "max_tokens": 1_000,
         "max_retries": 0,
     }

@@ -798,8 +798,8 @@ def get_chat_answer_agent(
                 create_chat_model(
                     model=settings.CHAT_MODEL,
                     temperature=0,
-                    timeout=180,
-                    max_tokens=8_000,
+                    timeout=55,
+                    max_tokens=4_000,
                     max_retries=0,
                 ),
                 model_id=settings.CHAT_MODEL,
@@ -831,7 +831,7 @@ def get_chat_intent_router(
                 create_chat_model(
                     model=settings.CHAT_MODEL,
                     temperature=0,
-                    timeout=60,
+                    timeout=15,
                     max_tokens=1_000,
                     max_retries=0,
                 ),

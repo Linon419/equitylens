@@ -189,6 +189,7 @@ def test_chat_defaults_follow_approved_contract() -> None:
         **BASE,
         **DOCKER_PROVIDERS,
         RESEARCH_MODEL="gpt-5-mini",
+        CHAT_MODEL_OVERRIDE=None,
     )
 
     assert value.CHAT_MODEL == "gpt-5-mini"

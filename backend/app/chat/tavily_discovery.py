@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 from typing import Any
@@ -93,13 +94,18 @@ class TavilyWebSearchProvider:
         if not plan.should_search:
             return SearchDiscovery(None, [])
 
+        queries = plan.queries[: self._max_queries]
+        payloads = await asyncio.gather(
+            *(
+                self._search_tavily(query, official_hosts=official_hosts)
+                for query in queries
+            ),
+            return_exceptions=True,
+        )
         calls: list[SearchCall] = []
         request_ids: list[str] = []
-        for ordinal, query in enumerate(plan.queries[: self._max_queries]):
-            payload = await self._search_tavily(
-                query,
-                official_hosts=official_hosts,
-            )
+        for ordinal, (query, result) in enumerate(zip(queries, payloads, strict=True)):
+            payload = {} if isinstance(result, Exception) else result
             request_id = _optional_text(payload.get("request_id"))
             if request_id is not None:
                 request_ids.append(request_id)

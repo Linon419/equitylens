@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 from app.chat.schemas import (
     AnswerEvidencePack,
@@ -26,6 +27,43 @@ _MISSING_MARKERS = (
     *_QUESTION_GAP_MARKERS,
 )
 
+_MAGNITUDE_FACTORS = {
+    "k": Decimal("1000"),
+    "thousand": Decimal("1000"),
+    "mn": Decimal("1000000"),
+    "million": Decimal("1000000"),
+    "bn": Decimal("1000000000"),
+    "billion": Decimal("1000000000"),
+    "tn": Decimal("1000000000000"),
+    "trillion": Decimal("1000000000000"),
+    "万": Decimal("10000"),
+    "亿": Decimal("100000000"),
+    "万亿": Decimal("1000000000000"),
+}
+
+_MONTH_NAMES = (
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+)
+
+_QUANTITY_PATTERN = re.compile(
+    r"(?<![\w.])"
+    r"(?P<number>[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)"
+    r"(?:\s*(?P<magnitude>trillions?|billions?|millions?|thousands?|tn|bn|mn|k|万亿|亿|万))?"
+    r"(?P<percent>\s*%)?",
+    re.IGNORECASE,
+)
+
 
 class AnswerValidationError(ValueError):
     def __init__(self, issues: list[str]) -> None:
@@ -37,9 +75,10 @@ class AnswerValidationError(ValueError):
         issues = "; ".join(issue[:180] for issue in self.issues)
         return (
             "Regenerate the complete answer plan. Every answer point must use "
-            "approved citation IDs. Use only numbers found literally in each "
-            "cited candidate.excerpt. Omit unsupported risks, dates, and numeric "
-            "details. Preserve exact first-appearance source order. Validator "
+            "approved citation IDs. Use only quantities supported by each cited "
+            "candidate.excerpt or its published_at metadata; equivalent standard "
+            "magnitude units are allowed. Omit unsupported risks, dates, and "
+            "numeric details. Preserve exact first-appearance source order. Validator "
             f"issues: {issues}"
         )
 
@@ -48,6 +87,12 @@ class AnswerValidationError(ValueError):
 class ValidatedAnswer:
     plan: ResearchAnswerPlan
     citations: tuple[CitationSnapshot, ...]
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class _Quantity:
+    value: Decimal
+    is_percent: bool
 
 
 def normalize_answer_plan(
@@ -97,7 +142,7 @@ def validate_answer_plan(
     if plan.web_search_used != evidence.web_search_used:
         issues.append("web_search_used must match server evidence state")
     _validate_coverage(plan, evidence, issues)
-    _validate_points(plan, points, records, locale, issues)
+    _validate_points(plan, points, records, evidence, locale, issues)
     if issues:
         raise AnswerValidationError(issues)
     citations = tuple(
@@ -156,12 +201,23 @@ def _validate_points(
     plan: ResearchAnswerPlan,
     points: list[AnswerPoint],
     records: dict[str, ApprovedEvidenceRecord],
+    evidence: AnswerEvidencePack,
     locale: str,
     issues: list[str],
 ) -> None:
+    risk_start = 1 + len(plan.key_evidence)
     for index, point in enumerate(points):
         label = f"answer point {index + 1}"
-        if plan.evidence_coverage != "insufficient" and not point.citation_ids:
+        is_missing_evidence_risk = (
+            index >= risk_start
+            and bool(evidence.evidence_gaps)
+            and any(marker in point.text.casefold() for marker in _MISSING_MARKERS)
+        )
+        if (
+            plan.evidence_coverage != "insufficient"
+            and not point.citation_ids
+            and not is_missing_evidence_risk
+        ):
             issues.append(f"{label} requires a citation")
         if (
             plan.evidence_coverage == "insufficient"
@@ -179,11 +235,14 @@ def _validate_points(
             issues.append(f"{label} does not match locale {locale}")
         cited = [records[item] for item in point.citation_ids if item in records]
         supported_numbers = {
-            number for record in cited for number in _numbers(record.candidate.excerpt)
+            quantity for record in cited for quantity in _supported_quantities(record)
         }
-        unsupported = _numbers(point.text) - supported_numbers
+        supported_numbers.update(_published_date_quantities(point.text, cited))
+        point_numbers = _quantities(point.text)
+        unsupported = set(point_numbers) - supported_numbers
         if unsupported:
-            issues.append(f"{label} has unsupported number: {sorted(unsupported)[0]}")
+            first = sorted(unsupported)[0]
+            issues.append(f"{label} has unsupported number: {point_numbers[first]}")
 
 
 def _normalize_point(point: AnswerPoint, locale: str) -> AnswerPoint:
@@ -231,11 +290,58 @@ def _normalize(value: str) -> str:
     return " ".join(value.split())
 
 
-def _numbers(value: str) -> set[str]:
-    return {
-        match.replace(",", "")
-        for match in re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?%?", value)
-    }
+def _supported_quantities(record: ApprovedEvidenceRecord) -> set[_Quantity]:
+    return set(_quantities(record.candidate.excerpt))
+
+
+def _published_date_quantities(
+    point_text: str,
+    records: list[ApprovedEvidenceRecord],
+) -> set[_Quantity]:
+    quantities: set[_Quantity] = set()
+    for record in records:
+        published_at = record.candidate.published_at
+        if published_at is None or not _contains_date(point_text, published_at):
+            continue
+        quantities.update(
+            _Quantity(Decimal(component), False)
+            for component in (published_at.year, published_at.month, published_at.day)
+        )
+    return quantities
+
+
+def _contains_date(value: str, published_at) -> bool:
+    year = published_at.year
+    month = published_at.month
+    day = published_at.day
+    month_name = _MONTH_NAMES[month - 1]
+    patterns = (
+        rf"\b{year}[-/.]0?{month}[-/.]0?{day}\b",
+        rf"{year}年0?{month}月0?{day}日",
+        rf"\b{month_name}\s+{day},?\s+{year}\b",
+        rf"\b{day}\s+{month_name}\s+{year}\b",
+    )
+    return any(re.search(pattern, value, re.IGNORECASE) for pattern in patterns)
+
+
+def _quantities(value: str) -> dict[_Quantity, str]:
+    quantities: dict[_Quantity, str] = {}
+    for match in _QUANTITY_PATTERN.finditer(value):
+        if _is_sec_form_identifier(value, match.end()):
+            continue
+        try:
+            amount = Decimal(match.group("number").replace(",", ""))
+        except InvalidOperation:
+            continue
+        magnitude = (match.group("magnitude") or "").casefold().rstrip("s")
+        amount *= _MAGNITUDE_FACTORS.get(magnitude, Decimal(1))
+        quantity = _Quantity(amount, match.group("percent") is not None)
+        quantities.setdefault(quantity, match.group(0).strip())
+    return quantities
+
+
+def _is_sec_form_identifier(value: str, end: int) -> bool:
+    return re.match(r"\s*-\s*[KQ]\b", value[end:], re.IGNORECASE) is not None
 
 
 def _inference_is_labeled(value: str, locale: str) -> bool:

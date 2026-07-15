@@ -1,9 +1,16 @@
+import asyncio
 import json
 from typing import Any
 
+from loguru import logger
 from pydantic import ValidationError
 
 from app.chat.contracts import AnswerPlanningModel, IntentRoutingModel
+from app.chat.fallbacks import (
+    build_evidence_fallback,
+    fast_conversation_route,
+    routing_fallback,
+)
 from app.chat.intents import AgentRouteDecision, IntentRoutingRequest
 from app.chat.prompts import AnswerPlanningRequest
 from app.chat.schemas import AnswerEvidencePack, ResearchAnswerPlan
@@ -12,7 +19,6 @@ from app.chat.validator import (
     normalize_answer_plan,
     validate_answer_plan,
 )
-from app.core.errors import DomainError
 
 
 class AnswerProviderError(RuntimeError):
@@ -72,7 +78,7 @@ class OpenAIResponsesPlanningModel:
         client: Any,
         *,
         model_id: str,
-        max_output_tokens: int = 8_000,
+        max_output_tokens: int = 4_000,
     ) -> None:
         if max_output_tokens <= 0:
             raise ValueError("max_output_tokens must be positive")
@@ -170,9 +176,17 @@ class OpenAIResponsesRoutingModel:
 
 
 class ModelDirectedIntentRouter:
-    def __init__(self, model: IntentRoutingModel) -> None:
+    def __init__(
+        self,
+        model: IntentRoutingModel,
+        *,
+        overall_timeout: float = 15.0,
+    ) -> None:
+        if overall_timeout <= 0:
+            raise ValueError("overall_timeout must be positive")
         self._model = model
         self.model_id = model.model_id
+        self._overall_timeout = overall_timeout
 
     async def route(
         self,
@@ -184,6 +198,9 @@ class ModelDirectedIntentRouter:
         history: list[str],
         summary: str | None = None,
     ) -> AgentRouteDecision:
+        fast_route = fast_conversation_route(question, locale)
+        if fast_route is not None:
+            return fast_route
         request = IntentRoutingRequest(
             question=question,
             company_name=company_name,
@@ -192,18 +209,34 @@ class ModelDirectedIntentRouter:
             history=history,
             summary=summary,
         )
-        for _ in range(2):
-            try:
-                return await self._model.route(request)
-            except Exception:
-                continue
-        return _routing_fallback(locale)
+        try:
+            async with asyncio.timeout(self._overall_timeout):
+                for _ in range(2):
+                    try:
+                        return await self._model.route(request)
+                    except Exception:
+                        continue
+        except TimeoutError:
+            pass
+        return routing_fallback(
+            locale,
+            question=question,
+            is_follow_up=bool(history),
+        )
 
 
 class CitationBoundAnswerAgent:
-    def __init__(self, model: AnswerPlanningModel) -> None:
+    def __init__(
+        self,
+        model: AnswerPlanningModel,
+        *,
+        overall_timeout: float = 60.0,
+    ) -> None:
+        if overall_timeout <= 0:
+            raise ValueError("overall_timeout must be positive")
         self._model = model
         self.model_id = getattr(model, "model_id", "unknown")
+        self._overall_timeout = overall_timeout
 
     async def create_plan(
         self,
@@ -212,6 +245,29 @@ class CitationBoundAnswerAgent:
         *,
         locale: str,
         history: list[str] | None = None,
+    ) -> ResearchAnswerPlan:
+        try:
+            async with asyncio.timeout(self._overall_timeout):
+                return await self._create_model_plan(
+                    question,
+                    evidence,
+                    locale=locale,
+                    history=history,
+                )
+        except TimeoutError:
+            logger.warning(
+                "Chat answer stage timed out for model {}",
+                self.model_id,
+            )
+            return build_evidence_fallback(evidence, locale)
+
+    async def _create_model_plan(
+        self,
+        question: str,
+        evidence: AnswerEvidencePack,
+        *,
+        locale: str,
+        history: list[str] | None,
     ) -> ResearchAnswerPlan:
         feedback: str | None = None
         for attempt in range(2):
@@ -229,36 +285,30 @@ class CitationBoundAnswerAgent:
                 validate_answer_plan(plan, evidence, locale=locale)
                 return plan
             except AnswerValidationError as error:
+                logger.warning(
+                    "Chat answer validation failed for model {} on attempt {}: {}",
+                    self.model_id,
+                    attempt + 1,
+                    error.issues,
+                )
                 feedback = error.repair_feedback
             except (AnswerModelOutputError, ValidationError) as error:
+                logger.warning(
+                    "Chat answer schema failed for model {} on attempt {}: {}",
+                    self.model_id,
+                    attempt + 1,
+                    type(error).__name__,
+                )
                 feedback = _schema_feedback(error)
             except Exception:
-                raise DomainError(
-                    "CHAT_ANSWER_GENERATION_FAILED",
-                    503,
-                    {"retryable": True},
-                ) from None
+                logger.warning(
+                    "Chat answer provider failed for model {}",
+                    self.model_id,
+                )
+                return build_evidence_fallback(evidence, locale)
             if attempt == 1:
                 break
-        raise DomainError(
-            "CHAT_ANSWER_VERIFICATION_FAILED",
-            503,
-            {"retryable": True},
-        )
-
-
-def _routing_fallback(locale: str) -> AgentRouteDecision:
-    response = (
-        "我暂时无法判断你的研究意图。请明确想研究这家公司的业务、产业链、财报或估值。"
-        if locale == "zh-CN"
-        else "I could not determine the research intent. Specify whether you want to "
-        "study the company's business, supply chain, filings, or valuation."
-    )
-    return AgentRouteDecision(
-        interaction_mode="clarification",
-        is_follow_up=False,
-        response=response,
-    )
+        return build_evidence_fallback(evidence, locale)
 
 
 def _schema_feedback(error: Exception) -> str:

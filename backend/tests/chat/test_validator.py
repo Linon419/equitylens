@@ -180,6 +180,176 @@ def test_insufficient_answer_rejects_uncited_factual_conclusion(
         validate_answer_plan(unsupported, with_gaps, locale="en-US")
 
 
+@pytest.mark.parametrize(
+    ("locale", "direct_text", "evidence_text"),
+    [
+        (
+            "zh-CN",
+            "营收为 131.84 亿美元，净亏损为 -1.2 亿美元，现金为 8400 万美元。",
+            (
+                "Revenue was 13184000000 USD, net income was -120000000 USD, "
+                "and cash was 84000000 USD."
+            ),
+        ),
+        (
+            "en-US",
+            (
+                "Revenue was 13.184 billion USD, net income was -120 million "
+                "USD, and cash was 84 million USD."
+            ),
+            (
+                "Revenue was 13184000000 USD, net income was -120000000 USD, "
+                "and cash was 84000000 USD."
+            ),
+        ),
+    ],
+)
+def test_equivalent_financial_magnitudes_are_supported(
+    evidence_pack: AnswerEvidencePack,
+    locale: str,
+    direct_text: str,
+    evidence_text: str,
+) -> None:
+    record = evidence_pack.records[0]
+    updated = record.model_copy(
+        update={
+            "candidate": record.candidate.model_copy(update={"excerpt": evidence_text}),
+            "source_text": evidence_text,
+        }
+    )
+    evidence = evidence_pack.model_copy(update={"records": [updated]})
+    plan = ResearchAnswerPlan.model_validate(
+        {
+            "direct_conclusion": {
+                "text": direct_text,
+                "citation_ids": [updated.candidate.evidence_id],
+            },
+            "key_evidence": [
+                {
+                    "text": "数据来自已引用的财务记录。"
+                    if locale == "zh-CN"
+                    else "The figures come from the cited financial record.",
+                    "citation_ids": [updated.candidate.evidence_id],
+                }
+            ],
+            "risks_and_uncertainties": [],
+            "sources": [updated.candidate.evidence_id],
+            "evidence_coverage": "complete",
+            "web_search_used": True,
+        }
+    )
+
+    assert validate_answer_plan(plan, evidence, locale=locale).plan == plan
+
+
+def test_cited_publication_date_is_supported_metadata(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    record = evidence_pack.records[0]
+    updated = record.model_copy(
+        update={
+            "candidate": record.candidate.model_copy(
+                update={"excerpt": "The company published a financial record."}
+            ),
+            "source_text": "The company published a financial record.",
+        }
+    )
+    evidence = evidence_pack.model_copy(update={"records": [updated]})
+    plan = ResearchAnswerPlan.model_validate(
+        {
+            "direct_conclusion": {
+                "text": "The cited record was published on October 31, 2025.",
+                "citation_ids": [updated.candidate.evidence_id],
+            },
+            "key_evidence": [
+                {
+                    "text": "The publication date is controlled source metadata.",
+                    "citation_ids": [updated.candidate.evidence_id],
+                }
+            ],
+            "risks_and_uncertainties": [],
+            "sources": [updated.candidate.evidence_id],
+            "evidence_coverage": "complete",
+            "web_search_used": True,
+        }
+    )
+
+    assert validate_answer_plan(plan, evidence, locale="en-US").plan == plan
+
+
+def test_publication_date_does_not_support_an_unrelated_matching_number(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    record = evidence_pack.records[0]
+    updated = record.model_copy(
+        update={
+            "candidate": record.candidate.model_copy(
+                update={"excerpt": "The company published a financial record."}
+            ),
+            "source_text": "The company published a financial record.",
+        }
+    )
+    evidence = evidence_pack.model_copy(update={"records": [updated]})
+    plan = ResearchAnswerPlan.model_validate(
+        {
+            "direct_conclusion": {
+                "text": "The company has 31 employees.",
+                "citation_ids": [updated.candidate.evidence_id],
+            },
+            "key_evidence": [
+                {
+                    "text": "The cited record contains no employee count.",
+                    "citation_ids": [updated.candidate.evidence_id],
+                }
+            ],
+            "risks_and_uncertainties": [],
+            "sources": [updated.candidate.evidence_id],
+            "evidence_coverage": "complete",
+            "web_search_used": True,
+        }
+    )
+
+    with pytest.raises(AnswerValidationError, match="unsupported number: 31"):
+        validate_answer_plan(plan, evidence, locale="en-US")
+
+
+def test_partial_answer_allows_uncited_missing_evidence_risk_and_sec_form_names(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    record = evidence_pack.records[0]
+    evidence = evidence_pack.model_copy(
+        update={
+            "records": [record],
+            "evidence_gaps": ["FILING_TEXT_MISSING"],
+        }
+    )
+    plan = ResearchAnswerPlan.model_validate(
+        {
+            "direct_conclusion": {
+                "text": "The available financial record supports a partial review.",
+                "citation_ids": [record.candidate.evidence_id],
+            },
+            "key_evidence": [
+                {
+                    "text": "The cited record contains reported revenue evidence.",
+                    "citation_ids": [record.candidate.evidence_id],
+                }
+            ],
+            "risks_and_uncertainties": [
+                {
+                    "text": "The 10-K and 10-Q filing text is currently unavailable.",
+                    "citation_ids": [],
+                }
+            ],
+            "sources": [record.candidate.evidence_id],
+            "evidence_coverage": "partial",
+            "web_search_used": True,
+        }
+    )
+
+    assert validate_answer_plan(plan, evidence, locale="en-US").plan == plan
+
+
 def test_web_citation_snapshot_is_capped_at_six_hundred_characters(
     evidence_pack: AnswerEvidencePack,
 ) -> None:

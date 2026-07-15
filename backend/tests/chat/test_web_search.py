@@ -1,3 +1,4 @@
+import asyncio
 import gzip
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -282,6 +283,64 @@ async def test_provider_failure_returns_partial_evidence_gap() -> None:
     assert result.decision == "optional_failed"
     assert result.selected_pages == []
     assert result.evidence_gap == "CHAT_WEB_SEARCH_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_search_timeout_returns_partial_evidence_gap() -> None:
+    class SlowProvider:
+        async def search(self, **kwargs) -> SearchDiscovery:
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+    service = BoundedWebSearchService(
+        SlowProvider(),
+        FakeFetcher(),
+        FakeArchive(),
+        overall_timeout=0.01,
+    )
+
+    result = await service.search(request("What happened today?", "complete"))
+
+    assert result.decision == "optional_failed"
+    assert result.evidence_gap == "CHAT_WEB_SEARCH_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_selected_pages_are_fetched_concurrently_in_stable_order() -> None:
+    @dataclass
+    class ConcurrentFetcher:
+        active: int = 0
+        max_active: int = 0
+
+        async def fetch(self, url: str) -> FetchedWebPage:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            await asyncio.sleep(0.01)
+            self.active -= 1
+            return FetchedWebPage(
+                url=url,
+                title=url.rsplit("/", 1)[-1],
+                body_text="Verified source evidence.",
+                published_at=NOW,
+                retrieved_at=NOW,
+            )
+
+    urls = [
+        "https://www.sec.gov/first",
+        "https://www.sec.gov/second",
+        "https://www.sec.gov/third",
+    ]
+    fetcher = ConcurrentFetcher()
+    service = BoundedWebSearchService(
+        FakeProvider(discovery(urls)),
+        fetcher,
+        FakeArchive(),
+    )
+
+    result = await service.search(request("What changed?"))
+
+    assert fetcher.max_active == 3
+    assert [page.url for page in result.selected_pages] == urls
 
 
 @dataclass

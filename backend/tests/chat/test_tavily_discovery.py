@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any
 
@@ -116,9 +117,7 @@ async def test_deepseek_plans_queries_and_tavily_returns_candidates() -> None:
         ["SNDK SEC filing supply chain customers"],
     ]
     assert [call.ordinal for call in discovery.calls] == [0, 1]
-    assert discovery.calls[0].candidates[0].url == (
-        "https://investor.sandisk.com/ir"
-    )
+    assert discovery.calls[0].candidates[0].url == ("https://investor.sandisk.com/ir")
     assert discovery.calls[0].candidates[0].title == "SNDK ir"
 
 
@@ -222,3 +221,59 @@ async def test_tavily_rejects_an_invalid_agent_search_plan() -> None:
                 internal_coverage="complete",
                 locale="en-US",
             )
+
+
+@pytest.mark.asyncio
+async def test_tavily_runs_queries_concurrently_and_keeps_failed_calls_empty() -> None:
+    planner = FakePlanner(
+        {
+            "should_search": True,
+            "reason": "Several current sources are material.",
+            "queries": ["SNDK first", "SNDK failing", "SNDK third"],
+        }
+    )
+    active = 0
+    max_active = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        query = json.loads(request.read())["query"]
+        if query == "SNDK failing":
+            return httpx.Response(503, request=request)
+        return httpx.Response(
+            200,
+            json={
+                "request_id": query.rsplit(" ", 1)[-1],
+                "results": [
+                    {
+                        "title": query,
+                        "url": f"https://www.sec.gov/{query.rsplit(' ', 1)[-1]}",
+                    }
+                ],
+            },
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        discovery = await TavilyWebSearchProvider(
+            planner,
+            client,
+            api_key="tvly-test",
+            model_id="deepseek-research",
+            structured_output_method="json_mode",
+        ).search(
+            question="What changed?",
+            company_name="SanDisk Corporation",
+            symbol="SNDK",
+            internal_coverage="partial",
+            locale="en-US",
+        )
+
+    assert max_active == 3
+    assert [call.ordinal for call in discovery.calls] == [0, 1, 2]
+    assert discovery.calls[1].candidates == []
+    assert discovery.provider_request_id == "first,third"

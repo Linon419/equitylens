@@ -1,3 +1,4 @@
+import asyncio
 import html
 import time
 from collections.abc import Callable
@@ -92,17 +93,31 @@ class BoundedWebSearchService:
         classifier: SourceClassifier | None = None,
         max_queries: int = 3,
         max_pages: int = 8,
+        overall_timeout: float = 30.0,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
+        if overall_timeout <= 0:
+            raise ValueError("overall_timeout must be positive")
         self._provider = provider
         self._fetcher = fetcher
         self._archive = archive
         self._classifier = classifier or SourceClassifier()
         self._max_queries = max_queries
         self._max_pages = max_pages
+        self._overall_timeout = overall_timeout
         self._monotonic = monotonic
 
     async def search(self, request: WebSearchRequest) -> WebSearchResult:
+        try:
+            async with asyncio.timeout(self._overall_timeout):
+                return await self._search_within_budget(request)
+        except TimeoutError:
+            return _handle_search_failure()
+
+    async def _search_within_budget(
+        self,
+        request: WebSearchRequest,
+    ) -> WebSearchResult:
         started = self._monotonic()
         try:
             discovery = await self._provider.search(
@@ -142,16 +157,15 @@ class BoundedWebSearchService:
         candidates: list[tuple[SearchCandidate, SourceTier, str]],
         request: WebSearchRequest,
     ) -> list[SelectedWebPage]:
+        fetched_pages = await asyncio.gather(
+            *(self._fetch_candidate(candidate, request) for candidate in candidates)
+        )
         pages: list[SelectedWebPage] = []
-        for candidate, _tier, canonical_url in candidates:
+        for result in fetched_pages:
+            if result is None:
+                continue
+            candidate, fetched, final_tier = result
             try:
-                fetched = await self._fetcher.fetch(canonical_url)
-                final_tier = self._classifier.classify(
-                    fetched.url,
-                    official_hosts=request.official_hosts,
-                )
-                if final_tier is None:
-                    continue
                 artifact_page = WebArtifactPage(
                     url=fetched.url,
                     title=fetched.title,
@@ -182,6 +196,24 @@ class BoundedWebSearchService:
                 )
             )
         return pages
+
+    async def _fetch_candidate(
+        self,
+        candidate_data: tuple[SearchCandidate, SourceTier, str],
+        request: WebSearchRequest,
+    ) -> tuple[SearchCandidate, FetchedWebPage, SourceTier] | None:
+        candidate, _tier, canonical_url = candidate_data
+        try:
+            fetched = await self._fetcher.fetch(canonical_url)
+            final_tier = self._classifier.classify(
+                fetched.url,
+                official_hosts=request.official_hosts,
+            )
+        except Exception:
+            return None
+        if final_tier is None:
+            return None
+        return candidate, fetched, final_tier
 
 
 def _handle_search_failure() -> WebSearchResult:
