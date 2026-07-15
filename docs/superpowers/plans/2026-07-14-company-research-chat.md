@@ -888,6 +888,7 @@ git commit -m "feat(chat): add bounded web evidence"
 **Files:**
 
 - Create: `backend/app/chat/prompts.py`
+- Create: `backend/app/chat/answer_schemas.py`
 - Create: `backend/app/chat/openai_agent.py`
 - Create: `backend/app/chat/validator.py`
 - Create: `backend/tests/chat/test_openai_agent.py`
@@ -896,7 +897,7 @@ git commit -m "feat(chat): add bounded web evidence"
 - Create: `backend/tests/fixtures/chat/aapl_answers.json`
 - Modify: `backend/app/chat/schemas.py`
 
-- [ ] **Step 1: Write strict schema and Agent retry tests**
+- [x] **Step 1: Write strict schema and Agent retry tests**
 
 Define fixtures for English, Chinese, partial, insufficient, invalid citation, invalid locale, altered filing excerpt, altered web excerpt, unsupported number, unlabeled inference, and cross-company evidence. Test one repair call and terminal second failure.
 
@@ -909,7 +910,7 @@ async def test_agent_repairs_invalid_citations_once(fake_model, evidence_pack):
     assert "unknown citation" in fake_model.requests[1].repair_feedback
 ```
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd backend
@@ -918,7 +919,7 @@ uv run pytest tests/chat/test_openai_agent.py tests/chat/test_validator.py -q
 
 Expected: imports fail because answer planning and validation are absent.
 
-- [ ] **Step 3: Define `ResearchAnswerPlan`**
+- [x] **Step 3: Define `ResearchAnswerPlan`**
 
 Use strict Pydantic models:
 
@@ -939,15 +940,15 @@ class ResearchAnswerPlan(BaseModel):
     web_search_used: bool
 ```
 
-- [ ] **Step 4: Implement prompt boundaries and model adapter**
+- [x] **Step 4: Implement prompt boundaries and model adapter**
 
 Separate system policy, typed internal context, untrusted filing/web evidence, conversation history, and user question into distinct message blocks. Instruct the model to output the four approved sections, preserve locale, label inference, cite every material number/current fact/supply-chain claim, and state missing evidence for insufficient answers. Use structured outputs and compact validation feedback for one repair attempt.
 
-- [ ] **Step 5: Implement deterministic validation**
+- [x] **Step 5: Implement deterministic validation**
 
 Validate citation existence, source ownership, source ordering, number support, excerpt equivalence after whitespace normalization, exact controlled-artifact excerpts, locale, inference premises, coverage semantics, and `web_search_used`. Convert validated evidence to immutable `MessageCitation` snapshots capped at 1,000 characters for filings and 600 for web.
 
-- [ ] **Step 6: Run Agent and validation suites**
+- [x] **Step 6: Run Agent and validation suites**
 
 ```bash
 cd backend
@@ -956,7 +957,7 @@ uv run pytest tests/chat/test_openai_agent.py tests/chat/test_validator.py -q
 
 Expected: all deterministic fixtures pass and the fake model receives at most two planning calls.
 
-- [ ] **Step 7: Commit answer planning**
+- [x] **Step 7: Commit answer planning**
 
 ```bash
 git add backend/app/chat/prompts.py backend/app/chat/openai_agent.py backend/app/chat/validator.py backend/app/chat/schemas.py backend/tests/chat/test_openai_agent.py backend/tests/chat/test_validator.py backend/tests/fixtures/chat/aapl_evidence.json backend/tests/fixtures/chat/aapl_answers.json

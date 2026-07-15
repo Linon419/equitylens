@@ -1,0 +1,197 @@
+{
+  "valid_en": {
+    "direct_conclusion": {
+      "text": "Apple's FY2025 revenue was 391 billion USD and its gross margin was 46.2%.",
+      "citation_ids": [
+        "financial:revenue-fy2025",
+        "filing:gross-margin-fy2025"
+      ],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "TSMC supplies advanced silicon manufacturing capacity used by Apple.",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [
+      {
+        "text": "Inference: Regulatory scrutiny may increase compliance risk for large technology platforms.",
+        "citation_ids": ["web:ftc-update-2026"],
+        "inference": true
+      }
+    ],
+    "sources": [
+      "financial:revenue-fy2025",
+      "filing:gross-margin-fy2025",
+      "graph:tsmc-supplies-apple",
+      "web:ftc-update-2026"
+    ],
+    "evidence_coverage": "complete",
+    "web_search_used": true
+  },
+  "valid_zh": {
+    "direct_conclusion": {
+      "text": "苹果 FY2025 营收为 391 billion USD，毛利率为 46.2%。",
+      "citation_ids": [
+        "financial:revenue-fy2025",
+        "filing:gross-margin-fy2025"
+      ],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "台积电为苹果使用的先进芯片提供制造产能。",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [
+      {
+        "text": "推断：监管审查可能提高大型科技平台的合规风险。",
+        "citation_ids": ["web:ftc-update-2026"],
+        "inference": true
+      }
+    ],
+    "sources": [
+      "financial:revenue-fy2025",
+      "filing:gross-margin-fy2025",
+      "graph:tsmc-supplies-apple",
+      "web:ftc-update-2026"
+    ],
+    "evidence_coverage": "complete",
+    "web_search_used": true
+  },
+  "partial": {
+    "direct_conclusion": {
+      "text": "Apple's FY2025 revenue was 391 billion USD and its gross margin was 46.2%.",
+      "citation_ids": [
+        "financial:revenue-fy2025",
+        "filing:gross-margin-fy2025"
+      ],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "TSMC supplies advanced silicon manufacturing capacity used by Apple.",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [
+      {
+        "text": "Inference: Peer valuation evidence remains incomplete.",
+        "citation_ids": ["financial:revenue-fy2025"],
+        "inference": true
+      }
+    ],
+    "sources": [
+      "financial:revenue-fy2025",
+      "filing:gross-margin-fy2025",
+      "graph:tsmc-supplies-apple"
+    ],
+    "evidence_coverage": "partial",
+    "web_search_used": true
+  },
+  "insufficient": {
+    "direct_conclusion": {
+      "text": "Insufficient evidence: the filing index required for this answer is missing.",
+      "citation_ids": [],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "The requested evidence is unavailable.",
+        "citation_ids": [],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [],
+    "sources": [],
+    "evidence_coverage": "insufficient",
+    "web_search_used": true
+  },
+  "invalid_citation": {
+    "direct_conclusion": {
+      "text": "Apple has a supported conclusion.",
+      "citation_ids": ["unknown:citation"],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "Evidence is cited.",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [],
+    "sources": ["unknown:citation", "graph:tsmc-supplies-apple"],
+    "evidence_coverage": "complete",
+    "web_search_used": true
+  },
+  "invalid_locale": {
+    "direct_conclusion": {
+      "text": "苹果的业务证据充分。",
+      "citation_ids": ["financial:revenue-fy2025"],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "TSMC supplies Apple.",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [],
+    "sources": ["financial:revenue-fy2025", "graph:tsmc-supplies-apple"],
+    "evidence_coverage": "complete",
+    "web_search_used": true
+  },
+  "unsupported_number": {
+    "direct_conclusion": {
+      "text": "Apple's FY2025 revenue was 999 billion USD.",
+      "citation_ids": ["financial:revenue-fy2025"],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "TSMC supplies Apple.",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [],
+    "sources": ["financial:revenue-fy2025", "graph:tsmc-supplies-apple"],
+    "evidence_coverage": "complete",
+    "web_search_used": true
+  },
+  "unlabeled_inference": {
+    "direct_conclusion": {
+      "text": "Apple's FY2025 revenue was 391 billion USD.",
+      "citation_ids": ["financial:revenue-fy2025"],
+      "inference": false
+    },
+    "key_evidence": [
+      {
+        "text": "TSMC supplies Apple.",
+        "citation_ids": ["graph:tsmc-supplies-apple"],
+        "inference": false
+      }
+    ],
+    "risks_and_uncertainties": [
+      {
+        "text": "Regulatory scrutiny may increase compliance risk.",
+        "citation_ids": ["web:ftc-update-2026"],
+        "inference": false
+      }
+    ],
+    "sources": [
+      "financial:revenue-fy2025",
+      "graph:tsmc-supplies-apple",
+      "web:ftc-update-2026"
+    ],
+    "evidence_coverage": "complete",
+    "web_search_used": true
+  }
+}

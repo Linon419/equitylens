@@ -1,12 +1,17 @@
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import UUID
 
 if TYPE_CHECKING:
     from app.chat.artifacts import StoredWebArtifact, WebArtifactPage
+    from app.chat.prompts import AnswerPlanningRequest
     from app.chat.retrieval import ChunkCandidate, QueryRewrite, RewriteRequest
-    from app.chat.schemas import ContextSelection, StructuredContextPack
+    from app.chat.schemas import (
+        ContextSelection,
+        ResearchAnswerPlan,
+        StructuredContextPack,
+    )
     from app.chat.web_discovery import SearchDiscovery
     from app.chat.web_fetcher import FetchedWebPage
     from app.models.company_model import Company
@@ -84,9 +89,10 @@ class WebArtifactWriter(Protocol):
 
 
 class AnswerPlanningModel(Protocol):
-    model_id: str
-
-    async def plan(self, request: Any) -> Any: ...
+    async def plan(
+        self,
+        request: "AnswerPlanningRequest",
+    ) -> "ResearchAnswerPlan": ...
 
 
 @dataclass(frozen=True)

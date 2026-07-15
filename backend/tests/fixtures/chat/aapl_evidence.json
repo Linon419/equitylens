@@ -1,0 +1,94 @@
+{
+  "company_id": 1,
+  "company_name": "Apple Inc.",
+  "symbol": "AAPL",
+  "records": [
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "financial:revenue-fy2025",
+        "source_kind": "financial",
+        "source_id": "revenue-fy2025",
+        "title": "AAPL Revenue · FY2025",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "revenue-fy2025",
+        "excerpt": "AAPL revenue for FY2025 was 391 billion USD.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {
+          "metric_key": "revenue",
+          "period_key": "FY2025",
+          "value": "391",
+          "unit": "billion USD"
+        }
+      },
+      "source_text": "Apple Inc. Form 10-K. AAPL revenue for FY2025 was 391 billion USD."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "filing:gross-margin-fy2025",
+        "source_kind": "filing",
+        "source_id": "gross-margin-fy2025",
+        "title": "Apple FY2025 Form 10-K · Gross Margin",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "gross-margin",
+        "excerpt": "For FY2025, Apple reported a gross margin of 46.2%.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {
+          "filing_form": "10-K",
+          "fiscal_period": "FY2025"
+        }
+      },
+      "source_text": "Item 8. For FY2025, Apple reported a gross margin of 46.2%. The annual report contains the audited financial statements."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "graph:tsmc-supplies-apple",
+        "source_kind": "graph",
+        "source_id": "tsmc-supplies-apple",
+        "title": "Apple Supplier Responsibility",
+        "source_url": "https://www.apple.com/supplier-responsibility/",
+        "source_anchor": "tsmc",
+        "excerpt": "TSMC supplies advanced silicon manufacturing capacity used by Apple.",
+        "published_at": "2026-03-15T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {
+          "relationship_type": "supplies",
+          "confidence": "High"
+        }
+      },
+      "source_text": "TSMC supplies advanced silicon manufacturing capacity used by Apple."
+    },
+    {
+      "company_id": null,
+      "candidate": {
+        "evidence_id": "web:ftc-update-2026",
+        "source_kind": "web",
+        "source_id": "ftc-update-2026",
+        "title": "FTC competition update",
+        "source_url": "https://www.ftc.gov/news-events/news/press-releases/example",
+        "source_anchor": null,
+        "excerpt": "On July 14, 2026, the FTC published a competition-policy update relevant to large technology platforms.",
+        "published_at": "2026-07-14T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {
+          "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "source_text": "On July 14, 2026, the FTC published a competition-policy update relevant to large technology platforms. This page is controlled fetched evidence."
+    }
+  ],
+  "evidence_gaps": [],
+  "web_search_used": true
+}

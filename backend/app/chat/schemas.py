@@ -12,6 +12,15 @@ from pydantic import (
     field_validator,
 )
 
+from app.chat import answer_schemas as _answer_schemas
+
+AnswerEvidencePack = _answer_schemas.AnswerEvidencePack
+AnswerPoint = _answer_schemas.AnswerPoint
+ApprovedEvidenceRecord = _answer_schemas.ApprovedEvidenceRecord
+CitationSnapshot = _answer_schemas.CitationSnapshot
+EvidenceCandidate = _answer_schemas.EvidenceCandidate
+ResearchAnswerPlan = _answer_schemas.ResearchAnswerPlan
+
 Locale = Literal["en-US", "zh-CN"]
 EvidenceCoverage = Literal["complete", "partial", "insufficient"]
 ConversationTitle = Annotated[
@@ -147,40 +156,6 @@ class CitationPublic(StrictModel):
     retrieved_at: datetime
     source_tier: Literal["primary", "trusted_secondary", "derived"]
     verification: Literal["verified", "supporting"]
-
-
-EvidenceAttribute = str | int | float | bool | None
-
-
-class EvidenceCandidate(StrictModel):
-    evidence_id: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
-    ]
-    source_kind: Literal["filing", "financial", "intelligence", "graph", "web"]
-    source_id: str | None
-    title: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
-    ]
-    source_url: str
-    source_anchor: str | None
-    excerpt: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=1_000),
-    ]
-    published_at: datetime | None
-    retrieved_at: datetime
-    source_tier: Literal["primary", "trusted_secondary", "derived"]
-    verification: Literal["verified", "supporting"]
-    attributes: dict[str, EvidenceAttribute] = Field(default_factory=dict)
-
-    @field_validator("source_url")
-    @classmethod
-    def validate_source_url(cls, value: str) -> str:
-        if not value.startswith("https://") or len(value) > 2_000:
-            raise ValueError("evidence source URL must use HTTPS")
-        return value
 
 
 class StructuredContextItem(StrictModel):
