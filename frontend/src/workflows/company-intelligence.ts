@@ -1,6 +1,7 @@
 const STEPS = [
   "download",
   "parse",
+  "index",
   "analyze",
   "verify",
   "localize",

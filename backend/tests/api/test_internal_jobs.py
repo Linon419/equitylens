@@ -20,6 +20,7 @@ from app.supply_chain.openai_agent import SupplyChainAgentError
 NEXT_STATE = {
     "download": "downloading",
     "parse": "parsing",
+    "index": "indexing",
     "analyze": "analyzing",
     "verify": "verifying",
     "localize": "completed",
@@ -56,6 +57,9 @@ class FakePipeline:
 
     async def analyze(self, job_id: UUID) -> None:
         await self._run(job_id, "analyze")
+
+    async def index(self, job_id: UUID) -> None:
+        await self._run(job_id, "index")
 
     async def verify(self, job_id: UUID) -> None:
         await self._run(job_id, "verify")
@@ -229,7 +233,7 @@ def test_internal_step_is_idempotent(internal_jobs) -> None:
 
 
 def test_internal_steps_run_in_durable_order(internal_jobs) -> None:
-    for step in ("download", "parse", "analyze", "verify", "localize"):
+    for step in ("download", "parse", "index", "analyze", "verify", "localize"):
         response = internal_jobs.client.post(
             f"/api/v1/internal/jobs/{internal_jobs.job_id}/{step}",
             headers=headers(internal_jobs.job_id, step),
@@ -239,6 +243,7 @@ def test_internal_steps_run_in_durable_order(internal_jobs) -> None:
     assert internal_jobs.pipeline.calls == [
         "download",
         "parse",
+        "index",
         "analyze",
         "verify",
         "localize",

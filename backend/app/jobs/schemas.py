@@ -23,7 +23,11 @@ class JobBackend(Protocol):
 
 class JobPublic(BaseModel):
     id: UUID
-    result_kind: Literal["company_intelligence", "supply_chain_graph"]
+    result_kind: Literal[
+        "company_intelligence",
+        "supply_chain_graph",
+        "filing_index",
+    ]
     company_symbol: str
     state: str
     current_step: str
@@ -60,3 +64,9 @@ class SyncResponse(BaseModel):
     job: JobPublic | None = None
     snapshot_id: UUID | None = None
     quota: QuotaStatus
+
+
+class FilingIndexSyncResponse(BaseModel):
+    status: Literal["accepted", "active_job", "ready"]
+    job: JobPublic | None = None
+    filing_id: UUID | None = None

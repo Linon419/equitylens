@@ -299,6 +299,7 @@ class E2EJobBackend:
             for step in (
                 pipeline.download,
                 pipeline.parse,
+                pipeline.index,
                 pipeline.analyze,
                 pipeline.verify,
                 pipeline.localize,

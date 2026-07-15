@@ -28,6 +28,7 @@ describe("companyIntelligenceWorkflow", () => {
     expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
       "/api/v1/internal/jobs/job-123/download",
       "/api/v1/internal/jobs/job-123/parse",
+      "/api/v1/internal/jobs/job-123/index",
       "/api/v1/internal/jobs/job-123/analyze",
       "/api/v1/internal/jobs/job-123/verify",
       "/api/v1/internal/jobs/job-123/localize",

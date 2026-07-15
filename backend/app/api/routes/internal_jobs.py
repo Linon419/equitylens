@@ -18,11 +18,12 @@ from app.supply_chain.openai_agent import SupplyChainAgentError
 from app.supply_chain.repository import GraphPublicationError
 
 router = APIRouter(prefix="/internal/jobs")
-Step = Literal["download", "parse", "analyze", "verify", "localize"]
+Step = Literal["download", "parse", "index", "analyze", "verify", "localize"]
 GraphStep = Literal["collect", "extract", "resolve", "verify", "localize", "publish"]
 TARGET_STATE = {
     "download": "downloading",
     "parse": "parsing",
+    "index": "indexing",
     "analyze": "analyzing",
     "verify": "verifying",
     "localize": "completed",
@@ -134,6 +135,19 @@ async def analyze(
 ) -> Response:
     return await _execute_step(
         job_id, "analyze", session, pipeline, authorization, idempotency_key
+    )
+
+
+@router.post("/{job_id}/index", status_code=204)
+async def index(
+    job_id: UUID,
+    session: SessionDep,
+    pipeline: CompanyIntelligencePipelineDep,
+    authorization: AuthorizationHeader = None,
+    idempotency_key: IdempotencyHeader = None,
+) -> Response:
+    return await _execute_step(
+        job_id, "index", session, pipeline, authorization, idempotency_key
     )
 
 

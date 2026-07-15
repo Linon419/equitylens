@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 
 from app.core.errors import DomainError
 from app.filings.service import download_latest_10k
+from app.jobs._filing_index import FilingIndexer
 from app.jobs.errors import PipelineStepError
 from app.jobs.state import has_reached, next_state
 from app.models.company_model import Company
@@ -25,6 +26,7 @@ from app.research.service import (
 ERROR_CODES = {
     "downloading": "FILING_DOWNLOAD_FAILED",
     "parsing": "FILING_PARSE_FAILED",
+    "indexing": "FILING_INDEX_FAILED",
     "analyzing": "INTELLIGENCE_GENERATION_FAILED",
     "verifying": "INTELLIGENCE_VERIFICATION_FAILED",
     "localizing": "INTELLIGENCE_LOCALIZATION_FAILED",
@@ -41,6 +43,7 @@ class CompanyIntelligencePipeline:
         schema_version: str,
         prompt_version: str,
         max_filing_bytes: int = 15 * 1024 * 1024,
+        indexer: FilingIndexer | None = None,
     ) -> None:
         self._session = session
         self._sec = sec_provider
@@ -48,6 +51,7 @@ class CompanyIntelligencePipeline:
         self._schema_version = schema_version
         self._prompt_version = prompt_version
         self._max_filing_bytes = max_filing_bytes
+        self._indexer = indexer
 
     async def download(self, job_id: UUID) -> None:
         async def operation(job: IngestionJob) -> None:
@@ -89,7 +93,14 @@ class CompanyIntelligencePipeline:
             self._session.add(job)
             self._session.commit()
 
-        await self._run(job_id, "parsing", "analyzing", operation)
+        await self._run(job_id, "indexing", "analyzing", operation)
+
+    async def index(self, job_id: UUID) -> None:
+        async def operation(job: IngestionJob) -> None:
+            if self._indexer is not None:
+                await self._indexer.index_latest(company_id=job.company_id)
+
+        await self._run(job_id, "parsing", "indexing", operation)
 
     async def verify(self, job_id: UUID) -> None:
         async def operation(job: IngestionJob) -> None:

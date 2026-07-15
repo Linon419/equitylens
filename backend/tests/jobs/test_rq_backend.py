@@ -80,6 +80,23 @@ async def test_rq_backend_routes_supply_chain_graph_task() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rq_backend_routes_filing_index_task() -> None:
+    queue = FakeQueue()
+    backend = RQJobBackend(queue)
+
+    submission = await backend.enqueue(
+        job_type="filing_index",
+        payload={"job_id": "index-123"},
+    )
+
+    function, payload, job_id, _ = queue.calls[0]
+    assert function == "app.jobs.tasks.run_filing_index"
+    assert payload == {"job_id": "index-123"}
+    assert job_id == "filing-index:index-123"
+    assert submission.job_id == job_id
+
+
+@pytest.mark.asyncio
 async def test_rq_backend_satisfies_shared_contract() -> None:
     queue = FakeQueue()
     await assert_backend_contract(RQJobBackend(queue), queue)

@@ -5,12 +5,14 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import httpx
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from rq import Retry
 from sqlmodel import Session, create_engine, select
 
+from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
 from app.core.config import settings
 from app.filings.sec_client import SecClient
+from app.jobs._filing_index import FilingIndexJobPipeline
 from app.jobs.errors import PipelineStepError
 from app.jobs.pipeline import CompanyIntelligencePipeline
 from app.jobs.state import prior_state
@@ -72,10 +74,20 @@ def run_supply_chain_graph(job_id: str) -> Retry | None:
     return None
 
 
+def run_filing_index(job_id: str) -> Retry | None:
+    try:
+        asyncio.run(_run_filing_index_pipeline(UUID(job_id)))
+    except PipelineStepError as error:
+        if error.retryable:
+            return _bounded_retry()
+    return None
+
+
 async def _run_pipeline(job_id: UUID) -> None:
     async with pipeline_context(job_id) as pipeline:
         await pipeline.download(job_id)
         await pipeline.parse(job_id)
+        await pipeline.index(job_id)
         await pipeline.analyze(job_id)
         await pipeline.verify(job_id)
         await pipeline.localize(job_id)
@@ -83,6 +95,11 @@ async def _run_pipeline(job_id: UUID) -> None:
 
 async def _run_graph_pipeline(job_id: UUID) -> None:
     async with graph_pipeline_context(job_id) as pipeline:
+        await pipeline.run(job_id)
+
+
+async def _run_filing_index_pipeline(job_id: UUID) -> None:
+    async with filing_index_pipeline_context(job_id) as pipeline:
         await pipeline.run(job_id)
 
 
@@ -110,7 +127,17 @@ async def pipeline_context(
                 schema_version=settings.RESEARCH_SCHEMA_VERSION,
                 prompt_version=settings.RESEARCH_PROMPT_VERSION,
                 max_filing_bytes=settings.MAX_FILING_BYTES,
+                indexer=_filing_indexer(session),
             )
+
+
+@asynccontextmanager
+async def filing_index_pipeline_context(
+    job_id: UUID,
+) -> AsyncIterator[FilingIndexJobPipeline]:
+    with Session(engine) as session:
+        _prepare_retry(session, job_id)
+        yield FilingIndexJobPipeline(session, _filing_indexer(session))
 
 
 @asynccontextmanager
@@ -244,6 +271,26 @@ def _entity_resolver(session: Session) -> DeterministicEntityResolver:
             for company in companies
             if company.id is not None
         )
+    )
+
+
+def _filing_indexer(session: Session) -> FilingIndexService:
+    model = OpenAIEmbeddings(
+        model=settings.CHAT_EMBEDDING_MODEL,
+        dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
+    )
+    provider = LangChainEmbeddingProvider(
+        model,
+        model_id=settings.CHAT_EMBEDDING_MODEL,
+        dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
+    )
+    return FilingIndexService(
+        session,
+        provider,
+        chunk_schema_version=settings.CHAT_INDEX_SCHEMA_VERSION,
+        target_tokens=settings.CHAT_CHUNK_TARGET_TOKENS,
+        overlap_tokens=settings.CHAT_CHUNK_OVERLAP_TOKENS,
+        minimum_final_tokens=settings.CHAT_CHUNK_MIN_FINAL_TOKENS,
     )
 
 

@@ -117,6 +117,7 @@ async def test_pipeline_runs_in_order_and_reuses_completed_steps(
     await pipeline.download(job.id)
     await pipeline.download(job.id)
     await pipeline.parse(job.id)
+    await pipeline.index(job.id)
     await pipeline.analyze(job.id)
     await pipeline.verify(job.id)
     await pipeline.localize(job.id)

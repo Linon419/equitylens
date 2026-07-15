@@ -627,7 +627,7 @@ git commit -m "feat(chat): add independent message quota"
 - Modify: `backend/tests/jobs/test_rq_backend.py`
 - Modify: `backend/tests/jobs/test_vercel_backend.py`
 
-- [ ] **Step 1: Write deterministic chunk tests**
+- [x] **Step 1: Write deterministic chunk tests**
 
 Inject a token codec and assert target 700, overlap 100, final minimum 120, stable ordinals, metadata separation, content hashes, and deterministic re-runs:
 
@@ -641,7 +641,7 @@ def test_chunker_merges_short_tail_and_preserves_overlap(token_codec):
     )
 ```
 
-- [ ] **Step 2: Write indexing and job-contract tests**
+- [x] **Step 2: Write indexing and job-contract tests**
 
 Cover latest 10-K selection, batched embeddings, dimension mismatch, idempotent reuse, changed-section replacement in one transaction, empty filing error, `filing_index` state order, RQ task routing, Vercel trigger routing, and zero chat/Agent quota mutations.
 
@@ -657,7 +657,7 @@ JOB_STATE_ORDER["filing_index"] == (
 )
 ```
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd backend
@@ -666,15 +666,15 @@ uv run pytest tests/chat/test_chunker.py tests/chat/test_indexing.py tests/jobs/
 
 Expected: failures for missing chunker, indexer, and job route.
 
-- [ ] **Step 4: Implement chunking and idempotent indexing**
+- [x] **Step 4: Implement chunking and idempotent indexing**
 
 Use `tiktoken.encoding_for_model` with a deterministic fallback to `cl100k_base`. Prepend heading and source anchor only to embedding input. Store source text separately. Compare `(content_hash, chunk_schema_version, embedding_model)` and reuse a matching section set. Delete and replace changed section chunks inside a transaction after all embeddings validate as 1,536-dimensional finite floats.
 
-- [ ] **Step 5: Add shared job execution**
+- [x] **Step 5: Add shared job execution**
 
 Add `synchronize_filing_index` that creates/deduplicates a `filing_index` `IngestionJob` from company, latest filing accession, schema, and embedding model. Skip every Agent quota call. Add `run_filing_index`, RQ routing, Vercel trigger routing, retry state, and internal Workflow step endpoint. The company-intelligence pipeline calls the same indexer after parsing and before analyzing; an indexing failure keeps company analysis retryable at `indexing`.
 
-- [ ] **Step 6: Validate indexing and backend parity**
+- [x] **Step 6: Validate indexing and backend parity**
 
 ```bash
 cd backend
@@ -683,7 +683,7 @@ uv run pytest tests/chat/test_chunker.py tests/chat/test_indexing.py tests/jobs/
 
 Expected: all focused tests pass and existing job types retain their state sequences.
 
-- [ ] **Step 7: Commit filing indexing**
+- [x] **Step 7: Commit filing indexing**
 
 ```bash
 git add backend/app/chat/chunker.py backend/app/chat/indexing.py backend/app/jobs/_filing_index.py backend/app/jobs/state.py backend/app/jobs/schemas.py backend/app/jobs/pipeline.py backend/app/jobs/service.py backend/app/jobs/tasks.py backend/app/jobs/rq_backend.py backend/app/jobs/vercel_backend.py backend/tests/chat/test_chunker.py backend/tests/chat/test_indexing.py backend/tests/jobs/backend_contract.py backend/tests/jobs/test_state.py backend/tests/jobs/test_pipeline.py backend/tests/jobs/test_service.py backend/tests/jobs/test_tasks.py backend/tests/jobs/test_rq_backend.py backend/tests/jobs/test_vercel_backend.py

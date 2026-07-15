@@ -8,6 +8,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core.errors import DomainError
+from app.jobs._filing_index import (
+    FilingIndexSynchronizationServices,
+    filing_index_deduplication_key,
+    synchronize_filing_index,
+)
 from app.jobs._graph_sync import (
     GraphSynchronizationServices,
     graph_deduplication_key,
@@ -30,10 +35,13 @@ from app.quota.service import (
 
 __all__ = [
     "GraphSynchronizationServices",
+    "FilingIndexSynchronizationServices",
     "SynchronizationServices",
     "graph_deduplication_key",
+    "filing_index_deduplication_key",
     "retry_job",
     "synchronize_company",
+    "synchronize_filing_index",
     "synchronize_supply_chain_graph",
 ]
 

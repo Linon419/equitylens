@@ -7,6 +7,7 @@ from app.jobs.errors import PipelineStepError
 from app.jobs.tasks import (
     _prepare_retry,
     run_company_intelligence,
+    run_filing_index,
     run_supply_chain_graph,
 )
 from app.models.job_model import IngestionJob
@@ -36,6 +37,9 @@ class FakePipeline:
 
     async def analyze(self, job_id) -> None:
         await self._step("analyze")
+
+    async def index(self, job_id) -> None:
+        await self._step("index")
 
     async def verify(self, job_id) -> None:
         await self._step("verify")
@@ -81,10 +85,26 @@ def test_task_executes_durable_steps_in_order(monkeypatch) -> None:
     assert pipeline.calls == [
         "download",
         "parse",
+        "index",
         "analyze",
         "verify",
         "localize",
     ]
+
+
+def test_filing_index_task_runs_shared_pipeline(monkeypatch) -> None:
+    pipeline = FakeGraphPipeline()
+
+    @asynccontextmanager
+    async def context(job_id):
+        yield pipeline
+
+    monkeypatch.setattr("app.jobs.tasks.filing_index_pipeline_context", context)
+
+    result = run_filing_index("11111111-1111-4111-8111-111111111111")
+
+    assert result is None
+    assert len(pipeline.job_ids) == 1
 
 
 def test_task_returns_bounded_retry_for_retryable_failure(monkeypatch) -> None:

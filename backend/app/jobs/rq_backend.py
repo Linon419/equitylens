@@ -7,6 +7,7 @@ from app.jobs.schemas import JobSubmission
 RQ_TASKS = {
     "company_intelligence": "app.jobs.tasks.run_company_intelligence",
     "supply_chain_graph": "app.jobs.tasks.run_supply_chain_graph",
+    "filing_index": "app.jobs.tasks.run_filing_index",
 }
 
 

@@ -8,9 +8,11 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    ForeignKey,
     Index,
     Text,
     UniqueConstraint,
+    Uuid,
 )
 from sqlalchemy import (
     text as sql_text,
@@ -80,8 +82,16 @@ class CompanyConversation(SQLModel, table=True):
     )
     summary_through_message_id: UUID | None = Field(
         default=None,
-        foreign_key="conversation_message.id",
-        ondelete="SET NULL",
+        sa_column=Column(
+            Uuid(),
+            ForeignKey(
+                "conversation_message.id",
+                name="fk_company_conversation_summary_message",
+                ondelete="SET NULL",
+                use_alter=True,
+            ),
+            nullable=True,
+        ),
     )
     expires_at: datetime | None = Field(
         default=None,

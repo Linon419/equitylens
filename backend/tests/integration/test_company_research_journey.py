@@ -56,6 +56,7 @@ class JourneyHarness:
 
             asyncio.run(pipeline.download(UUID(job_id)))
             asyncio.run(pipeline.parse(UUID(job_id)))
+            asyncio.run(pipeline.index(UUID(job_id)))
             asyncio.run(pipeline.analyze(UUID(job_id)))
             asyncio.run(pipeline.verify(UUID(job_id)))
             asyncio.run(pipeline.localize(UUID(job_id)))

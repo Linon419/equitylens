@@ -41,6 +41,9 @@ async def test_vercel_backend_satisfies_shared_contract() -> None:
             supply_chain_trigger_url=(
                 "https://web.example/api/internal/workflows/supply-chain-graph"
             ),
+            filing_index_trigger_url=(
+                "https://web.example/api/internal/workflows/filing-index"
+            ),
         )
         await assert_backend_contract(backend, transport)
 
@@ -62,6 +65,9 @@ async def test_vercel_backend_routes_each_job_type_to_its_trigger() -> None:
             supply_chain_trigger_url=(
                 "https://web.example/api/internal/workflows/supply-chain-graph"
             ),
+            filing_index_trigger_url=(
+                "https://web.example/api/internal/workflows/filing-index"
+            ),
         )
         await backend.enqueue(
             job_type="company_intelligence",
@@ -71,12 +77,18 @@ async def test_vercel_backend_routes_each_job_type_to_its_trigger() -> None:
             job_type="supply_chain_graph",
             payload={"job_id": "graph-123"},
         )
+        await backend.enqueue(
+            job_type="filing_index",
+            payload={"job_id": "index-123"},
+        )
 
     assert [header["x-idempotency-key"] for header in transport.headers] == [
         "company-123",
         "graph-123",
+        "index-123",
     ]
     assert transport.urls == [
         "https://web.example/api/internal/workflows/company-intelligence",
         "https://web.example/api/internal/workflows/supply-chain-graph",
+        "https://web.example/api/internal/workflows/filing-index",
     ]

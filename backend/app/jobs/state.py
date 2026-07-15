@@ -2,6 +2,7 @@ COMPANY_INTELLIGENCE_STATES = (
     "queued",
     "downloading",
     "parsing",
+    "indexing",
     "analyzing",
     "verifying",
     "localizing",
@@ -16,9 +17,17 @@ SUPPLY_CHAIN_GRAPH_STATES = (
     "localizing",
     "completed",
 )
+FILING_INDEX_STATES = (
+    "queued",
+    "chunking",
+    "embedding",
+    "indexing",
+    "completed",
+)
 JOB_STATES = {
     "company_intelligence": COMPANY_INTELLIGENCE_STATES,
     "supply_chain_graph": SUPPLY_CHAIN_GRAPH_STATES,
+    "filing_index": FILING_INDEX_STATES,
 }
 
 

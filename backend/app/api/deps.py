@@ -7,12 +7,13 @@ import httpx
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from sqlmodel import Session, create_engine, select
 
 from app.auth.contracts import GoogleVerifier
 from app.auth.errors import AuthError
 from app.auth.google import GoogleTokenVerifier
+from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
 from app.core.config import settings
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
@@ -203,6 +204,7 @@ async def get_job_backend() -> AsyncIterator[JobBackend]:
         if (
             settings.WORKFLOW_TRIGGER_URL is None
             or settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL is None
+            or settings.CHAT_INDEX_WORKFLOW_TRIGGER_URL is None
         ):
             raise RuntimeError("Workflow trigger URLs are required")
         async with httpx.AsyncClient(timeout=15) as client:
@@ -212,6 +214,9 @@ async def get_job_backend() -> AsyncIterator[JobBackend]:
                 settings.INTERNAL_JOB_SECRET,
                 supply_chain_trigger_url=(
                     settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL
+                ),
+                filing_index_trigger_url=(
+                    settings.CHAT_INDEX_WORKFLOW_TRIGGER_URL
                 ),
             )
         return
@@ -464,10 +469,36 @@ IntelligenceGeneratorDep = Annotated[
 ]
 
 
+def get_filing_index_service(session: SessionDep) -> FilingIndexService:
+    embeddings = LangChainEmbeddingProvider(
+        OpenAIEmbeddings(
+            model=settings.CHAT_EMBEDDING_MODEL,
+            dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
+        ),
+        model_id=settings.CHAT_EMBEDDING_MODEL,
+        dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
+    )
+    return FilingIndexService(
+        session,
+        embeddings,
+        chunk_schema_version=settings.CHAT_INDEX_SCHEMA_VERSION,
+        target_tokens=settings.CHAT_CHUNK_TARGET_TOKENS,
+        overlap_tokens=settings.CHAT_CHUNK_OVERLAP_TOKENS,
+        minimum_final_tokens=settings.CHAT_CHUNK_MIN_FINAL_TOKENS,
+    )
+
+
+FilingIndexServiceDep = Annotated[
+    FilingIndexService,
+    Depends(get_filing_index_service),
+]
+
+
 def get_company_intelligence_pipeline(
     session: SessionDep,
     sec_provider: SecDataProviderDep,
     generator: IntelligenceGeneratorDep,
+    indexer: FilingIndexServiceDep,
 ) -> CompanyIntelligencePipeline:
     return CompanyIntelligencePipeline(
         session,
@@ -476,6 +507,7 @@ def get_company_intelligence_pipeline(
         schema_version=settings.RESEARCH_SCHEMA_VERSION,
         prompt_version=settings.RESEARCH_PROMPT_VERSION,
         max_filing_bytes=settings.MAX_FILING_BYTES,
+        indexer=indexer,
     )
 
 

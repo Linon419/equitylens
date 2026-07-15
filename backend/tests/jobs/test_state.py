@@ -20,9 +20,20 @@ def test_company_intelligence_state_order_is_unchanged() -> None:
         "queued",
         "downloading",
         "parsing",
+        "indexing",
         "analyzing",
         "verifying",
         "localizing",
+        "completed",
+    )
+
+
+def test_filing_index_state_order() -> None:
+    assert states_for("filing_index") == (
+        "queued",
+        "chunking",
+        "embedding",
+        "indexing",
         "completed",
     )
 
@@ -32,7 +43,8 @@ def test_company_intelligence_state_order_is_unchanged() -> None:
     [
         ("queued", "downloading"),
         ("downloading", "parsing"),
-        ("parsing", "analyzing"),
+        ("parsing", "indexing"),
+        ("indexing", "analyzing"),
         ("analyzing", "verifying"),
         ("verifying", "localizing"),
         ("localizing", "completed"),

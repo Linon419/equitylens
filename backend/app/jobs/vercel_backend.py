@@ -12,11 +12,13 @@ class VercelWorkflowBackend:
         internal_secret: str,
         *,
         supply_chain_trigger_url: str | None = None,
+        filing_index_trigger_url: str | None = None,
     ) -> None:
         self._client = client
         self._trigger_urls = {
             "company_intelligence": trigger_url,
             "supply_chain_graph": supply_chain_trigger_url,
+            "filing_index": filing_index_trigger_url,
         }
         self._internal_secret = internal_secret
         self._submissions: dict[tuple[str, str], JobSubmission] = {}
