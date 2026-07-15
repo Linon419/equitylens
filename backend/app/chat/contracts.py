@@ -1,4 +1,7 @@
-from typing import Any, Protocol
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Any, Literal, Protocol
+from uuid import UUID
 
 
 class EmbeddingProvider(Protocol):
@@ -30,9 +33,64 @@ class AnswerPlanningModel(Protocol):
     async def plan(self, request: Any) -> Any: ...
 
 
+@dataclass(frozen=True)
+class ChatQuotaReservation:
+    request_id: UUID
+    principal_type: Literal["guest", "user"]
+    principal_key: str
+    usage_date: date
+    conversation_id: UUID
+    attempt_number: int
+    now: datetime
+
+
+@dataclass(frozen=True)
+class ChatQuotaRecord:
+    id: UUID
+    request_id: UUID
+    principal_type: Literal["guest", "user"]
+    principal_key: str
+    usage_date: date
+    conversation_id: UUID | None
+    user_message_id: UUID | None
+    assistant_message_id: UUID | None
+    attempt_number: int
+    state: Literal["reserved", "consumed", "refunded"]
+
+
 class ChatQuotaRepository(Protocol):
-    def reserve(self, request: Any) -> Any: ...
+    def lock_scope(
+        self,
+        principal_type: str,
+        principal_key: str,
+        usage_date: date,
+    ) -> None: ...
 
-    def consume(self, request: Any) -> bool: ...
+    def find_by_request(self, request_id: UUID) -> ChatQuotaRecord | None: ...
 
-    def refund(self, request: Any) -> bool: ...
+    def count_active(
+        self,
+        principal_type: str,
+        principal_key: str,
+        usage_date: date,
+    ) -> int: ...
+
+    def add(self, reservation: ChatQuotaReservation) -> ChatQuotaRecord: ...
+
+    def get(self, ledger_id: UUID, *, lock: bool = False) -> ChatQuotaRecord | None: ...
+
+    def attach_messages(
+        self,
+        ledger_id: UUID,
+        user_message_id: UUID,
+        assistant_message_id: UUID,
+    ) -> ChatQuotaRecord: ...
+
+    def transition(
+        self,
+        ledger_id: UUID,
+        *,
+        target: Literal["consumed", "refunded"],
+        now: datetime,
+        refund_reason: str | None = None,
+    ) -> bool: ...

@@ -537,7 +537,7 @@ git commit -m "feat(chat): enforce conversation ownership"
 - Modify: `backend/app/chat/contracts.py`
 - Modify: `backend/app/chat/repository.py`
 
-- [ ] **Step 1: Write quota lifecycle tests**
+- [x] **Step 1: Write quota lifecycle tests**
 
 Cover guest limit 2, user limit 10, UTC reset, independence from `AgentDailyUsage`, request replay, consume, refund exactly once, consumed reservation permanence, retry after refund, and concurrent reservation cap:
 
@@ -554,7 +554,7 @@ def test_replay_and_refund_are_idempotent(chat_quota, guest_principal, now):
     assert chat_quota.status(guest_principal, now).remaining == 2
 ```
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd backend
@@ -563,7 +563,7 @@ uv run pytest tests/chat/test_quota.py -q
 
 Expected: import failure because the chat quota service is absent.
 
-- [ ] **Step 3: Implement ledger transactions**
+- [x] **Step 3: Implement ledger transactions**
 
 Create `ChatQuotaRepository` in `contracts.py` and SQL/in-memory implementations in `quota.py`. Use a unique `request_id`, `SELECT ... FOR UPDATE` for state transitions, and a conditional PostgreSQL insert/count query scoped to `principal_type`, `principal_key`, and `usage_date`. Store `user:<id>` for users and the existing keyed HMAC digest for guests.
 
@@ -582,6 +582,10 @@ Allow `complete`, `partial`, and `insufficient` coverage to consume. Keep a refu
 
 - [ ] **Step 4: Validate unit and PostgreSQL concurrency behavior**
 
+SQLite lifecycle and regression suites passed on 2026-07-15. The isolated-schema
+PostgreSQL concurrency test is present and skips until `TEST_POSTGRES_URL` is
+configured; Task 16 owns that live integration gate.
+
 Add a `@pytest.mark.postgres` concurrent test beside the unit suite, then run:
 
 ```bash
@@ -592,7 +596,7 @@ TEST_POSTGRES_URL="$DATABASE_URL" uv run pytest tests/chat/test_quota.py -m post
 
 Expected: unit tests pass; PostgreSQL test passes when the integration database is configured. Record a skipped PostgreSQL test as an incomplete integration gate.
 
-- [ ] **Step 5: Commit quota accounting**
+- [x] **Step 5: Commit quota accounting**
 
 ```bash
 git add backend/app/chat/contracts.py backend/app/chat/quota.py backend/app/chat/repository.py backend/tests/chat/test_quota.py
