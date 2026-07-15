@@ -22,7 +22,11 @@ const dictionaries = {
       eyebrow: "Investor workspace / secure access",
       title: "Start with the source.",
       description:
-        "Sign in to save companies, filings, research notes, and evidence-backed conversations.",
+        "Start researching as a guest, or sign in to save companies, filings, notes, and evidence-backed conversations.",
+      accessIndex: "ACCESS / GUEST + ACCOUNT",
+      guest: "Continue as guest",
+      guestHint: "2 research messages per day · 7-day history",
+      accountDivider: "Save your research workspace",
       google: "Continue with Google",
       privacy:
         "EquityLens stores an application session in a secure browser cookie.",
@@ -140,7 +144,11 @@ const dictionaries = {
     auth: {
       eyebrow: "投资者工作台 / 安全访问",
       title: "从原始资料开始研究。",
-      description: "登录后保存公司、财报、研究笔记和带有证据引用的对话。",
+      description: "以游客身份立即开始研究，登录后可保存公司、财报、笔记和带有证据引用的对话。",
+      accessIndex: "访问方式 / 游客 + 账户",
+      guest: "以游客身份继续",
+      guestHint: "每天 2 次研究对话 · 历史保留 7 天",
+      accountDivider: "保存你的研究工作台",
       google: "使用 Google 继续",
       privacy: "EquityLens 使用安全浏览器 Cookie 保存应用会话。",
       back: "返回研究概览",

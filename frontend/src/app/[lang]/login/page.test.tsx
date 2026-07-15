@@ -15,11 +15,13 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("localized login page", () => {
-  it("renders English Google login copy", async () => {
+  it("renders English Google and guest access with a safe default", async () => {
     render(
       await LoginPage({
         params: Promise.resolve({ lang: "en-US" }),
-        searchParams: Promise.resolve({}),
+        searchParams: Promise.resolve({
+          returnTo: "https://malicious.example/steal-session",
+        }),
       }),
     );
 
@@ -29,13 +31,21 @@ describe("localized login page", () => {
     expect(
       screen.getByRole("button", { name: "Continue with Google" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Continue as guest" }),
+    ).toHaveAttribute("href", "/en-US/dashboard");
+    expect(
+      screen.getByText("2 research messages per day · 7-day history"),
+    ).toBeInTheDocument();
   });
 
-  it("renders Chinese Google login copy", async () => {
+  it("renders Chinese guest access and preserves a safe return path", async () => {
     render(
       await LoginPage({
         params: Promise.resolve({ lang: "zh-CN" }),
-        searchParams: Promise.resolve({}),
+        searchParams: Promise.resolve({
+          returnTo: "/zh-CN/companies/AAPL?source=login",
+        }),
       }),
     );
 
@@ -45,5 +55,9 @@ describe("localized login page", () => {
     expect(
       screen.getByRole("button", { name: "使用 Google 继续" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "以游客身份继续" }),
+    ).toHaveAttribute("href", "/zh-CN/companies/AAPL?source=login");
+    expect(screen.getByText("每天 2 次研究对话 · 历史保留 7 天")).toBeInTheDocument();
   });
 });
