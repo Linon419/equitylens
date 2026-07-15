@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useSession } from "@/components/session-provider";
 import { AnalysisControl } from "./analysis-control";
 import { BusinessSummary } from "./business-summary";
+import { ChatWorkbench } from "./chat/chat-workbench";
 import { CitationPanel } from "./citation-panel";
 import { CompanyHeader } from "./company-header";
 import { companyPageCopy } from "./copy";
@@ -46,12 +48,14 @@ export function CompanyPage({
   locale: Locale;
   symbol: string;
 }) {
+  const { user } = useSession();
   const [resources, setResources] = useState<Resources>({
     loading: true,
     notFound: false,
     unavailable: [],
   });
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -142,9 +146,14 @@ export function CompanyPage({
 
   const intelligence = resources.intelligence;
   return (
-    <main className="company-page">
+    <main className={`company-page${chatOpen ? " company-page--chat-open" : ""}`}>
+      <div className="company-dossier">
       <a className="company-page__back" href={`/${locale}/dashboard`}>← {copy.back}</a>
-      <CompanyHeader company={resources.company} copy={copy.header} />
+      <CompanyHeader
+        company={resources.company}
+        copy={copy.header}
+        onOpenChat={() => setChatOpen(true)}
+      />
       {resources.unavailable.length > 0 ? (
         <p className="company-page__partial">{copy.partialLoad}</p>
       ) : null}
@@ -221,6 +230,15 @@ export function CompanyPage({
           onClose={() => setSelectedCitation(null)}
         />
       ) : null}
+      </div>
+      <ChatWorkbench
+        authenticated={Boolean(user)}
+        copy={copy.chat}
+        locale={locale}
+        onClose={() => setChatOpen(false)}
+        open={chatOpen}
+        symbol={symbol}
+      />
     </main>
   );
 }

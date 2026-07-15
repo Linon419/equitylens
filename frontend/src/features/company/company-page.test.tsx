@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/session-provider", () => ({
@@ -23,6 +24,7 @@ describe("CompanyPage", () => {
   });
 
   it("loads independent company resources and marks stale market data", async () => {
+    const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(fetchFixture);
 
     render(
@@ -49,6 +51,11 @@ describe("CompanyPage", () => {
     expect(screen.getByText(/USD · SEC XBRL Company Facts/)).toBeVisible();
     expect(screen.getByRole("heading", { name: "AI supply-chain graph" })).toBeVisible();
     expect(screen.getByText(supplyChainGraphCachedFixture.snapshot.thesis)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: companyPageCopy.en.header.ask }));
+    expect(screen.getByRole("complementary", { name: companyPageCopy.en.chat.title })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: companyPageCopy.en.chat.close }));
+    expect(screen.queryByRole("complementary", { name: companyPageCopy.en.chat.title })).toBeNull();
   });
 
   it("renders a dedicated company-not-found state", async () => {

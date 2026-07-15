@@ -8,15 +8,18 @@ import type { Company } from "@/lib/research/types";
 export function CompanyHeader({
   company,
   copy,
+  onOpenChat,
 }: {
   company: Company;
   copy: {
     add: string;
     remove: string;
+    ask: string;
     companyRecord: string;
     sector: string;
     industry: string;
   };
+  onOpenChat: () => void;
 }) {
   const { user } = useSession();
   const [saved, setSaved] = useState(false);
@@ -53,11 +56,21 @@ export function CompanyHeader({
         <div><dt>{copy.sector}</dt><dd>{company.sector ?? "—"}</dd></div>
         <div><dt>{copy.industry}</dt><dd>{company.industry ?? "—"}</dd></div>
       </dl>
-      {user ? (
-        <button disabled={pending} type="button" onClick={toggleWatchlist}>
-          {saved ? copy.remove : copy.add}
+      <div className="company-header__actions">
+        <button
+          aria-label={copy.ask}
+          className="company-header__ask"
+          type="button"
+          onClick={onOpenChat}
+        >
+          {copy.ask} <span>↗</span>
         </button>
-      ) : null}
+        {user ? (
+          <button disabled={pending} type="button" onClick={toggleWatchlist}>
+            {saved ? copy.remove : copy.add}
+          </button>
+        ) : null}
+      </div>
     </header>
   );
 }

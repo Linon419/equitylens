@@ -83,3 +83,64 @@ export type ChatStreamEvent =
   | { id: number; kind: "error"; payload: ErrorPayload };
 
 export type ChatEventKind = ChatStreamEvent["kind"];
+
+export interface ChatConversation {
+  id: string;
+  company_id: number;
+  title: string;
+  locale: ChatLocale;
+  expires_at: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessagePage {
+  items: ChatMessage[];
+  next_cursor: string | null;
+}
+
+export interface ChatReadinessResource {
+  state: "ready" | "missing" | "running" | "failed";
+  action: "company_analysis" | "filing_index" | "supply_chain_graph" | null;
+}
+
+export interface ChatReadiness {
+  company_symbol: string;
+  intelligence: ChatReadinessResource;
+  filing_text: ChatReadinessResource;
+  filing_index: ChatReadinessResource;
+  supply_chain_graph: ChatReadinessResource;
+  web_recency: ChatReadinessResource;
+}
+
+export type ChatContextSelection =
+  | {
+      kind: "market_metric";
+      metric_key: "price" | "market_cap" | "trailing_eps" | "trailing_pe" | "forward_pe";
+      observed_at?: string | null;
+    }
+  | {
+      kind: "financial_metric";
+      metric_key: string;
+      period_key: string;
+    }
+  | {
+      kind: "business_claim";
+      id: string;
+      snapshot_id: string;
+    }
+  | {
+      kind: "supply_chain_node" | "supply_chain_edge";
+      id: string;
+      snapshot_id: string;
+    };
+
+export interface SelectedChatContext {
+  key: string;
+  label: string;
+  selection: ChatContextSelection;
+}
+
+export type ChatSectionName = SectionPayload["section"];
+export type ChatSections = Record<ChatSectionName, string>;

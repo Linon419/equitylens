@@ -1209,7 +1209,7 @@ git commit -m "feat(chat): stream events through research BFF"
 - Modify: `frontend/src/features/company/copy.ts`
 - Modify: `frontend/src/app/globals.css`
 
-- [ ] **Step 1: Write reducer and workbench behavior tests**
+- [x] **Step 1: Write reducer and workbench behavior tests**
 
 Test open/close, initial guest conversation, authenticated history, new/rename/archive, message pagination, sending, accepted/stage/section/citation/complete transitions, errors, retry, request replay, quota updates, composer disable rules, and title generation display.
 
@@ -1224,7 +1224,7 @@ it("renders validated sections as events arrive", async () => {
 });
 ```
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd frontend
@@ -1233,23 +1233,23 @@ corepack pnpm test -- src/features/company/chat src/features/company/company-pag
 
 Expected: imports fail because workbench components are absent.
 
-- [ ] **Step 3: Implement the chat state hook**
+- [x] **Step 3: Implement the chat state hook**
 
 `useCompanyChat` owns the conversation list, selected conversation, paginated messages, context selection, stream `AbortController`, reducer, quota, and readiness. Generate a fresh `crypto.randomUUID()` for initial sends and retries. Preserve it during transport replay. Abort active streams on close/unmount and reload the assistant record when the stream ends after durable completion.
 
-- [ ] **Step 4: Build structured answer presentation**
+- [x] **Step 4: Build structured answer presentation**
 
 Render direct conclusion, key evidence, risks and uncertainties, and sources as distinct semantic sections. Citation chips open HTTPS links and expose title, source tier, publication/retrieval date, anchor, and excerpt. Render server text as plain paragraphs and narrow inline emphasis; keep HTML disabled.
 
-- [ ] **Step 5: Build desktop history and workbench shell**
+- [x] **Step 5: Build desktop history and workbench shell**
 
 At 768 px and above, change the company page to a flexible dossier column plus a 430 px workbench. Add symbol, title, history, new conversation, close, message list, selected-context chips, composer, automatic-web status, quota, and research disclaimer. Authenticated users receive create/rename/archive; guests receive the active singleton plus archive-and-start-fresh.
 
-- [ ] **Step 6: Add bilingual copy**
+- [x] **Step 6: Add bilingual copy**
 
 Add complete `en` and `zh` keys for all controls, stage status, section headings, quota, readiness, context labels, errors, retry, citations, history, disclaimer, and suggested questions. Keep server-created historical message text in its stored locale.
 
-- [ ] **Step 7: Validate workbench and company regressions**
+- [x] **Step 7: Validate workbench and company regressions**
 
 ```bash
 cd frontend
@@ -1258,7 +1258,7 @@ corepack pnpm test -- src/features/company/chat src/features/company/company-pag
 
 Expected: workbench, history, stream transitions, and both dictionaries pass.
 
-- [ ] **Step 8: Commit the research workbench**
+- [x] **Step 8: Commit the research workbench**
 
 ```bash
 git add frontend/src/features/company/chat frontend/src/features/company/company-page.tsx frontend/src/features/company/company-page.test.tsx frontend/src/features/company/company-header.tsx frontend/src/features/company/copy.ts frontend/src/app/globals.css
