@@ -15,6 +15,7 @@ def test_compose_defines_the_complete_application_stack() -> None:
     assert services["db"]["environment"]["POSTGRES_DB"] == (
         "${POSTGRES_DB:-equitylens}"
     )
+    assert services["db"]["image"].startswith("pgvector/pgvector:")
     assert {
         "db",
         "redis",
@@ -44,6 +45,7 @@ def test_compose_defines_the_complete_application_stack() -> None:
     assert '"$${S3_BUCKET}" "$${S3_BUCKET}"' in init["command"]
     assert init["environment"]["S3_BUCKET"] == "${S3_BUCKET:-filings}"
     assert services["api"]["build"]["target"] == "api"
+    assert services["api"]["ports"] == ["${API_PORT:-8000}:8000"]
     assert services["worker"]["build"]["target"] == "worker"
     assert services["web"]["build"]["context"] == "./frontend"
     assert services["web"]["environment"]["GUEST_SIGNING_SECRET"] == (
@@ -122,6 +124,18 @@ def test_worker_image_packages_the_graph_runtime_and_s3_client() -> None:
     assert "run_supply_chain_graph" in tasks
 
 
+def test_docker_worker_and_proxy_guidance_support_research_chat() -> None:
+    rq_backend = (ROOT / "backend" / "app" / "jobs" / "rq_backend.py").read_text()
+    tasks = (ROOT / "backend" / "app" / "jobs" / "tasks.py").read_text()
+    guide = (ROOT / "deploy" / "docker" / "README.md").read_text()
+
+    assert '"filing_index": "app.jobs.tasks.run_filing_index"' in rq_backend
+    assert "def run_filing_index(" in tasks
+    assert "proxy_buffering off;" in guide
+    assert "X-Accel-Buffering" in guide
+    assert "text/event-stream" in guide
+
+
 def test_environment_template_contains_placeholders_only() -> None:
     template = (ROOT / ".env.example").read_text()
 
@@ -135,6 +149,10 @@ def test_environment_template_contains_placeholders_only() -> None:
     assert "NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-client-id" in template
     assert "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=" in template
     assert "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=" in template
+    assert "CHAT_INDEX_WORKFLOW_TRIGGER_URL=" in template
+    assert "CHAT_GUEST_DAILY_LIMIT=2" in template
+    assert "CHAT_USER_DAILY_LIMIT=10" in template
+    assert "CHAT_GUEST_RETENTION_DAYS=7" in template
     assert "MINIO_ROOT_USER=replace-with-minio-root-user" in template
     assert "MINIO_ROOT_PASSWORD=replace-with-minio-root-password" in template
     assert "S3_ACCESS_KEY_ID=replace-with-minio-app-user" in template

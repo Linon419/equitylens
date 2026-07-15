@@ -32,8 +32,27 @@ Health endpoints:
 
 The API creates durable job records and Redis dispatches them to the
 `company-intelligence` RQ queue. The worker runs the same idempotent five-step
-company-intelligence pipeline and the six-step supply-chain graph pipeline used
-by Vercel Workflow.
+company-intelligence pipeline, six-step supply-chain graph pipeline, and 10-K
+filing-index job used by Vercel Workflow.
+
+Research chat streams through the existing web port (`3000`) and API port
+(`8000`). Preserve Server-Sent Events when an HTTPS reverse proxy fronts the
+Compose services. An Nginx location can use:
+
+```nginx
+location /api/research/ {
+    proxy_pass http://web:3000;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_cache off;
+    add_header X-Accel-Buffering no;
+}
+```
+
+The chat response uses `Content-Type: text/event-stream`,
+`Cache-Control: no-cache, no-transform`, and `X-Accel-Buffering: no`. Carry
+these headers through every proxy layer so answer events reach the browser as
+they are emitted.
 
 The current compact filing path stores compressed 10-K source bytes in
 PostgreSQL. Supply-chain research stores compressed official-source artifacts
@@ -60,6 +79,10 @@ The shared guest pool permits two accepted graph jobs per UTC day when devoted
 to graph research; company intelligence uses the same pool. Active-job and
 cached-result reuse costs zero additional units, and retryable system failures
 refund the reservation idempotently.
+
+Chat has an independent message quota: guests receive two messages per UTC day
+and authenticated users receive ten. Starting the latest 10-K filing-index job
+uses zero Agent and chat quota units.
 
 Run the full smoke path after startup:
 

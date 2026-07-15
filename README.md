@@ -15,7 +15,7 @@ financial performance, market price, and valuation in one research workspace.
 
 | Deploy the API | Deploy the Web app |
 |---|---|
-| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CWORKFLOW_TRIGGER_URL%2CSUPPLY_CHAIN_WORKFLOW_TRIGGER_URL%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+shared+signing+secrets%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
+| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CWORKFLOW_TRIGGER_URL%2CSUPPLY_CHAIN_WORKFLOW_TRIGGER_URL%2CCHAT_INDEX_WORKFLOW_TRIGGER_URL%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+shared+signing+secrets%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
 
 [Quick start](#quick-start) · [Architecture](#architecture) · [Deployment](#deployment) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
@@ -23,8 +23,9 @@ financial performance, market price, and valuation in one research workspace.
 
 > [!IMPORTANT]
 > **Phase 2 Beta.** Public company search, compact valuation context, four-year
-> SEC financials, automated 10-K analysis, an AI-generated supply-chain graph, guest
-> quotas, Google authentication, and persistent watchlists are implemented.
+> SEC financials, automated 10-K analysis, an AI-generated supply-chain graph,
+> citation-backed research chat, guest quotas, Google authentication, and
+> persistent watchlists are implemented.
 > Market-data licensing review and production infrastructure remain launch gates.
 
 ## Why EquityLens
@@ -57,7 +58,8 @@ and six connected questions:
 | Relationship evidence drawers with official-source excerpts | Available |
 | Guest two/day and authenticated ten/day Agent quotas | Available |
 | Google sign-in, rotating sessions, and persistent watchlists | Available |
-| Manual filing upload, research chat, DCF, and peer valuation | Planned |
+| Citation-backed company research chat with durable citations | Available |
+| Manual filing upload, DCF, and peer valuation | Planned |
 
 The detailed product design lives in
 [`docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md`](docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md).
@@ -66,6 +68,9 @@ The shipped surface and launch gates are tracked in
 The graph-specific decisions and implementation sequence live in the
 [`agentic graph design`](docs/superpowers/specs/2026-07-14-agentic-supply-chain-graph-design.md)
 and [`agentic graph plan`](docs/superpowers/plans/2026-07-14-agentic-supply-chain-graph.md).
+The research-chat retrieval, citation, streaming, and lifecycle decisions live
+in the [`company research chat design`](docs/superpowers/specs/2026-07-14-company-research-chat-design.md)
+and [`company research chat plan`](docs/superpowers/plans/2026-07-14-company-research-chat.md).
 
 ## Architecture
 
@@ -78,6 +83,7 @@ flowchart LR
     api --> storage["Document storage"]
     api --> jobs["Durable job record"]
     jobs --> graph["Supply-chain graph Agent"]
+    api --> chat["Company research chat Agent"]
     jobs --> workflow["Vercel Workflow"]
     jobs --> worker["RQ worker"]
     workflow --> api
@@ -89,6 +95,9 @@ flowchart LR
     worker --> db
     graph --> storage
     graph --> llm
+    chat --> db
+    chat --> storage
+    chat --> llm
     db --> api
 ```
 
@@ -106,6 +115,15 @@ confidence thresholds, graph size, and schema invariants. The shared guest pool
 permits two accepted graph jobs per UTC day when devoted to graph research;
 company intelligence uses the same pool. Active jobs and cached snapshots reuse
 the existing result at zero quota cost.
+
+Citation-backed company research chat combines the latest indexed 10-K,
+structured company context, and bounded Agent-selected web evidence. Hybrid
+full-text and vector retrieval keeps filing citations grounded in exact
+excerpts, and the answer streams through the same-origin BFF. Guests receive
+two chat messages per UTC day. Authenticated users receive ten chat messages per UTC day,
+and guest conversations are retained for seven days. This message
+quota is independent from the Agent job quota; filing-index preparation costs
+zero units.
 
 ## Repository layout
 
@@ -178,21 +196,32 @@ The deterministic local journey uses SQLite and synchronous fake providers:
 
 ```bash
 cd backend
-uv run pytest tests/integration/test_company_research_journey.py -q
+uv run pytest tests/integration/test_company_research_journey.py \
+  tests/integration/test_company_chat_journey.py \
+  tests/chat/test_rag_evaluation.py -q
 ```
 
 This test mode exercises the real routes, database models, quotas, pipeline,
-citations, and serializers with deterministic provider responses.
+citations, chat retrieval, Agent web decisions, streaming persistence, and
+serializers with deterministic provider responses.
 
-Graph Agent deployment variables:
+Research Agent deployment variables:
 
 | Variable | Purpose |
 |---|---|
 | `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` | Optional graph-specific model; `RESEARCH_MODEL` remains the default |
 | `WORKFLOW_TRIGGER_URL` | Company-intelligence Workflow trigger |
 | `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Supply-chain graph Workflow trigger |
+| `CHAT_INDEX_WORKFLOW_TRIGGER_URL` | Zero-quota latest-10-K index Workflow trigger |
 | `BLOB_READ_WRITE_TOKEN` | Private Vercel Blob access for official-source artifacts |
 | `S3_ENDPOINT_URL`, `S3_BUCKET` | MinIO or S3-compatible graph artifact storage |
+| `CHAT_WEB_ARTIFACT_PREFIX` | Private bounded web-evidence namespace; default `chat-web` |
+
+Chat defaults allocate two guest messages and ten authenticated messages per
+UTC day, retain guest conversations for seven days, retrieve at most eight
+filing chunks, and fetch at most eight bounded web pages when the Agent elects
+to search. Every `CHAT_*` setting is documented in
+[`docs/deployment.md`](docs/deployment.md) and both environment templates.
 
 ### Google authentication
 
@@ -220,9 +249,11 @@ EquityLens uses two Vercel Projects connected to the repository:
 2. Copy the resulting API production URL.
 3. Deploy `frontend/` with the **Deploy Web** button and set `BACKEND_URL` to
    the API URL.
-4. Set the API Project's `CORS_ORIGINS` to the Web production origin and
+4. Point `WORKFLOW_TRIGGER_URL`, `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`, and
+   `CHAT_INDEX_WORKFLOW_TRIGGER_URL` at their Web Project Workflow routes.
+5. Set the API Project's `CORS_ORIGINS` to the Web production origin and
    redeploy the API.
-5. Run the shared smoke check against both production origins.
+6. Run the shared smoke check against both production origins.
 
 The API button requests the database, authentication, OpenAI, Blob, and parser
 credentials required by the Vercel profile. Deploy Button defaults contain only
@@ -237,7 +268,7 @@ The shared profile comparison and verification commands live in
 The Docker profile runs the web app, API, worker, PostgreSQL / pgvector, Redis,
 and MinIO as one Compose project. See
 [`deploy/docker/README.md`](deploy/docker/README.md) for lifecycle and
-troubleshooting commands.
+troubleshooting commands, including the SSE reverse-proxy contract.
 
 ## Health checks
 
@@ -262,7 +293,7 @@ uv lock --check
 uv run ruff check app tests
 uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 uv run alembic upgrade head
-uv run alembic downgrade 20260713_0002
+uv run alembic downgrade 20260714_0004
 uv run alembic upgrade head
 
 cd ../frontend
@@ -292,7 +323,7 @@ git diff --check
 ## Roadmap
 
 - Manual filing upload and user-owned source libraries
-- Citation-backed research chat and saved research notes
+- Saved research notes and exports
 - DCF, peer multiples, and valuation scenario analysis
 - Licensed production market-data adapter
 - Additional filing types and refresh policies

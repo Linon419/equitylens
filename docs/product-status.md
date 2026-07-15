@@ -1,6 +1,6 @@
 # Product status
 
-Status date: 2026-07-14  
+Status date: 2026-07-15
 Release stage: Phase 2 beta
 
 ## Implemented user journey
@@ -27,6 +27,16 @@ Release stage: Phase 2 beta
 10. Retryable graph failures refund quota idempotently and preserve the latest
     published graph during refresh.
 11. Google users can persist and remove watchlist companies.
+12. Investors can open a company-scoped research panel, prepare the latest 10-K
+    index at zero quota cost, and ask questions in English or Chinese.
+13. The chat Agent rewrites conversational questions, fuses filing full-text
+    and vector retrieval, resolves current company context, and decides whether
+    bounded web evidence is useful.
+14. Answers stream incrementally and persist with filing, market, financial,
+    graph, and web citations that retain exact supporting excerpts.
+15. Guests receive two chat messages per UTC day in an independent quota pool;
+    authenticated users receive ten. Guest conversations expire after seven
+    days, and retryable system failures refund quota idempotently.
 
 ## Implemented engineering surface
 
@@ -40,17 +50,22 @@ Release stage: Phase 2 beta
 | Intelligence | Structured generation, verification, localization invariants, citations |
 | Supply-chain graph | AI source planning/extraction/verification/localization plus deterministic publication gates |
 | Graph evidence | Private S3/MinIO or Vercel Blob artifacts with public capped excerpts |
+| Research chat | Available: durable conversations, hybrid filing retrieval, Agent-selected web evidence, SSE, and citation validation |
 | Jobs | Database state machine with Vercel Workflow and Redis/RQ adapters |
 | Identity | Signed guest principal, rotating Google sessions, same-origin BFF |
-| Quality | Backend suite, 126 frontend tests, production build, and 9 Playwright journeys |
+| Quality | Backend suite, 169 frontend tests, production build, and 19 Playwright journeys |
 
 ## Release validation (Docker host gate pending)
 
-The native and Vercel-build graph slice passed the backend suite, Ruff,
-deployment contract tests, 126 frontend tests, TypeScript, ESLint, the Next.js
-production build, and all 9 Chromium journeys on 2026-07-14. Docker descriptor
-structure passed YAML and contract validation. Release status remains pending
-until Docker Compose config and image builds pass on a Docker-enabled release host.
+The native and Vercel-build research surface passed the backend suite, Ruff,
+deployment contract tests, 169 frontend tests, TypeScript, ESLint, the Next.js
+production build, and all 19 Chromium journeys on 2026-07-15. Docker descriptor
+structure passed YAML and contract validation. Docker Compose config and image
+builds remain a release-host gate.
+
+The approved research-chat scope and implementation sequence are recorded in
+the [company research chat design](superpowers/specs/2026-07-14-company-research-chat-design.md)
+and [company research chat plan](superpowers/plans/2026-07-14-company-research-chat.md).
 
 ## Launch gates
 
@@ -65,7 +80,6 @@ until Docker Compose config and image builds pass on a Docker-enabled release ho
 ## Planned product work
 
 - Manual filing upload
-- Research chat with citation-level retrieval
 - DCF, peer multiples, and valuation scenarios
 - Saved notes and research history
 - 10-Q and additional source coverage

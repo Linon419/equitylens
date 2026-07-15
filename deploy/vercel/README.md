@@ -43,6 +43,7 @@ Variables:
 - `INTERNAL_JOB_SECRET`
 - `WORKFLOW_TRIGGER_URL`
 - `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`
+- `CHAT_INDEX_WORKFLOW_TRIGGER_URL`
 - `CORS_ORIGINS`
 - `SEC_USER_AGENT`
 - `MARKET_DATA_PROVIDER`
@@ -69,11 +70,12 @@ GUEST_SIGNING_SECRET=replace-with-shared-32-character-secret
 INTERNAL_JOB_SECRET=replace-with-shared-32-character-secret
 ```
 
-Set both API Project trigger variables to their Web Project routes:
+Set all API Project trigger variables to their Web Project routes:
 
 ```dotenv
 WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/company-intelligence
 SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/supply-chain-graph
+CHAT_INDEX_WORKFLOW_TRIGGER_URL=https://equitylens-web.example.com/api/internal/workflows/filing-index
 ```
 
 Use the same `GUEST_SIGNING_SECRET` and `INTERNAL_JOB_SECRET` values in both
@@ -83,13 +85,18 @@ idempotent FastAPI step request using only the database job ID.
 
 Use exact HTTPS origins and omit trailing slashes.
 
-## 3. Private graph evidence storage
+## 3. Private research evidence storage
 
 Create a private Vercel Blob store and connect it to the API Project. Set its
 generated `BLOB_READ_WRITE_TOKEN` in Production and Preview environments. The
 graph collector writes compressed official-source artifacts with
 `access="private"`; the public API exposes capped evidence excerpts and source
 URLs while the raw artifacts stay behind the server-side token.
+
+Bounded web evidence collected for research chat uses the private `chat-web/`
+namespace. The public response carries exact excerpts and source URLs, while
+the full fetched artifact remains accessible through the API's server-side
+token.
 
 Keep these defaults aligned across deployments so cached graph snapshots remain
 reproducible:
@@ -120,6 +127,11 @@ PostgreSQL. The supply-chain graph pipeline stores compressed official-source
 artifacts in private Vercel Blob and durable stage records in PostgreSQL.
 Workflow steps depend on durable records and object keys.
 
+Research chat retrieves indexed 10-K chunks through PostgreSQL full-text search
+and pgvector. When the current filing lacks an index, the API dispatches a
+zero-quota Workflow through `/api/internal/workflows/filing-index`; its single
+idempotent step creates or replaces the filing chunks and embeddings.
+
 Official-source collection accepts at most 24 sources and 8 MB total under the
 default profile. `SEC_USER_AGENT` remains mandatory for SEC requests. The
 collector also enforces host allowlists, DNS pinning, redirect controls, content
@@ -129,6 +141,10 @@ Each newly accepted graph job reserves one Agent quota unit. Cached snapshots
 and active jobs reuse the current result at zero cost. System and retryable
 collection failures refund the reservation idempotently; a completed
 insufficient-evidence result consumes the accepted unit.
+
+Chat uses an independent quota ledger. Guests receive two messages per UTC day,
+authenticated users receive ten, and accepted system failures refund the
+message reservation. Guest conversations and messages expire after seven days.
 
 ## 5. Connect both origins
 
@@ -161,6 +177,7 @@ The expected endpoints are:
 - Web health: `GET /api/health`
 - Public dashboard: `GET /en-US/dashboard`
 - Research BFF: `GET /api/research/companies/search?q=AAPL`
+- Chat readiness: `GET /api/research/companies/AAPL/chat-readiness`
 - API smoke alias: `GET /api/v1/health`
 - API liveness: `GET /api/v1/health/live`
 - API readiness: `GET /api/v1/health/ready`
@@ -168,6 +185,11 @@ The expected endpoints are:
 Generate an AAPL graph from the English company page, open one verified
 relationship, enable potential relationships, switch to Chinese, and refresh
 the page. The published snapshot and quota count should remain stable.
+
+Open the company research panel, prepare the filing index when prompted, send a
+filing question, and confirm that answer text and citations arrive
+incrementally. Repeat the journey as a guest and authenticated user to verify
+the independent daily message limits.
 
 ## Local Vercel builds
 

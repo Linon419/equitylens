@@ -38,6 +38,7 @@ EXPECTED_DEPLOYS = {
             "INTERNAL_JOB_SECRET",
             "WORKFLOW_TRIGGER_URL",
             "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
+            "CHAT_INDEX_WORKFLOW_TRIGGER_URL",
             "MARKET_DATA_PROVIDER",
             "RESEARCH_MODEL",
             "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE",
@@ -146,3 +147,20 @@ def test_readme_links_graph_design_plan_and_documents_guest_quota() -> None:
         in content
     )
     assert "two accepted graph jobs per UTC day" in content
+
+
+def test_readme_documents_the_research_chat_release_surface() -> None:
+    content = readme_text()
+    deployment = (ROOT / "docs" / "deployment.md").read_text()
+    status = (ROOT / "docs" / "product-status.md").read_text()
+
+    assert "Citation-backed company research chat" in content
+    assert "two chat messages per UTC day" in content
+    assert "ten chat messages per UTC day" in content
+    assert "seven days" in content
+    assert "CHAT_INDEX_WORKFLOW_TRIGGER_URL" in deployment
+    assert "chat-web/" in deployment
+    assert "proxy_buffering off;" in deployment
+    assert "company-research-chat-design.md" in status
+    assert "company-research-chat.md" in status
+    assert "Research chat" in status and "Available" in status

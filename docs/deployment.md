@@ -17,6 +17,12 @@ Company intelligence uses `download`, `parse`, `analyze`, `verify`, and
 `verify`, `localize`, and `publish`. Every step checks durable job and stage
 state before writing, which supports safe replay by Workflow and RQ.
 
+Company research chat uses a durable filing-index job followed by synchronous
+query rewriting, hybrid full-text/vector retrieval, structured context
+resolution, bounded Agent-selected web evidence, answer validation, and an SSE
+response. Conversation messages and citations are committed before the stream
+reports completion.
+
 ## Required environment
 
 ### Shared application values
@@ -41,6 +47,29 @@ state before writing, which supports safe replay by Workflow and RQ.
 | `SUPPLY_CHAIN_GRAPH_SOURCE_BYTES` | Total compressed-source input ceiling |
 | `SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET` | Agent evidence context ceiling |
 | `GRAPH_ARTIFACT_PREFIX` | Private object-storage key namespace |
+| `CHAT_GUEST_DAILY_LIMIT` | Independent guest messages per UTC day; default `2` |
+| `CHAT_USER_DAILY_LIMIT` | Independent authenticated messages per UTC day; default `10` |
+| `CHAT_GUEST_RETENTION_DAYS` | Guest conversation lifecycle; default `7` |
+| `CHAT_MAX_MESSAGE_CHARS` | Maximum user-message size |
+| `CHAT_MAX_HISTORY_MESSAGES` | Conversation turns supplied to rewriting |
+| `CHAT_CHUNK_TARGET_TOKENS` | Deterministic filing chunk target |
+| `CHAT_CHUNK_OVERLAP_TOKENS` | Filing chunk overlap |
+| `CHAT_CHUNK_MIN_FINAL_TOKENS` | Minimum final chunk before merging |
+| `CHAT_RETRIEVAL_CANDIDATES` | Candidate count per FTS and vector channel |
+| `CHAT_RETRIEVAL_MAX_CHUNKS` | Maximum chunks in answer context |
+| `CHAT_RETRIEVAL_MAX_PER_SECTION` | Per-section diversity ceiling |
+| `CHAT_RETRIEVAL_TOKEN_BUDGET` | Filing evidence context budget |
+| `CHAT_RRF_K` | Reciprocal-rank-fusion constant |
+| `CHAT_WEB_MAX_QUERIES` | Maximum Agent-selected search queries |
+| `CHAT_WEB_MAX_PAGES` | Maximum fetched web evidence pages |
+| `CHAT_WEB_SEARCH_PROVIDER` | Bounded web search provider |
+| `CHAT_EMBEDDING_MODEL` | Filing chunk embedding model |
+| `CHAT_EMBEDDING_DIMENSIONS` | pgvector embedding dimensions |
+| `CHAT_MODEL_OVERRIDE` | Optional chat-specific model |
+| `CHAT_PROMPT_VERSION` | Persisted chat prompt identity |
+| `CHAT_ANSWER_SCHEMA_VERSION` | Persisted answer contract identity |
+| `CHAT_INDEX_SCHEMA_VERSION` | Filing-index contract identity |
+| `CHAT_WEB_ARTIFACT_PREFIX` | Private web artifact namespace; default `chat-web` |
 
 Use independent random values of at least 32 characters for every secret. The
 frontend and backend receive the same `GUEST_SIGNING_SECRET` and
@@ -75,8 +104,8 @@ SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=
 Compose waits for MinIO readiness, creates `S3_BUCKET` through `minio-init`,
 removes anonymous access, and provisions a bucket-scoped application identity
 before API and worker startup. MinIO stays on the private Compose network. The
-worker listens on the `company-intelligence` queue and routes both durable job
-types:
+worker listens on the `company-intelligence` queue and routes company
+intelligence, supply-chain graph, and `filing_index` jobs:
 
 ```bash
 uv run rq worker --url redis://redis:6379/0 company-intelligence
@@ -91,6 +120,7 @@ JOB_BACKEND=vercel_workflow
 DOCUMENT_PARSER=managed
 WORKFLOW_TRIGGER_URL=https://web.example.com/api/internal/workflows/company-intelligence
 SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=https://web.example.com/api/internal/workflows/supply-chain-graph
+CHAT_INDEX_WORKFLOW_TRIGGER_URL=https://web.example.com/api/internal/workflows/filing-index
 BLOB_READ_WRITE_TOKEN=replace-with-private-store-token
 ```
 
@@ -114,6 +144,16 @@ the selected private object store. PostgreSQL keeps source metadata, integrity
 digests, Agent stage artifacts, graph snapshots, nodes, edges, and evidence
 references. Schema and prompt version changes create distinct cache identities.
 
+Alembic revision `20260714_0005` creates the chat conversation, message,
+citation, quota, filing-chunk, and web-source tables. PostgreSQL applies a GIN
+full-text index and pgvector HNSW index to filing chunks. Re-indexing replaces a
+filing's chunk set idempotently.
+
+Agent-selected web evidence is compressed and content-addressed beneath the
+private `chat-web/` object-storage prefix. Public citations expose the source
+URL and a bounded supporting excerpt. Guest conversations, messages, and their
+citations are deleted after seven days by the lifecycle cleanup path.
+
 ## Data-source operations
 
 SEC EDGAR requests must carry `SEC_USER_AGENT` with an application name and
@@ -135,6 +175,30 @@ receive ten total Agent jobs. A new accepted job reserves one unit. Active jobs
 and cached snapshots use zero additional units. Retryable system or collection
 failures refund the reservation idempotently. Published insufficient-evidence
 results consume the accepted unit.
+
+Research chat maintains a separate quota ledger. Guests receive two chat
+messages per UTC day and authenticated users receive ten chat messages per UTC
+day. Filing-index preparation consumes zero chat and Agent units. Retryable
+answer failures refund the reserved message idempotently, and replaying an
+accepted client message ID returns its durable result.
+
+## Streaming proxy contract
+
+The Next.js research BFF forces dynamic execution, disables fetch caching, and
+passes the FastAPI response body through as a stream. Preserve
+`Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, and
+`X-Accel-Buffering: no` across CDN and reverse-proxy layers. Nginx deployments
+should include:
+
+```nginx
+location /api/research/ {
+    proxy_pass http://web:3000;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_cache off;
+    add_header X-Accel-Buffering no;
+}
+```
 
 ## Reproducible setup
 
@@ -179,6 +243,17 @@ cd frontend
 corepack pnpm exec playwright test e2e/company-intelligence.spec.ts
 ```
 
+Deterministic research-chat validation:
+
+```bash
+cd backend
+uv run pytest tests/chat/test_rag_evaluation.py \
+  tests/integration/test_company_chat_journey.py -q
+
+cd ../frontend
+corepack pnpm exec playwright test e2e/company-chat.spec.ts
+```
+
 ## Verification commands
 
 ```bash
@@ -187,7 +262,7 @@ uv lock --check
 uv run ruff check app tests
 uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 uv run alembic upgrade head
-uv run alembic downgrade 20260713_0002
+uv run alembic downgrade 20260714_0004
 uv run alembic upgrade head
 
 cd ../frontend

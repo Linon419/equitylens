@@ -1417,7 +1417,7 @@ git commit -m "test(chat): cover research chat journeys"
 - Modify: `backend/tests/test_vercel_config.py`
 - Modify: `backend/tests/test_readme.py`
 
-- [ ] **Step 1: Write deployment-contract tests**
+- [x] **Step 1: Write deployment-contract tests**
 
 Assert:
 
@@ -1429,7 +1429,7 @@ Assert:
 - BFF keeps dynamic streaming and cache disabled;
 - delayed FastAPI and BFF chunks arrive incrementally.
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd backend
@@ -1438,11 +1438,11 @@ uv run pytest tests/test_docker_profile.py tests/test_vercel_config.py tests/tes
 
 Expected: failures for missing chat deployment and documentation contracts.
 
-- [ ] **Step 3: Update deployment and product documentation**
+- [x] **Step 3: Update deployment and product documentation**
 
 Document local setup, migrations, pgvector, chat environment keys, RQ worker job, Vercel Workflow trigger, SSE buffering, guest/user limits, seven-day cleanup, private `chat-web/` artifacts, provider credentials, and deterministic tests. Update product status from planned to implemented only after all gates pass. Keep the approved design and this plan linked from `docs/product-status.md`.
 
-- [ ] **Step 4: Run backend quality gates**
+- [x] **Step 4: Run backend quality gates**
 
 ```bash
 cd backend
@@ -1452,7 +1452,7 @@ uv run pytest --cov=app --cov-report=term-missing
 
 Expected: Ruff exits `0`, all backend tests pass, and configured coverage remains at or above 80%.
 
-- [ ] **Step 5: Run frontend quality gates**
+- [x] **Step 5: Run frontend quality gates**
 
 ```bash
 cd frontend
@@ -1464,7 +1464,7 @@ corepack pnpm test:e2e
 
 Expected: lint, unit tests, production build, and Playwright exit `0`.
 
-- [ ] **Step 6: Run migration and deployment gates**
+- [x] **Step 6: Run migration and deployment gates**
 
 ```bash
 cd backend
@@ -1477,7 +1477,12 @@ git diff --check
 
 Expected: reversible migration, deployment tests, docs test, and whitespace check all pass.
 
-- [ ] **Step 7: Inspect scope and secrets**
+The SQLite Alembic round trip, single-head assertion, deployment contracts, and
+whitespace check passed on 2026-07-15. A live PostgreSQL URL and Docker CLI are
+absent from this workstation, so PostgreSQL upgrade/downgrade and Compose image
+builds remain release-host gates.
+
+- [x] **Step 7: Inspect scope and secrets**
 
 ```bash
 git status --short
