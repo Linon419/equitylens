@@ -268,4 +268,3 @@ def _candidate_priority(
 ) -> tuple[int, int, str]:
     candidate, tier, canonical = value
     return (0 if tier == "primary" else 1, candidate.tool_ordinal, canonical)
-
