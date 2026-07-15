@@ -10,6 +10,11 @@ from app.chat.schemas import (
     ResearchAnswerPlan,
 )
 
+_QUESTION_GAP_MARKERS = (
+    "specific research question",
+    "具体投研问题",
+)
+
 _MISSING_MARKERS = (
     "insufficient",
     "missing",
@@ -18,6 +23,7 @@ _MISSING_MARKERS = (
     "缺失",
     "无法",
     "证据不足",
+    *_QUESTION_GAP_MARKERS,
 )
 
 
@@ -131,7 +137,11 @@ def _validate_coverage(
     if evidence.evidence_gaps and plan.evidence_coverage == "complete":
         issues.append("complete coverage is invalid while evidence gaps remain")
     if plan.evidence_coverage == "insufficient":
-        if not evidence.evidence_gaps:
+        question_gap = any(
+            marker in plan.direct_conclusion.text.casefold()
+            for marker in _QUESTION_GAP_MARKERS
+        )
+        if not evidence.evidence_gaps and not question_gap:
             issues.append("insufficient coverage requires an evidence gap")
         if not any(
             marker in plan.direct_conclusion.text.casefold()

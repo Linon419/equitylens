@@ -45,6 +45,31 @@ class FakePlanningModel:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("question", "locale", "expected"),
+    [
+        ("你好", "zh-CN", "具体投研问题"),
+        ("Hello!", "en-US", "specific research question"),
+    ],
+)
+async def test_agent_handles_greetings_without_model_generation(
+    evidence_pack: AnswerEvidencePack,
+    question: str,
+    locale: str,
+    expected: str,
+) -> None:
+    model = FakePlanningModel([])
+    agent = CitationBoundAnswerAgent(model)
+
+    plan = await agent.create_plan(question, evidence_pack, locale=locale)
+
+    assert expected in plan.direct_conclusion.text
+    assert plan.evidence_coverage == "insufficient"
+    assert plan.sources == []
+    assert model.requests == []
+
+
+@pytest.mark.asyncio
 async def test_agent_repairs_invalid_citations_once(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],

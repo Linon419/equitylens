@@ -9,6 +9,7 @@ from uuid import UUID
 
 from app.chat.artifacts import StoredWebArtifact, WebArtifactPage
 from app.chat.contracts import WebArtifactWriter, WebPageFetcher, WebSearchProvider
+from app.chat.intents import is_conversational_prompt
 from app.chat.web_discovery import (
     OpenAIWebSearchProvider,
     SearchCall,
@@ -107,6 +108,8 @@ class BoundedWebSearchService:
         self._monotonic = monotonic
 
     async def search(self, request: WebSearchRequest) -> WebSearchResult:
+        if is_conversational_prompt(request.question):
+            return WebSearchResult(decision="not_needed")
         initial_decision = _search_decision(request)
         started = self._monotonic()
         try:

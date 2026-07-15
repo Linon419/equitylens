@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.chat.contracts import AnswerPlanningModel
+from app.chat.intents import is_conversational_prompt
 from app.chat.prompts import AnswerPlanningRequest
 from app.chat.schemas import AnswerEvidencePack, ResearchAnswerPlan
 from app.chat.validator import (
@@ -107,6 +108,10 @@ class CitationBoundAnswerAgent:
         locale: str,
         history: list[str] | None = None,
     ) -> ResearchAnswerPlan:
+        if is_conversational_prompt(question):
+            plan = _conversational_plan(locale, evidence.web_search_used)
+            validate_answer_plan(plan, evidence, locale=locale)
+            return plan
         feedback: str | None = None
         for attempt in range(2):
             request = AnswerPlanningRequest(
@@ -139,6 +144,35 @@ class CitationBoundAnswerAgent:
             503,
             {"retryable": True},
         )
+
+
+def _conversational_plan(locale: str, web_search_used: bool) -> ResearchAnswerPlan:
+    if locale == "zh-CN":
+        conclusion = (
+            "你好，我是 EquityLens 公司投研 Agent。当前缺少具体投研问题，"
+            "请继续询问公司的业务、财报、估值或产业链。"
+        )
+        guidance = "缺少具体投研问题，当前无法执行证据分析。"
+    else:
+        conclusion = (
+            "Hello, I am the EquityLens company research Agent. A specific research "
+            "question is missing; ask about the company's business, filings, "
+            "valuation, or supply chain."
+        )
+        guidance = (
+            "A specific research question is missing, so evidence analysis is "
+            "unavailable."
+        )
+    return ResearchAnswerPlan.model_validate(
+        {
+            "direct_conclusion": {"text": conclusion},
+            "key_evidence": [{"text": guidance}],
+            "risks_and_uncertainties": [],
+            "sources": [],
+            "evidence_coverage": "insufficient",
+            "web_search_used": web_search_used,
+        }
+    )
 
 
 def _schema_feedback(error: Exception) -> str:

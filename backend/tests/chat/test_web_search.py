@@ -191,6 +191,18 @@ def request(question: str, coverage: str = "complete") -> WebSearchRequest:
 
 
 @pytest.mark.asyncio
+async def test_greeting_skips_web_search_even_with_low_internal_coverage() -> None:
+    provider = FakeProvider(error=AssertionError("provider should not be called"))
+    service = BoundedWebSearchService(provider, FakeFetcher(), FakeArchive())
+
+    result = await service.search(request("Hello!", "partial"))
+
+    assert result.decision == "not_needed"
+    assert result.selected_pages == []
+    assert provider.calls == []
+
+
+@pytest.mark.asyncio
 async def test_current_question_forces_bounded_verified_web_collection() -> None:
     urls = [
         "https://www.reuters.com/apple-update",
