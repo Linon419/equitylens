@@ -142,13 +142,28 @@ test("a second authenticated user receives 404 for another user's conversation",
   await secondContext.close();
 });
 
+test("desktop chat is visible by default and fits below the app header", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/en-US/companies/AAPL");
+  const dialog = page.getByRole("dialog", { name: "Ask EquityLens" });
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box?.y).toBe(82);
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(900);
+  await expect(dialog.getByRole("textbox", { name: "Research question" })).toBeEnabled();
+});
+
 test("mobile chat supports keyboard citations and restores launcher focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/en-US/companies/AAPL");
+  const dialog = page.getByRole("dialog", { name: "Ask EquityLens" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Close research chat" }).click();
+  await expect(dialog).toBeHidden();
   const launcher = page.getByRole("button", { name: "Ask EquityLens", exact: true });
   await launcher.focus();
   await launcher.click();
-  const dialog = page.getByRole("dialog", { name: "Ask EquityLens" });
+  await expect(dialog).toBeVisible();
   const box = await dialog.boundingBox();
   expect(box?.height).toBeLessThanOrEqual(779);
   await expect(dialog.getByRole("textbox", { name: "Research question" })).toBeEnabled();
@@ -168,8 +183,10 @@ async function openChat(page: Page, locale: "en-US" | "zh-CN") {
 
 async function openChatOnCurrentPage(page: Page, locale: "en-US" | "zh-CN") {
   const name = locale === "zh-CN" ? "询问 EquityLens" : "Ask EquityLens";
-  await page.getByRole("button", { name, exact: true }).click();
   const dialog = page.getByRole("dialog", { name });
+  if (!(await dialog.isVisible())) {
+    await page.getByRole("button", { name, exact: true }).click();
+  }
   await expect(dialog).toBeVisible();
   const question = locale === "zh-CN" ? "投研问题" : "Research question";
   await expect(dialog.getByRole("textbox", { name: question })).toBeEnabled();

@@ -56,7 +56,7 @@ export function CompanyPage({
     unavailable: [],
   });
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
   const [pendingChatContext, setPendingChatContext] =
     useState<SelectedChatContext | null>(null);
 

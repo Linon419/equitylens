@@ -2479,15 +2479,24 @@ a {
 
 /* Research chat: a dense analyst sidecar with durable evidence trails. */
 .company-page--chat-open {
-  align-items: start;
+  align-items: stretch;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 430px;
-  overflow: visible;
+  grid-template-rows: minmax(0, 1fr);
+  height: calc(100vh - 82px);
+  height: calc(100dvh - 82px);
+  overflow: hidden;
+  padding-bottom: 0;
 }
 
 .company-dossier {
   min-width: 0;
   overflow: hidden;
+}
+
+.company-page--chat-open .company-dossier {
+  height: 100%;
+  overflow-y: auto;
 }
 
 .chat-workbench {
@@ -2499,10 +2508,11 @@ a {
   color: var(--research-paper);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
-  position: sticky;
-  top: 0;
+  overflow: hidden;
+  position: relative;
   z-index: 30;
 }
 

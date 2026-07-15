@@ -52,10 +52,11 @@ describe("CompanyPage", () => {
     expect(screen.getByRole("heading", { name: "AI supply-chain graph" })).toBeVisible();
     expect(screen.getByText(supplyChainGraphCachedFixture.snapshot.thesis)).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: companyPageCopy.en.header.ask }));
     expect(screen.getByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeVisible();
     await user.click(screen.getByRole("button", { name: companyPageCopy.en.chat.close }));
     expect(screen.queryByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeNull();
+    await user.click(screen.getByRole("button", { name: companyPageCopy.en.header.ask }));
+    expect(screen.getByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeVisible();
   });
 
   it("renders a dedicated company-not-found state", async () => {
