@@ -33,6 +33,9 @@ VERCEL_PROVIDERS = {
     "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL": (
         "https://example.vercel.app/api/internal/workflows/supply-chain"
     ),
+    "CHAT_INDEX_WORKFLOW_TRIGGER_URL": (
+        "https://example.vercel.app/api/internal/workflows/chat-index"
+    ),
 }
 
 
@@ -87,6 +90,97 @@ def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None
     assert research_model == settings.RESEARCH_MODEL
     assert graph_model == settings.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE
     assert graph_model == settings.SUPPLY_CHAIN_GRAPH_MODEL
+
+
+def test_chat_defaults_follow_approved_contract() -> None:
+    value = Settings(
+        **BASE,
+        **DOCKER_PROVIDERS,
+        RESEARCH_MODEL="gpt-5-mini",
+    )
+
+    assert value.CHAT_MODEL == "gpt-5-mini"
+    assert value.CHAT_GUEST_DAILY_LIMIT == 2
+    assert value.CHAT_USER_DAILY_LIMIT == 10
+    assert value.CHAT_GUEST_RETENTION_DAYS == 7
+    assert value.CHAT_MAX_MESSAGE_CHARS == 2_000
+    assert value.CHAT_MAX_HISTORY_MESSAGES == 8
+    assert value.CHAT_CHUNK_TARGET_TOKENS == 700
+    assert value.CHAT_CHUNK_OVERLAP_TOKENS == 100
+    assert value.CHAT_CHUNK_MIN_FINAL_TOKENS == 120
+    assert value.CHAT_RETRIEVAL_CANDIDATES == 20
+    assert value.CHAT_RETRIEVAL_MAX_CHUNKS == 8
+    assert value.CHAT_RETRIEVAL_MAX_PER_SECTION == 3
+    assert value.CHAT_RETRIEVAL_TOKEN_BUDGET == 6_000
+    assert value.CHAT_RRF_K == 60
+    assert value.CHAT_WEB_MAX_QUERIES == 3
+    assert value.CHAT_WEB_MAX_PAGES == 8
+    assert value.CHAT_EMBEDDING_MODEL == "text-embedding-3-small"
+    assert value.CHAT_EMBEDDING_DIMENSIONS == 1_536
+    assert value.CHAT_PROMPT_VERSION == "company-chat.2026-07-14"
+    assert value.CHAT_ANSWER_SCHEMA_VERSION == "company-chat.v1"
+    assert value.CHAT_INDEX_SCHEMA_VERSION == "filing-chunk.v1"
+
+
+def test_chat_model_override_takes_precedence() -> None:
+    value = Settings(
+        **BASE,
+        **DOCKER_PROVIDERS,
+        RESEARCH_MODEL="gpt-5-mini",
+        CHAT_MODEL_OVERRIDE="gpt-5.4",
+    )
+
+    assert value.CHAT_MODEL == "gpt-5.4"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "invalid_field"),
+    [
+        (
+            {
+                "CHAT_CHUNK_TARGET_TOKENS": 100,
+                "CHAT_CHUNK_OVERLAP_TOKENS": 100,
+            },
+            "CHAT_CHUNK_OVERLAP_TOKENS",
+        ),
+        (
+            {
+                "CHAT_CHUNK_TARGET_TOKENS": 100,
+                "CHAT_CHUNK_OVERLAP_TOKENS": 10,
+                "CHAT_CHUNK_MIN_FINAL_TOKENS": 101,
+            },
+            "CHAT_CHUNK_MIN_FINAL_TOKENS",
+        ),
+        (
+            {
+                "CHAT_RETRIEVAL_CANDIDATES": 7,
+                "CHAT_RETRIEVAL_MAX_CHUNKS": 8,
+            },
+            "CHAT_RETRIEVAL_MAX_CHUNKS",
+        ),
+        (
+            {
+                "CHAT_RETRIEVAL_MAX_CHUNKS": 2,
+                "CHAT_RETRIEVAL_MAX_PER_SECTION": 3,
+            },
+            "CHAT_RETRIEVAL_MAX_PER_SECTION",
+        ),
+        (
+            {"CHAT_EMBEDDING_DIMENSIONS": 3_072},
+            "CHAT_EMBEDDING_DIMENSIONS",
+        ),
+        (
+            {"CHAT_WEB_MAX_QUERIES": 0},
+            "CHAT_WEB_MAX_QUERIES",
+        ),
+    ],
+)
+def test_chat_rejects_invalid_bounds(
+    overrides: dict[str, int],
+    invalid_field: str,
+) -> None:
+    with pytest.raises(ValidationError, match=invalid_field):
+        Settings(**BASE, **DOCKER_PROVIDERS, **overrides)
 
 
 @pytest.mark.parametrize(
@@ -158,7 +252,12 @@ def test_profile_rejects_short_phase_2_secrets(field: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "field", ["WORKFLOW_TRIGGER_URL", "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL"]
+    "field",
+    [
+        "WORKFLOW_TRIGGER_URL",
+        "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
+        "CHAT_INDEX_WORKFLOW_TRIGGER_URL",
+    ],
 )
 def test_vercel_profile_requires_workflow_trigger_url(field: str) -> None:
     providers = {**VERCEL_PROVIDERS, field: None}

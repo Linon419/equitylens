@@ -153,7 +153,7 @@
 - Modify: `.env.example`
 - Modify: `backend/.env.example`
 
-- [ ] **Step 1: Write failing settings tests**
+- [x] **Step 1: Write failing settings tests**
 
 Add these assertions to `backend/tests/core/test_config.py` using the existing valid Docker environment fixture:
 
@@ -183,7 +183,7 @@ def test_chat_rejects_invalid_chunk_and_retrieval_bounds(monkeypatch):
         Settings(_env_file=None)
 ```
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 Run:
 
@@ -194,7 +194,7 @@ uv run pytest tests/core/test_config.py -q
 
 Expected: failure because the `CHAT_*` settings and `CHAT_MODEL` property are absent.
 
-- [ ] **Step 3: Add the exact settings contract**
+- [x] **Step 3: Add the exact settings contract**
 
 Add to `Settings` in `backend/app/core/config.py`:
 
@@ -231,7 +231,7 @@ def CHAT_MODEL(self) -> str:
 
 Validate positive limits, overlap below target, minimum final chunk at or below target, max chunks at or below candidates, max-per-section at or below max chunks, and embedding dimensions equal to 1,536 for `filing-chunk.v1`. Require `CHAT_INDEX_WORKFLOW_TRIGGER_URL` in the Vercel profile.
 
-- [ ] **Step 4: Promote transitive libraries to direct dependencies**
+- [x] **Step 4: Promote transitive libraries to direct dependencies**
 
 Run:
 
@@ -242,11 +242,11 @@ uv add "openai>=1.109,<3" "tiktoken>=0.12,<1"
 
 The code imports both packages directly. Keep `pgvector`, `langchain-openai`, and existing storage packages unchanged.
 
-- [ ] **Step 5: Document environment keys**
+- [x] **Step 5: Document environment keys**
 
 Add the complete configuration block from the approved design to `.env.example` and `backend/.env.example`, including `CHAT_INDEX_WORKFLOW_TRIGGER_URL=` and `CHAT_WEB_ARTIFACT_PREFIX=chat-web`. Keep credentials empty.
 
-- [ ] **Step 6: Run focused validation**
+- [x] **Step 6: Run focused validation**
 
 ```bash
 cd backend
@@ -256,7 +256,7 @@ uv run python -c "import openai, tiktoken, pgvector"
 
 Expected: all tests pass and the import command exits `0`.
 
-- [ ] **Step 7: Commit the configuration boundary**
+- [x] **Step 7: Commit the configuration boundary**
 
 ```bash
 git add .env.example backend/.env.example backend/app/core/config.py backend/tests/core/test_config.py backend/pyproject.toml backend/uv.lock

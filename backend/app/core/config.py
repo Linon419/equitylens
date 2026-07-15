@@ -96,6 +96,30 @@ class Settings(BaseSettings):
     SUPPLY_CHAIN_GRAPH_SOURCE_BYTES: int = 8_000_000
     SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET: int = 100_000
     GRAPH_ARTIFACT_PREFIX: str = "supply-chain"
+    CHAT_GUEST_DAILY_LIMIT: int = 2
+    CHAT_USER_DAILY_LIMIT: int = 10
+    CHAT_GUEST_RETENTION_DAYS: int = 7
+    CHAT_MAX_MESSAGE_CHARS: int = 2_000
+    CHAT_MAX_HISTORY_MESSAGES: int = 8
+    CHAT_CHUNK_TARGET_TOKENS: int = 700
+    CHAT_CHUNK_OVERLAP_TOKENS: int = 100
+    CHAT_CHUNK_MIN_FINAL_TOKENS: int = 120
+    CHAT_RETRIEVAL_CANDIDATES: int = 20
+    CHAT_RETRIEVAL_MAX_CHUNKS: int = 8
+    CHAT_RETRIEVAL_MAX_PER_SECTION: int = 3
+    CHAT_RETRIEVAL_TOKEN_BUDGET: int = 6_000
+    CHAT_RRF_K: int = 60
+    CHAT_WEB_MAX_QUERIES: int = 3
+    CHAT_WEB_MAX_PAGES: int = 8
+    CHAT_WEB_SEARCH_PROVIDER: str = "openai"
+    CHAT_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    CHAT_EMBEDDING_DIMENSIONS: int = 1_536
+    CHAT_MODEL_OVERRIDE: str | None = None
+    CHAT_PROMPT_VERSION: str = "company-chat.2026-07-14"
+    CHAT_ANSWER_SCHEMA_VERSION: str = "company-chat.v1"
+    CHAT_INDEX_SCHEMA_VERSION: str = "filing-chunk.v1"
+    CHAT_INDEX_WORKFLOW_TRIGGER_URL: str | None = None
+    CHAT_WEB_ARTIFACT_PREFIX: str = "chat-web"
     GUEST_SIGNING_SECRET: str
     QUOTA_HASH_SECRET: str
     INTERNAL_JOB_SECRET: str
@@ -121,6 +145,10 @@ class Settings(BaseSettings):
     def SUPPLY_CHAIN_GRAPH_MODEL(self) -> str:
         return self.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE or self.RESEARCH_MODEL
 
+    @property
+    def CHAT_MODEL(self) -> str:
+        return self.CHAT_MODEL_OVERRIDE or self.RESEARCH_MODEL
+
     @cached_property
     def ASYNC_DATABASE_URI(self) -> str:
         return (
@@ -139,6 +167,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_deployment_profile(self) -> Self:
+        self._validate_chat_settings()
         if self.SUPPLY_CHAIN_GRAPH_MIN_NODES < 1:
             raise ValueError("SUPPLY_CHAIN_GRAPH_MIN_NODES must be at least 1")
         if self.SUPPLY_CHAIN_GRAPH_MAX_NODES < self.SUPPLY_CHAIN_GRAPH_MIN_NODES:
@@ -189,6 +218,7 @@ class Settings(BaseSettings):
                 "MANAGED_PARSER_API_KEY",
                 "WORKFLOW_TRIGGER_URL",
                 "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
+                "CHAT_INDEX_WORKFLOW_TRIGGER_URL",
             ),
         }
         missing = [
@@ -217,6 +247,51 @@ class Settings(BaseSettings):
                 f"{', '.join(short_secrets)}"
             )
         return self
+
+    def _validate_chat_settings(self) -> None:
+        positive_fields = (
+            "CHAT_GUEST_DAILY_LIMIT",
+            "CHAT_USER_DAILY_LIMIT",
+            "CHAT_GUEST_RETENTION_DAYS",
+            "CHAT_MAX_MESSAGE_CHARS",
+            "CHAT_MAX_HISTORY_MESSAGES",
+            "CHAT_CHUNK_TARGET_TOKENS",
+            "CHAT_CHUNK_MIN_FINAL_TOKENS",
+            "CHAT_RETRIEVAL_CANDIDATES",
+            "CHAT_RETRIEVAL_MAX_CHUNKS",
+            "CHAT_RETRIEVAL_MAX_PER_SECTION",
+            "CHAT_RETRIEVAL_TOKEN_BUDGET",
+            "CHAT_RRF_K",
+            "CHAT_WEB_MAX_QUERIES",
+            "CHAT_WEB_MAX_PAGES",
+        )
+        for field in positive_fields:
+            if getattr(self, field) < 1:
+                raise ValueError(f"{field} must be at least 1")
+        if not 0 <= self.CHAT_CHUNK_OVERLAP_TOKENS < self.CHAT_CHUNK_TARGET_TOKENS:
+            raise ValueError(
+                "CHAT_CHUNK_OVERLAP_TOKENS must be below CHAT_CHUNK_TARGET_TOKENS"
+            )
+        if self.CHAT_CHUNK_MIN_FINAL_TOKENS > self.CHAT_CHUNK_TARGET_TOKENS:
+            raise ValueError(
+                "CHAT_CHUNK_MIN_FINAL_TOKENS must not exceed CHAT_CHUNK_TARGET_TOKENS"
+            )
+        if self.CHAT_RETRIEVAL_MAX_CHUNKS > self.CHAT_RETRIEVAL_CANDIDATES:
+            raise ValueError(
+                "CHAT_RETRIEVAL_MAX_CHUNKS must not exceed CHAT_RETRIEVAL_CANDIDATES"
+            )
+        if self.CHAT_RETRIEVAL_MAX_PER_SECTION > self.CHAT_RETRIEVAL_MAX_CHUNKS:
+            raise ValueError(
+                "CHAT_RETRIEVAL_MAX_PER_SECTION must not exceed "
+                "CHAT_RETRIEVAL_MAX_CHUNKS"
+            )
+        if (
+            self.CHAT_INDEX_SCHEMA_VERSION == "filing-chunk.v1"
+            and self.CHAT_EMBEDDING_DIMENSIONS != 1_536
+        ):
+            raise ValueError(
+                "CHAT_EMBEDDING_DIMENSIONS must be 1536 for filing-chunk.v1"
+            )
 
 
 class LogConfig:
