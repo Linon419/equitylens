@@ -274,7 +274,7 @@ git commit -m "chore(chat): add research chat configuration"
 - Modify: `backend/app/models/__init__.py`
 - Modify: `backend/app/models/job_model.py`
 
-- [ ] **Step 1: Write model metadata and constraint tests**
+- [x] **Step 1: Write model metadata and constraint tests**
 
 In `backend/tests/models/test_chat_models.py`, assert the six model tables, conversation owner check, active-guest partial index, message request uniqueness, citation ordinal uniqueness, filing chunk version uniqueness, quota request uniqueness, and cascade foreign keys:
 
@@ -299,7 +299,7 @@ def test_chat_models_expose_locked_constraints():
 
 Add construction tests for locale, state, role, evidence coverage, source kind, tier, verification, positive token count, and excerpt limits.
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd backend
@@ -308,7 +308,7 @@ uv run pytest tests/models/test_chat_models.py -q
 
 Expected: import failure because `app.models.chat_model` is absent.
 
-- [ ] **Step 3: Define the persistence models**
+- [x] **Step 3: Define the persistence models**
 
 Create `backend/app/models/chat_model.py` with:
 
@@ -348,7 +348,7 @@ Index(
 
 Add an FK from `summary_through_message_id` to `conversation_message.id` in the migration after both tables exist. Name every check, unique constraint, FK, and index.
 
-- [ ] **Step 4: Write the migration test before the migration**
+- [x] **Step 4: Write the migration test before the migration**
 
 Create `backend/tests/test_chat_migration.py`. Follow the existing migration harness and assert upgrade from `20260714_0004`, the six new tables, vector/FTS indexes on PostgreSQL metadata, all named constraints, and downgrade back to `20260714_0004`:
 
@@ -368,7 +368,7 @@ assert "uq_company_conversation_active_guest" in named(
 )
 ```
 
-- [ ] **Step 5: Implement reversible migration `0005`**
+- [x] **Step 5: Implement reversible migration `0005`**
 
 Create the tables in FK-safe order. Run `CREATE EXTENSION IF NOT EXISTS vector` through the migration. Add:
 
@@ -388,6 +388,10 @@ Guard PostgreSQL-only DDL by dialect. The downgrade drops child tables first and
 
 - [ ] **Step 6: Validate models and migration**
 
+Deterministic SQLite migration round-trip, model regressions, and Ruff passed on
+2026-07-15. Live PostgreSQL upgrade/downgrade remains part of Task 16 because the
+local workspace has no database environment configured.
+
 ```bash
 cd backend
 uv run pytest tests/models/test_chat_models.py tests/test_chat_migration.py tests/test_migrations.py -q
@@ -398,7 +402,7 @@ uv run alembic upgrade head
 
 Expected: tests pass and both migration directions exit `0` against the configured development database.
 
-- [ ] **Step 7: Commit persistence**
+- [x] **Step 7: Commit persistence**
 
 ```bash
 git add backend/app/models/chat_model.py backend/app/models/__init__.py backend/app/models/job_model.py backend/app/migrations/versions/20260714_0005_company_research_chat.py backend/tests/models/test_chat_models.py backend/tests/test_chat_migration.py
