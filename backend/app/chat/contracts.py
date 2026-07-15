@@ -5,6 +5,7 @@ from uuid import UUID
 
 if TYPE_CHECKING:
     from app.chat.artifacts import StoredWebArtifact, WebArtifactPage
+    from app.chat.intents import AgentRouteDecision, IntentRoutingRequest
     from app.chat.prompts import AnswerPlanningRequest
     from app.chat.retrieval import ChunkCandidate, QueryRewrite, RewriteRequest
     from app.chat.schemas import (
@@ -94,6 +95,15 @@ class AnswerPlanningModel(Protocol):
         self,
         request: "AnswerPlanningRequest",
     ) -> "ResearchAnswerPlan": ...
+
+
+class IntentRoutingModel(Protocol):
+    model_id: str
+
+    async def route(
+        self,
+        request: "IntentRoutingRequest",
+    ) -> "AgentRouteDecision": ...
 
 
 @dataclass(frozen=True)

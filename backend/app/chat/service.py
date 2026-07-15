@@ -5,9 +5,11 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID
 
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from sqlmodel import Session
 
+from app.chat.answer_schemas import stored_response_kind
+from app.chat.intents import AgentRouteDecision
 from app.chat.quota import ChatQuotaLease, ChatQuotaService
 from app.chat.repository import ConversationRepository
 from app.chat.schemas import (
@@ -22,6 +24,9 @@ from app.chat.schemas import (
     ResearchAnswerPlan,
     SectionEvent,
     StageEvent,
+    StoredAgentAnswer,
+    StoredPlainAnswer,
+    StoredResearchAnswer,
     StructuredContextPack,
 )
 from app.chat.sse import ChatStreamEvent
@@ -36,7 +41,9 @@ from app.models.company_model import Company
 from app.quota.identity import RequestPrincipal
 
 _CONTEXT_LIST = TypeAdapter(list[ContextSelection])
+_STORED_ANSWER = TypeAdapter(StoredAgentAnswer)
 _RETRYABLE_CODES = {
+    "CHAT_INTENT_ROUTING_FAILED",
     "CHAT_RETRIEVAL_FAILED",
     "CHAT_WEB_SEARCH_FAILED",
     "CHAT_ANSWER_GENERATION_FAILED",
@@ -44,6 +51,7 @@ _RETRYABLE_CODES = {
     "CHAT_STREAM_CANCELLED",
 }
 _STAGE_CODES = {
+    "route": "CHAT_INTENT_ROUTING_FAILED",
     "retrieval": "CHAT_RETRIEVAL_FAILED",
     "web": "CHAT_WEB_SEARCH_FAILED",
     "compose": "CHAT_ANSWER_GENERATION_FAILED",
@@ -94,6 +102,12 @@ class AnswerAgent(Protocol):
     ) -> ResearchAnswerPlan: ...
 
 
+class IntentRouter(Protocol):
+    model_id: str
+
+    async def route(self, **kwargs: Any) -> AgentRouteDecision: ...
+
+
 class ConversationSummarizer(Protocol):
     async def summarize(self, **kwargs: Any) -> str: ...
 
@@ -107,6 +121,7 @@ class CompanyResearchChatService:
         quota: ChatQuotaService,
         context_provider: ContextProvider,
         evidence_pipeline: EvidencePipeline,
+        intent_router: IntentRouter,
         answer_agent: AnswerAgent,
         summarizer: ConversationSummarizer,
         now: Callable[[], datetime] | None = None,
@@ -116,6 +131,7 @@ class CompanyResearchChatService:
         self._quota = quota
         self._context_provider = context_provider
         self._evidence_pipeline = evidence_pipeline
+        self._intent_router = intent_router
         self._answer_agent = answer_agent
         self._summarizer = summarizer
         self._now = now or (lambda: datetime.now(UTC))
@@ -362,19 +378,50 @@ class CompanyResearchChatService:
         structured: StructuredContextPack,
         lease: ChatQuotaLease,
     ) -> AsyncIterator[ChatStreamEvent]:
-        stage = "retrieval"
+        stage = "route"
         try:
             self._repository.set_planning(assistant.id)
             self._session.commit()
-            yield self._stage_event("retrieval")
+            yield self._stage_event("route")
             history, summary = await self._conversation_context(
                 conversation,
                 current_message_id=user_message.id,
             )
+            route = await self._intent_router.route(
+                question=user_message.content,
+                company_name=company.name,
+                symbol=company.symbol,
+                locale=user_message.locale,
+                history=history,
+                summary=summary,
+            )
+            if route.interaction_mode != "research":
+                stored = self._complete_plain_answer(
+                    assistant=assistant,
+                    route=route,
+                    lease=lease,
+                )
+                yield ChatStreamEvent(
+                    "complete",
+                    CompleteEvent(
+                        message=_public_message(stored, []),
+                        citations=[],
+                        evidence_coverage=None,
+                        quota=self.quota_status(principal),
+                    ),
+                )
+                return
+
+            question = route.resolved_question
+            if question is None:
+                raise ValueError("research route requires resolved question")
+
+            stage = "retrieval"
+            yield self._stage_event("retrieval")
             internal = await self._evidence_pipeline.prepare_internal(
                 company=company,
                 structured_context=structured,
-                question=user_message.content,
+                question=question,
                 context_labels=[item.label for item in structured.items],
                 history=history,
                 summary=summary,
@@ -386,7 +433,7 @@ class CompanyResearchChatService:
             prepared = await self._evidence_pipeline.add_web(
                 internal=internal,
                 company=company,
-                question=user_message.content,
+                question=question,
                 locale=user_message.locale,
                 principal=principal,
                 conversation_id=conversation.id,
@@ -396,7 +443,7 @@ class CompanyResearchChatService:
             stage = "compose"
             yield self._stage_event("compose")
             plan = await self._answer_agent.create_plan(
-                user_message.content,
+                question,
                 prepared.evidence,
                 locale=user_message.locale,
                 history=history,
@@ -417,7 +464,11 @@ class CompanyResearchChatService:
             stored = self._repository.complete_assistant(
                 assistant.id,
                 content=content,
-                answer_plan=validated.plan.model_dump(mode="json"),
+                answer_plan=StoredResearchAnswer(
+                    is_follow_up=route.is_follow_up,
+                    resolved_question=question,
+                    answer=validated.plan,
+                ).model_dump(mode="json"),
                 model_id=self._answer_agent.model_id,
                 evidence_coverage=validated.plan.evidence_coverage,
                 citations=validated.citations,
@@ -463,6 +514,39 @@ class CompanyResearchChatService:
                 quota=self.quota_status(principal),
             ),
         )
+
+    def _complete_plain_answer(
+        self,
+        *,
+        assistant: ConversationMessage,
+        route: AgentRouteDecision,
+        lease: ChatQuotaLease,
+    ) -> ConversationMessage:
+        response = route.response
+        if response is None:
+            raise ValueError("plain route requires response")
+        stored_answer = StoredPlainAnswer(
+            response_kind=route.interaction_mode,
+            is_follow_up=route.is_follow_up,
+            content=response,
+        )
+        stored = self._repository.complete_assistant(
+            assistant.id,
+            content=response,
+            answer_plan=stored_answer.model_dump(mode="json"),
+            model_id=self._intent_router.model_id,
+            evidence_coverage=None,
+            citations=(),
+            web_traces=[],
+            completed_at=self._now(),
+        )
+        self._quota.consume(
+            lease.ledger_id,
+            route.interaction_mode,
+            now=self._now(),
+        )
+        self._session.commit()
+        return stored
 
     async def _conversation_context(
         self,
@@ -511,18 +595,22 @@ class CompanyResearchChatService:
             ),
         )
         if assistant.state == "completed" and assistant.answer_plan is not None:
-            plan = ResearchAnswerPlan.model_validate(assistant.answer_plan)
+            stored_answer = _stored_answer(assistant.answer_plan)
             citations = self._public_citations(assistant.id)
-            for event in _section_events(plan, citations):
-                yield event
-            for citation in citations:
-                yield ChatStreamEvent("citation", citation)
+            coverage = None
+            if isinstance(stored_answer, StoredResearchAnswer):
+                plan = stored_answer.answer
+                coverage = plan.evidence_coverage
+                for event in _section_events(plan, citations):
+                    yield event
+                for citation in citations:
+                    yield ChatStreamEvent("citation", citation)
             yield ChatStreamEvent(
                 "complete",
                 CompleteEvent(
                     message=_public_message(assistant, citations),
                     citations=citations,
-                    evidence_coverage=plan.evidence_coverage,
+                    evidence_coverage=coverage,
                     quota=quota,
                 ),
             )
@@ -644,6 +732,7 @@ def _public_message(
         state=message.state,
         content=message.content,
         locale=message.locale,
+        response_kind=_message_response_kind(message),
         evidence_coverage=message.evidence_coverage,
         error_code=message.error_code,
         attempt_count=message.attempt_count,
@@ -657,3 +746,20 @@ def _error_code(error: Exception, stage: str) -> str:
     if isinstance(error, DomainError) and error.code.startswith("CHAT_"):
         return error.code
     return _STAGE_CODES[stage]
+
+
+def _stored_answer(payload: dict) -> StoredResearchAnswer | StoredPlainAnswer:
+    try:
+        return _STORED_ANSWER.validate_python(payload)
+    except ValidationError:
+        return StoredResearchAnswer(
+            is_follow_up=False,
+            resolved_question="",
+            answer=ResearchAnswerPlan.model_validate(payload),
+        )
+
+
+def _message_response_kind(message: ConversationMessage):
+    if message.role != "assistant" or message.answer_plan is None:
+        return None
+    return stored_response_kind(message.answer_plan)

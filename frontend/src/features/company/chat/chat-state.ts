@@ -16,7 +16,7 @@ const EMPTY_SECTIONS: ChatSections = {
 
 export interface LiveAnswer {
   assistantMessageId: string | null;
-  stage: "retrieval" | "web" | "compose" | "verify" | null;
+  stage: "route" | "retrieval" | "web" | "compose" | "verify" | null;
   sections: ChatSections;
   citations: ChatCitation[];
 }
@@ -191,6 +191,7 @@ function makeUserMessage(
     state: "completed",
     content,
     locale,
+    response_kind: null,
     evidence_coverage: null,
     error_code: null,
     attempt_count: 0,
@@ -214,6 +215,7 @@ function makeFailedMessage(
     state: "failed",
     content: "",
     locale,
+    response_kind: null,
     evidence_coverage: null,
     error_code: event.payload.code,
     attempt_count: existing?.attempt_count ?? 0,

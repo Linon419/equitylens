@@ -146,7 +146,7 @@ function assertAccepted(value: unknown): asserts value is AcceptedPayload {
 function assertStage(value: unknown): asserts value is StagePayload {
   const item = record(value, "stage");
   if (
-    !oneOf(item.stage, ["retrieval", "web", "compose", "verify"]) ||
+    !oneOf(item.stage, ["route", "retrieval", "web", "compose", "verify"]) ||
     !text(item.status_key)
   ) {
     throw new Error("Invalid stage payload");
@@ -199,7 +199,10 @@ function assertComplete(value: unknown): asserts value is CompletePayload {
   if (!message(item.message) || !citationList(item.citations)) {
     throw new Error("Invalid complete payload");
   }
-  if (!coverage(item.evidence_coverage) || !quota(item.quota)) {
+  if (
+    !(item.evidence_coverage === null || coverage(item.evidence_coverage)) ||
+    !quota(item.quota)
+  ) {
     throw new Error("Invalid complete payload");
   }
 }
@@ -226,6 +229,8 @@ function message(value: unknown): value is ChatMessage {
     oneOf(value.state, ["pending", "planning", "completed", "failed"]) &&
     typeof value.content === "string" &&
     oneOf(value.locale, ["en-US", "zh-CN"]) &&
+    (value.response_kind === null ||
+      oneOf(value.response_kind, ["conversation", "clarification", "research"])) &&
     (value.evidence_coverage === null || coverage(value.evidence_coverage)) &&
     nullableText(value.error_code) &&
     integer(value.attempt_count) &&

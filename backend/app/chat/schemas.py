@@ -20,9 +20,13 @@ ApprovedEvidenceRecord = _answer_schemas.ApprovedEvidenceRecord
 CitationSnapshot = _answer_schemas.CitationSnapshot
 EvidenceCandidate = _answer_schemas.EvidenceCandidate
 ResearchAnswerPlan = _answer_schemas.ResearchAnswerPlan
+StoredAgentAnswer = _answer_schemas.StoredAgentAnswer
+StoredPlainAnswer = _answer_schemas.StoredPlainAnswer
+StoredResearchAnswer = _answer_schemas.StoredResearchAnswer
 
 Locale = Literal["en-US", "zh-CN"]
 EvidenceCoverage = Literal["complete", "partial", "insufficient"]
+ResponseKind = Literal["conversation", "clarification", "research"]
 ConversationTitle = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=120),
@@ -207,6 +211,7 @@ class MessagePublic(StrictModel):
     state: Literal["pending", "planning", "completed", "failed"]
     content: str
     locale: Locale
+    response_kind: ResponseKind | None = None
     evidence_coverage: EvidenceCoverage | None
     error_code: str | None
     attempt_count: int
@@ -256,7 +261,7 @@ class AcceptedEvent(StrictModel):
 
 
 class StageEvent(StrictModel):
-    stage: Literal["retrieval", "web", "compose", "verify"]
+    stage: Literal["route", "retrieval", "web", "compose", "verify"]
     status_key: str
 
 
@@ -273,7 +278,7 @@ class SectionEvent(StrictModel):
 class CompleteEvent(StrictModel):
     message: MessagePublic
     citations: list[CitationPublic]
-    evidence_coverage: EvidenceCoverage
+    evidence_coverage: EvidenceCoverage | None
     quota: ChatQuotaStatus
 
 

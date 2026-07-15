@@ -133,6 +133,7 @@ class MetricContextResolver:
         value = cast(Decimal, getattr(snapshot, metric))
         label = LABELS["en-US"][metric]
         value_text = _market_value(metric, value)
+        unit = "x" if metric in {"trailing_pe", "forward_pe"} else snapshot.currency
         return EvidenceCandidate(
             evidence_id=f"market:{snapshot.id}:{metric}",
             source_kind="financial",
@@ -140,7 +141,7 @@ class MetricContextResolver:
             title=f"{company.symbol} {label}",
             source_url=f"https://finance.yahoo.com/quote/{company.symbol}",
             source_anchor=metric,
-            excerpt=f"{company.symbol} {label} was {value_text} {snapshot.currency}.",
+            excerpt=f"{company.symbol} {label} was {value_text} {unit}.",
             published_at=_as_utc(snapshot.observed_at),
             retrieved_at=self._now,
             source_tier="trusted_secondary",
@@ -148,7 +149,7 @@ class MetricContextResolver:
             attributes={
                 "metric_key": metric,
                 "value": value_text,
-                "unit": snapshot.currency,
+                "unit": unit,
                 "provider": snapshot.provider,
             },
         )
@@ -168,8 +169,7 @@ class MetricContextResolver:
             source_url=row.source_url,
             source_anchor=row.period_key,
             excerpt=(
-                f"{company.symbol} {label} for {row.period_key} was "
-                f"{value} {row.unit}."
+                f"{company.symbol} {label} for {row.period_key} was {value} {row.unit}."
             ),
             published_at=datetime.combine(
                 row.filed_at,

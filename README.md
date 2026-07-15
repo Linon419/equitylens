@@ -59,6 +59,7 @@ and six connected questions:
 | Guest two/day and authenticated ten/day Agent quotas | Available |
 | Google sign-in, rotating sessions, and persistent watchlists | Available |
 | Citation-backed company research chat with durable citations | Available |
+| DeepSeek-directed conversation, clarification, and research routing | Available |
 | DeepSeek-directed Tavily web discovery | Available |
 | Manual filing upload, DCF, and peer valuation | Planned |
 
@@ -127,6 +128,13 @@ two chat messages per UTC day. Authenticated users receive ten chat messages per
 and guest conversations are retained for seven days. This message
 quota is independent from the Agent job quota; filing-index preparation costs
 zero units.
+
+DeepSeek first reads the current message, company context, and conversation
+history. It can answer conversational messages directly, ask one focused
+clarification question, or resolve a follow-up into a standalone research
+question. Only the research route enters filing retrieval, Tavily discovery,
+and strict citation validation. Deterministic controls remain responsible for
+quota, source policy, timeouts, persistence, and replay.
 
 With `CHAT_WEB_SEARCH_PROVIDER=tavily`, DeepSeek decides whether external
 evidence is material and generates up to three focused queries. Tavily discovers

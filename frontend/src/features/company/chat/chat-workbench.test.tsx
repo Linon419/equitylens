@@ -72,6 +72,46 @@ describe("ChatWorkbench", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("renders model-directed conversation without research coverage", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      chatFetch({
+        onMessage() {
+          return eventResponse(
+            frame(1, "accepted", acceptedQuota()) +
+              frame(2, "stage", {
+                stage: "route",
+                status_key: "chat.stage.route",
+              }) +
+              frame(3, "complete", plainCompletePayload()),
+          );
+        },
+      }),
+    );
+
+    render(
+      <ChatWorkbench
+        authenticated={false}
+        copy={companyPageCopy.en.chat}
+        locale="en-US"
+        onClose={vi.fn()}
+        open
+        symbol="AAPL"
+      />,
+    );
+    await screen.findByText("AAPL research");
+    await user.type(screen.getByRole("textbox"), "Hello");
+    await user.click(screen.getByRole("button", { name: companyPageCopy.en.chat.send }));
+
+    expect(await screen.findByText("Hello, I can help you research Apple.")).toBeVisible();
+    expect(screen.queryByText(/Evidence coverage/)).toBeNull();
+    expect(
+      screen.queryByRole("heading", {
+        name: companyPageCopy.en.chat.sections.directConclusion,
+      }),
+    ).toBeNull();
+  });
+
   it("replays a transport failure with the same request UUID", async () => {
     const user = userEvent.setup();
     const requestBodies: string[] = [];
@@ -333,6 +373,7 @@ function historicalMessage(id: string, content: string) {
     state: "completed" as const,
     content,
     locale: "en-US" as const,
+    response_kind: null,
     evidence_coverage: null,
     error_code: null,
     attempt_count: 0,
@@ -444,6 +485,7 @@ function completePayload() {
       content:
         "## Conclusion\n\nMargins benefited from services mix.\n\n## Key evidence\n\n- Services grew.\n\n## Risks and uncertainties\n\n- Mix can reverse.\n\n## Sources\n\n- [1] Apple 2025 Form 10-K",
       locale: "en-US",
+      response_kind: "research",
       evidence_coverage: "complete",
       error_code: null,
       attempt_count: 0,
@@ -453,6 +495,30 @@ function completePayload() {
     },
     citations: [citation()],
     evidence_coverage: "complete",
+    quota: quota(1, 1),
+  };
+}
+
+function plainCompletePayload() {
+  return {
+    message: {
+      id: UUIDS.assistant,
+      conversation_id: UUIDS.conversation,
+      reply_to_message_id: UUIDS.user,
+      role: "assistant",
+      state: "completed",
+      content: "Hello, I can help you research Apple.",
+      locale: "en-US",
+      response_kind: "conversation",
+      evidence_coverage: null,
+      error_code: null,
+      attempt_count: 0,
+      created_at: "2026-07-15T00:00:00Z",
+      completed_at: "2026-07-15T00:00:01Z",
+      citations: [],
+    },
+    citations: [],
+    evidence_coverage: null,
     quota: quota(1, 1),
   };
 }

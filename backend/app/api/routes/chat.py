@@ -16,6 +16,7 @@ from app.api.deps import (
     SecDataProviderDep,
     SessionDep,
 )
+from app.chat.answer_schemas import stored_response_kind
 from app.chat.schemas import (
     ChatQuotaStatus,
     ChatReadiness,
@@ -351,6 +352,11 @@ def _public_message(repository, message) -> MessagePublic:
         state=message.state,
         content=message.content,
         locale=message.locale,
+        response_kind=(
+            stored_response_kind(message.answer_plan)
+            if message.role == "assistant"
+            else None
+        ),
         evidence_coverage=message.evidence_coverage,
         error_code=message.error_code,
         attempt_count=message.attempt_count,

@@ -274,6 +274,16 @@ function MessageBubble({
       </article>
     );
   }
+  if (
+    message.response_kind === "conversation" ||
+    message.response_kind === "clarification"
+  ) {
+    return (
+      <article className="chat-message chat-message--assistant chat-message--plain">
+        <p>{message.content}</p>
+      </article>
+    );
+  }
   return (
     <article className="chat-message chat-message--assistant">
       <AnswerSections

@@ -19,7 +19,6 @@ from app.chat.web_search import (
     SourceClassifier,
     WebSearchRequest,
 )
-from app.core.errors import DomainError
 from app.supply_chain.source_policy import PinningHostResolver
 
 NOW = datetime(2026, 7, 15, 12, tzinfo=UTC)
@@ -191,19 +190,19 @@ def request(question: str, coverage: str = "complete") -> WebSearchRequest:
 
 
 @pytest.mark.asyncio
-async def test_greeting_skips_web_search_even_with_low_internal_coverage() -> None:
-    provider = FakeProvider(error=AssertionError("provider should not be called"))
+async def test_agent_can_skip_web_search_with_low_internal_coverage() -> None:
+    provider = FakeProvider(SearchDiscovery(None, []))
     service = BoundedWebSearchService(provider, FakeFetcher(), FakeArchive())
 
-    result = await service.search(request("Hello!", "partial"))
+    result = await service.search(request("Explain the new filing", "partial"))
 
     assert result.decision == "not_needed"
     assert result.selected_pages == []
-    assert provider.calls == []
+    assert len(provider.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_current_question_forces_bounded_verified_web_collection() -> None:
+async def test_agent_requested_search_collects_bounded_verified_web_pages() -> None:
     urls = [
         "https://www.reuters.com/apple-update",
         "https://www.sec.gov/apple-update",
@@ -228,7 +227,7 @@ async def test_current_question_forces_bounded_verified_web_collection() -> None
         request("What is Apple's latest antitrust development?", "partial")
     )
 
-    assert result.decision == "required_current"
+    assert result.decision == "agent_requested"
     assert len(result.queries) <= 3
     assert len(result.selected_pages) == 8
     assert result.selected_pages[0].source_tier == "primary"
@@ -246,7 +245,7 @@ async def test_current_question_forces_bounded_verified_web_collection() -> None
 
 
 @pytest.mark.asyncio
-async def test_low_evidence_and_agent_selected_decisions_are_distinct() -> None:
+async def test_search_decision_remains_agent_directed_across_coverage_levels() -> None:
     urls = ["https://www.sec.gov/apple-update"]
     fetcher = FakeFetcher()
     archive = FakeArchive()
@@ -265,12 +264,12 @@ async def test_low_evidence_and_agent_selected_decisions_are_distinct() -> None:
         classifier=classifier,
     ).search(request("Compare Apple's ecosystem", "complete"))
 
-    assert low.decision == "required_low_evidence"
+    assert low.decision == "agent_requested"
     assert agent.decision == "agent_requested"
 
 
 @pytest.mark.asyncio
-async def test_required_failure_is_stable_and_optional_failure_is_partial() -> None:
+async def test_provider_failure_returns_partial_evidence_gap() -> None:
     error = RuntimeError("provider secret")
     service = BoundedWebSearchService(
         FakeProvider(error=error),
@@ -278,14 +277,11 @@ async def test_required_failure_is_stable_and_optional_failure_is_partial() -> N
         FakeArchive(),
     )
 
-    with pytest.raises(DomainError) as raised:
-        await service.search(request("What happened today?", "complete"))
-    assert raised.value.code == "CHAT_WEB_SEARCH_FAILED"
+    result = await service.search(request("What happened today?", "complete"))
 
-    optional = await service.search(request("Explain Apple's ecosystem", "complete"))
-    assert optional.decision == "optional_failed"
-    assert optional.selected_pages == []
-    assert optional.evidence_gap == "CHAT_WEB_SEARCH_UNAVAILABLE"
+    assert result.decision == "optional_failed"
+    assert result.selected_pages == []
+    assert result.evidence_gap == "CHAT_WEB_SEARCH_UNAVAILABLE"
 
 
 @dataclass

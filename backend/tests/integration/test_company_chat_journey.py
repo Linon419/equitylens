@@ -17,9 +17,11 @@ from app.api.deps import (
     get_chat_answer_agent,
     get_chat_context_provider,
     get_chat_evidence_pipeline,
+    get_chat_intent_router,
     get_db,
     get_sec_data_provider,
 )
+from app.chat.intents import AgentRouteDecision
 from app.chat.schemas import (
     AnswerEvidencePack,
     ChatReadiness,
@@ -81,6 +83,18 @@ class JourneyEvidencePipeline:
 
 
 @dataclass
+class JourneyIntentRouter:
+    model_id: str = "deterministic-journey-router"
+
+    async def route(self, **kwargs) -> AgentRouteDecision:
+        return AgentRouteDecision(
+            interaction_mode="research",
+            is_follow_up=bool(kwargs["history"]),
+            resolved_question=kwargs["question"],
+        )
+
+
+@dataclass
 class JourneyAnswerAgent:
     model_id: str = "deterministic-journey-agent"
     failed_once: set[str] = field(default_factory=set)
@@ -131,6 +145,7 @@ def journey() -> Generator[JourneyHarness, None, None]:
 
     context = JourneyContextProvider(ready_context())
     evidence = JourneyEvidencePipeline()
+    intent_router = JourneyIntentRouter()
     answer_agent = JourneyAnswerAgent()
     application = create_app()
 
@@ -147,6 +162,7 @@ def journey() -> Generator[JourneyHarness, None, None]:
     application.dependency_overrides[get_sec_data_provider] = lambda: object()
     application.dependency_overrides[get_chat_context_provider] = lambda: context
     application.dependency_overrides[get_chat_evidence_pipeline] = lambda: evidence
+    application.dependency_overrides[get_chat_intent_router] = lambda: intent_router
     application.dependency_overrides[get_chat_answer_agent] = lambda: answer_agent
     with TestClient(application) as client:
         yield JourneyHarness(client, engine, answer_agent)

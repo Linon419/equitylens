@@ -29,9 +29,10 @@ Release stage: Phase 2 beta
 11. Google users can persist and remove watchlist companies.
 12. Investors can open a company-scoped research panel, prepare the latest 10-K
     index at zero quota cost, and ask questions in English or Chinese.
-13. The chat Agent rewrites conversational questions, fuses filing full-text
-    and vector retrieval, resolves current company context, and decides whether
-    bounded web evidence is useful.
+13. DeepSeek routes conversation, clarification, and research turns, resolves
+    follow-ups from history, and sends research questions through filing
+    full-text and vector retrieval before deciding whether Tavily evidence is
+    useful.
 14. Answers stream incrementally and persist with filing, market, financial,
     graph, and web citations that retain exact supporting excerpts.
 15. Guests receive two chat messages per UTC day in an independent quota pool;
@@ -50,15 +51,15 @@ Release stage: Phase 2 beta
 | Intelligence | Structured generation, verification, localization invariants, citations |
 | Supply-chain graph | AI source planning/extraction/verification/localization plus deterministic publication gates |
 | Graph evidence | Private S3/MinIO or Vercel Blob artifacts with public capped excerpts |
-| Research chat | Available: durable conversations, hybrid filing retrieval, Agent-selected web evidence, SSE, and citation validation |
+| Research chat | Available: model-directed intent routing, durable conversations, hybrid filing retrieval, Agent-selected web evidence, SSE, and citation validation |
 | Jobs | Database state machine with Vercel Workflow and Redis/RQ adapters |
 | Identity | Signed guest principal, rotating Google sessions, same-origin BFF |
-| Quality | Backend suite, 169 frontend tests, production build, and 19 Playwright journeys |
+| Quality | Backend suite, 170 frontend tests, production build, and 19 Playwright journeys |
 
 ## Release validation (Docker host gate pending)
 
 The native and Vercel-build research surface passed the backend suite, Ruff,
-deployment contract tests, 169 frontend tests, TypeScript, ESLint, the Next.js
+deployment contract tests, 170 frontend tests, TypeScript, ESLint, the Next.js
 production build, and all 19 Chromium journeys on 2026-07-15. Docker descriptor
 structure passed YAML and contract validation. Docker Compose config and image
 builds remain a release-host gate.

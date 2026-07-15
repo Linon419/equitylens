@@ -1,5 +1,4 @@
 import html
-import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -9,7 +8,6 @@ from uuid import UUID
 
 from app.chat.artifacts import StoredWebArtifact, WebArtifactPage
 from app.chat.contracts import WebArtifactWriter, WebPageFetcher, WebSearchProvider
-from app.chat.intents import is_conversational_prompt
 from app.chat.web_discovery import (
     OpenAIWebSearchProvider,
     SearchCall,
@@ -22,7 +20,6 @@ from app.chat.web_discovery import (
 )
 from app.chat.web_fetcher import FetchedWebPage, PinnedWebPageFetcher
 from app.chat.web_trace import WebSearchTraceRecord, build_web_traces
-from app.core.errors import DomainError
 
 __all__ = [
     "BoundedWebSearchService",
@@ -37,8 +34,6 @@ __all__ = [
 ]
 
 SearchDecision = Literal[
-    "required_current",
-    "required_low_evidence",
     "agent_requested",
     "not_needed",
     "optional_failed",
@@ -108,9 +103,6 @@ class BoundedWebSearchService:
         self._monotonic = monotonic
 
     async def search(self, request: WebSearchRequest) -> WebSearchResult:
-        if is_conversational_prompt(request.question):
-            return WebSearchResult(decision="not_needed")
-        initial_decision = _search_decision(request)
         started = self._monotonic()
         try:
             discovery = await self._provider.search(
@@ -122,7 +114,7 @@ class BoundedWebSearchService:
                 official_hosts=request.official_hosts,
             )
         except Exception:
-            return _handle_search_failure(initial_decision)
+            return _handle_search_failure()
         queries = _discovery_queries(discovery, self._max_queries)
         candidates = _classified_candidates(
             discovery,
@@ -132,13 +124,9 @@ class BoundedWebSearchService:
         selected = sorted(candidates, key=_candidate_priority)[: self._max_pages]
         pages = await self._fetch_and_archive(selected, request)
         if not pages:
-            return _handle_empty_result(initial_decision, discovery, queries)
+            return _handle_empty_result(discovery, queries)
         duration_ms = max(0, round((self._monotonic() - started) * 1000))
-        decision = (
-            initial_decision
-            if initial_decision.startswith("required_")
-            else "agent_requested"
-        )
+        decision: SearchDecision = "agent_requested"
         traces = build_web_traces(
             discovery,
             decision=decision,
@@ -196,23 +184,7 @@ class BoundedWebSearchService:
         return pages
 
 
-def _search_decision(request: WebSearchRequest) -> SearchDecision:
-    current_terms = re.compile(
-        r"\b(today|latest|current|recent|now|breaking|update|newest)\b",
-        re.IGNORECASE,
-    )
-    if current_terms.search(request.question) or any(
-        term in request.question for term in ("今天", "最新", "当前", "近期", "刚刚")
-    ):
-        return "required_current"
-    if request.internal_coverage in {"partial", "insufficient"}:
-        return "required_low_evidence"
-    return "agent_requested"
-
-
-def _handle_search_failure(decision: SearchDecision) -> WebSearchResult:
-    if decision.startswith("required_"):
-        raise DomainError("CHAT_WEB_SEARCH_FAILED", 503, {"retryable": True})
+def _handle_search_failure() -> WebSearchResult:
     return WebSearchResult(
         decision="optional_failed",
         evidence_gap="CHAT_WEB_SEARCH_UNAVAILABLE",
@@ -220,12 +192,9 @@ def _handle_search_failure(decision: SearchDecision) -> WebSearchResult:
 
 
 def _handle_empty_result(
-    decision: SearchDecision,
     discovery: SearchDiscovery,
     queries: list[str],
 ) -> WebSearchResult:
-    if decision.startswith("required_"):
-        raise DomainError("CHAT_WEB_SEARCH_FAILED", 503, {"retryable": True})
     result_decision: SearchDecision = (
         "not_needed" if not discovery.calls else "optional_failed"
     )
@@ -233,9 +202,7 @@ def _handle_empty_result(
         decision=result_decision,
         queries=queries,
         evidence_gap=(
-            None
-            if result_decision == "not_needed"
-            else "CHAT_WEB_SEARCH_UNAVAILABLE"
+            None if result_decision == "not_needed" else "CHAT_WEB_SEARCH_UNAVAILABLE"
         ),
     )
 

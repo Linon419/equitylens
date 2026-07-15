@@ -122,6 +122,7 @@ export const companyPageCopy = {
         generic: "The research Agent could not complete this answer.",
       },
       stages: {
+        route: "Understanding your question",
         retrieval: "Retrieving company evidence",
         web: "Checking current web evidence",
         compose: "Composing cited answer",
@@ -345,6 +346,7 @@ export const companyPageCopy = {
         generic: "研究 Agent 未能完成该回答。",
       },
       stages: {
+        route: "正在理解你的问题",
         retrieval: "正在检索公司证据",
         web: "正在核查最新网页证据",
         compose: "正在生成带引用回答",

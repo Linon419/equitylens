@@ -78,6 +78,13 @@ async def test_latest_market_and_four_year_financial_window_are_resolved(
     assert [item.label for item in pack.items] == ["Price", "Revenue · FY2025"]
     assert pack.items[0].citation.attributes["value"] == "225.50"
     assert pack.items[0].citation.published_at == NOW
+    trailing_pe = next(
+        evidence
+        for evidence in pack.evidence
+        if evidence.attributes.get("metric_key") == "trailing_pe"
+    )
+    assert trailing_pe.excerpt == "AAPL Trailing P/E was 31.32 x."
+    assert trailing_pe.attributes["unit"] == "x"
     revenue_periods = [
         evidence.attributes["period_key"]
         for evidence in pack.evidence

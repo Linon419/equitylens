@@ -297,7 +297,7 @@ class ConversationRepository:
         content: str,
         answer_plan: dict,
         model_id: str,
-        evidence_coverage: str,
+        evidence_coverage: str | None,
         citations: tuple[CitationSnapshot, ...],
         web_traces: list[WebSearchTraceRecord],
         completed_at: datetime,

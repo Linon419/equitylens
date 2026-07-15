@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlmodel import Session, select
 
+from app.chat.intents import AgentRouteDecision
 from app.chat.quota import ChatQuotaService, SqlChatQuotaRepository
 from app.chat.repository import ConversationRepository
 from app.chat.schemas import (
@@ -119,6 +120,21 @@ class FakeAnswerAgent:
 
 
 @dataclass
+class FakeIntentRouter:
+    decision: AgentRouteDecision | None = None
+    model_id: str = "deepseek-fixture"
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    async def route(self, **kwargs: Any) -> AgentRouteDecision:
+        self.calls.append(kwargs)
+        return self.decision or AgentRouteDecision(
+            interaction_mode="research",
+            is_follow_up=False,
+            resolved_question=kwargs["question"],
+        )
+
+
+@dataclass
 class FakeSummarizer:
     result: str = "Earlier research summary."
     calls: list[dict[str, Any]] = field(default_factory=list)
@@ -134,6 +150,7 @@ class Harness:
     repository: ConversationRepository
     context: FakeContextProvider
     evidence: FakeEvidencePipeline
+    router: FakeIntentRouter
     agent: FakeAnswerAgent
     summarizer: FakeSummarizer
     company: Company
@@ -146,6 +163,7 @@ def harness(
     outputs: list[Any] | None = None,
     context: FakeContextProvider | None = None,
     evidence: FakeEvidencePipeline | None = None,
+    router: FakeIntentRouter | None = None,
 ) -> Harness:
     repository = ConversationRepository(session)
     conversation = repository.create_or_get_guest(
@@ -161,6 +179,7 @@ def harness(
     assert company is not None
     context = context or FakeContextProvider()
     evidence = evidence or FakeEvidencePipeline()
+    router = router or FakeIntentRouter()
     agent = FakeAnswerAgent(outputs or [load_answers()["valid_en"]])
     summarizer = FakeSummarizer()
     service = CompanyResearchChatService(
@@ -169,6 +188,7 @@ def harness(
         quota=ChatQuotaService(SqlChatQuotaRepository(session)),
         context_provider=context,
         evidence_pipeline=evidence,
+        intent_router=router,
         answer_agent=agent,
         summarizer=summarizer,
         now=lambda: NOW,
@@ -178,6 +198,7 @@ def harness(
         repository,
         context,
         evidence,
+        router,
         agent,
         summarizer,
         company,
@@ -185,14 +206,19 @@ def harness(
     )
 
 
-def command(value: Harness, *, request_id: UUID | None = None) -> MessageCommand:
+def command(
+    value: Harness,
+    *,
+    request_id: UUID | None = None,
+    content: str = "Analyze Apple's revenue, margins, supply chain, and current risk.",
+) -> MessageCommand:
     return MessageCommand(
         company=value.company,
         conversation_id=value.conversation_id,
         principal=GUEST,
         message=MessageCreate(
             client_request_id=request_id or uuid4(),
-            content="Analyze Apple's revenue, margins, supply chain, and current risk.",
+            content=content,
             locale="en-US",
             context=[],
         ),
@@ -228,6 +254,7 @@ async def test_success_is_durable_before_first_section(
         "stage",
         "stage",
         "stage",
+        "stage",
         "section",
         "section",
         "section",
@@ -239,6 +266,7 @@ async def test_success_is_durable_before_first_section(
         "complete",
     ]
     assert [event.payload.stage for event in events if event.kind == "stage"] == [
+        "route",
         "retrieval",
         "web",
         "compose",
@@ -254,6 +282,85 @@ async def test_success_is_durable_before_first_section(
         2,
         3,
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["conversation", "clarification"])
+async def test_non_research_route_skips_evidence_and_persists_plain_response(
+    chat_session: Session,
+    mode: str,
+) -> None:
+    response = (
+        "你好，我可以帮你研究这家公司的业务、产业链、财报和估值。"
+        if mode == "conversation"
+        else "你想先研究这家公司的业务、产业链、财报还是估值？"
+    )
+    router = FakeIntentRouter(
+        AgentRouteDecision(
+            interaction_mode=mode,
+            is_follow_up=False,
+            response=response,
+        )
+    )
+    value = harness(chat_session, router=router)
+    request_id = uuid4()
+
+    events = await collect(
+        value.service.stream_message(
+            command(value, request_id=request_id, content="你好")
+        )
+    )
+    replay = await collect(
+        value.service.stream_message(
+            command(value, request_id=request_id, content="你好")
+        )
+    )
+
+    assert [event.kind for event in events] == ["accepted", "stage", "complete"]
+    assert events[1].payload.stage == "route"
+    completed = events[-1].payload
+    assert completed.message.response_kind == mode
+    assert completed.message.content == response
+    assert completed.evidence_coverage is None
+    assert completed.citations == []
+    assert value.evidence.internal_calls == []
+    assert value.evidence.web_calls == []
+    assert value.agent.calls == []
+    assert [event.kind for event in replay] == ["accepted", "complete"]
+    assert replay[-1].payload.message.response_kind == mode
+    assert len(value.router.calls) == 1
+    assert chat_session.exec(select(ChatQuotaLedger)).one().state == "consumed"
+
+
+@pytest.mark.asyncio
+async def test_research_follow_up_uses_model_resolved_question(
+    chat_session: Session,
+) -> None:
+    resolved = "What is Apple Inc.'s current trailing P/E ratio?"
+    router = FakeIntentRouter(
+        AgentRouteDecision(
+            interaction_mode="research",
+            is_follow_up=True,
+            resolved_question=resolved,
+        )
+    )
+    value = harness(chat_session, router=router)
+
+    events = await collect(
+        value.service.stream_message(command(value, content="What about its P/E?"))
+    )
+
+    assert events[-1].kind == "complete"
+    assert value.evidence.internal_calls[0]["question"] == resolved
+    assert value.evidence.web_calls[0]["question"] == resolved
+    assert value.agent.calls[0]["question"] == resolved
+    stored = chat_session.get(
+        ConversationMessage,
+        events[-1].payload.message.id,
+    )
+    assert stored is not None
+    assert stored.answer_plan["is_follow_up"] is True
+    assert stored.answer_plan["resolved_question"] == resolved
 
 
 @pytest.mark.asyncio
@@ -289,11 +396,22 @@ async def test_replayed_request_uses_durable_records_without_new_quota(
     first = await collect(
         value.service.stream_message(command(value, request_id=request_id))
     )
+    assistant = chat_session.get(
+        ConversationMessage,
+        first[-1].payload.message.id,
+    )
+    assert assistant is not None and assistant.answer_plan is not None
+    assistant.answer_plan = assistant.answer_plan["answer"]
+    chat_session.add(assistant)
+    chat_session.commit()
+
     replay = await collect(
         value.service.stream_message(command(value, request_id=request_id))
     )
 
     assert first[-1].kind == replay[-1].kind == "complete"
+    assert replay[-1].payload.message.response_kind == "research"
+    assert [event.kind for event in replay].count("section") == 4
     assert len(value.evidence.internal_calls) == 1
     assert len(value.agent.calls) == 1
     assert len(chat_session.exec(select(ChatQuotaLedger)).all()) == 1

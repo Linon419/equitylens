@@ -127,6 +127,42 @@ class ResearchAnswerPlan(_StrictModel):
         return value
 
 
+class StoredResearchAnswer(_StrictModel):
+    response_kind: Literal["research"] = "research"
+    is_follow_up: bool
+    resolved_question: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, max_length=2_000),
+    ]
+    answer: ResearchAnswerPlan
+
+
+class StoredPlainAnswer(_StrictModel):
+    response_kind: Literal["conversation", "clarification"]
+    is_follow_up: bool
+    content: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=4_000),
+    ]
+
+
+StoredAgentAnswer = Annotated[
+    StoredResearchAnswer | StoredPlainAnswer,
+    Field(discriminator="response_kind"),
+]
+
+
+def stored_response_kind(
+    payload: dict | None,
+) -> Literal["conversation", "clarification", "research"] | None:
+    if payload is None:
+        return None
+    kind = payload.get("response_kind")
+    if kind in {"conversation", "clarification", "research"}:
+        return kind
+    return "research"
+
+
 class CitationSnapshot(_StrictModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 

@@ -1,5 +1,6 @@
 export type ChatLocale = "en-US" | "zh-CN";
 export type EvidenceCoverage = "complete" | "partial" | "insufficient";
+export type ChatResponseKind = "conversation" | "clarification" | "research";
 
 export interface ChatQuotaStatus {
   limit: number;
@@ -31,6 +32,7 @@ export interface ChatMessage {
   state: "pending" | "planning" | "completed" | "failed";
   content: string;
   locale: ChatLocale;
+  response_kind: ChatResponseKind | null;
   evidence_coverage: EvidenceCoverage | null;
   error_code: string | null;
   attempt_count: number;
@@ -47,7 +49,7 @@ export interface AcceptedPayload {
 }
 
 export interface StagePayload {
-  stage: "retrieval" | "web" | "compose" | "verify";
+  stage: "route" | "retrieval" | "web" | "compose" | "verify";
   status_key: string;
 }
 
@@ -63,7 +65,7 @@ export interface SectionPayload {
 export interface CompletePayload {
   message: ChatMessage;
   citations: ChatCitation[];
-  evidence_coverage: EvidenceCoverage;
+  evidence_coverage: EvidenceCoverage | null;
   quota: ChatQuotaStatus;
 }
 

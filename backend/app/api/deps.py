@@ -27,8 +27,11 @@ from app.chat.evidence_pipeline import (
 from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
 from app.chat.openai_agent import (
     ChatCompletionsPlanningModel,
+    ChatCompletionsRoutingModel,
     CitationBoundAnswerAgent,
+    ModelDirectedIntentRouter,
     OpenAIResponsesPlanningModel,
+    OpenAIResponsesRoutingModel,
 )
 from app.chat.quota import ChatQuotaService, SqlChatQuotaRepository
 from app.chat.repository import ConversationRepository
@@ -726,9 +729,7 @@ async def get_chat_web_search_service(
                 max_queries=settings.CHAT_WEB_MAX_QUERIES,
                 max_results=settings.CHAT_TAVILY_MAX_RESULTS,
                 search_depth=settings.CHAT_TAVILY_SEARCH_DEPTH.value,
-                structured_output_method=(
-                    settings.LLM_STRUCTURED_OUTPUT_METHOD.value
-                ),
+                structured_output_method=(settings.LLM_STRUCTURED_OUTPUT_METHOD.value),
             )
         else:
             provider_client = create_responses_client()
@@ -802,9 +803,7 @@ def get_chat_answer_agent(
                     max_retries=0,
                 ),
                 model_id=settings.CHAT_MODEL,
-                structured_output_method=(
-                    settings.LLM_STRUCTURED_OUTPUT_METHOD.value
-                ),
+                structured_output_method=(settings.LLM_STRUCTURED_OUTPUT_METHOD.value),
             )
         )
     if client is None:
@@ -823,12 +822,46 @@ ChatAnswerAgentDep = Annotated[
 ]
 
 
+def get_chat_intent_router(
+    client: ChatOpenAIClientDep,
+) -> ModelDirectedIntentRouter:
+    if settings.LLM_API_KEY is not None or settings.LLM_BASE_URL is not None:
+        return ModelDirectedIntentRouter(
+            ChatCompletionsRoutingModel(
+                create_chat_model(
+                    model=settings.CHAT_MODEL,
+                    temperature=0,
+                    timeout=60,
+                    max_tokens=1_000,
+                    max_retries=0,
+                ),
+                model_id=settings.CHAT_MODEL,
+                structured_output_method=(settings.LLM_STRUCTURED_OUTPUT_METHOD.value),
+            )
+        )
+    if client is None:
+        raise RuntimeError("OpenAI Responses client is unavailable")
+    return ModelDirectedIntentRouter(
+        OpenAIResponsesRoutingModel(
+            client,
+            model_id=settings.CHAT_MODEL,
+        )
+    )
+
+
+ChatIntentRouterDep = Annotated[
+    ModelDirectedIntentRouter,
+    Depends(get_chat_intent_router),
+]
+
+
 def get_chat_service(
     session: SessionDep,
     repository: ChatRepositoryDep,
     quota: ChatQuotaServiceDep,
     context_provider: ChatContextProviderDep,
     evidence_pipeline: ChatEvidencePipelineDep,
+    intent_router: ChatIntentRouterDep,
     answer_agent: ChatAnswerAgentDep,
 ) -> CompanyResearchChatService:
     return CompanyResearchChatService(
@@ -837,6 +870,7 @@ def get_chat_service(
         quota=quota,
         context_provider=context_provider,
         evidence_pipeline=evidence_pipeline,
+        intent_router=intent_router,
         answer_agent=answer_agent,
         summarizer=DeterministicConversationSummarizer(),
     )

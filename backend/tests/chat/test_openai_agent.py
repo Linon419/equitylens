@@ -7,9 +7,12 @@ from typing import Any
 import pytest
 
 from app.api import deps
+from app.chat.intents import AgentRouteDecision, IntentRoutingRequest
 from app.chat.openai_agent import (
     ChatCompletionsPlanningModel,
+    ChatCompletionsRoutingModel,
     CitationBoundAnswerAgent,
+    ModelDirectedIntentRouter,
     OpenAIResponsesPlanningModel,
 )
 from app.chat.prompts import AnswerPlanningRequest
@@ -45,38 +48,11 @@ class FakePlanningModel:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("question", "locale", "expected"),
-    [
-        ("你好", "zh-CN", "具体投研问题"),
-        ("Hello!", "en-US", "specific research question"),
-    ],
-)
-async def test_agent_handles_greetings_without_model_generation(
-    evidence_pack: AnswerEvidencePack,
-    question: str,
-    locale: str,
-    expected: str,
-) -> None:
-    model = FakePlanningModel([])
-    agent = CitationBoundAnswerAgent(model)
-
-    plan = await agent.create_plan(question, evidence_pack, locale=locale)
-
-    assert expected in plan.direct_conclusion.text
-    assert plan.evidence_coverage == "insufficient"
-    assert plan.sources == []
-    assert model.requests == []
-
-
-@pytest.mark.asyncio
 async def test_agent_repairs_invalid_citations_once(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
 ) -> None:
-    model = FakePlanningModel(
-        [answers["invalid_citation"], answers["valid_en"]]
-    )
+    model = FakePlanningModel([answers["invalid_citation"], answers["valid_en"]])
     agent = CitationBoundAnswerAgent(model)
 
     plan = await agent.create_plan(
@@ -125,6 +101,23 @@ async def test_agent_normalizes_unlabeled_inference_before_validation(
     risk = plan.risks_and_uncertainties[0]
     assert risk.inference is True
     assert risk.text.startswith("Inference:")
+    assert len(model.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_agent_downgrades_complete_coverage_when_server_has_evidence_gap(
+    evidence_pack: AnswerEvidencePack,
+    answers: dict[str, dict],
+) -> None:
+    evidence = evidence_pack.model_copy(
+        update={"evidence_gaps": ["CHAT_WEB_SEARCH_UNAVAILABLE"]}
+    )
+    model = FakePlanningModel([answers["valid_en"]])
+    agent = CitationBoundAnswerAgent(model)
+
+    plan = await agent.create_plan("Analyze Apple", evidence, locale="en-US")
+
+    assert plan.evidence_coverage == "partial"
     assert len(model.requests) == 1
 
 
@@ -197,7 +190,7 @@ class FakeResponses:
 
 
 class FakeStructuredChatModel:
-    def __init__(self, parsed: ResearchAnswerPlan) -> None:
+    def __init__(self, parsed: Any) -> None:
         self.parsed = parsed
         self.calls: list[tuple[type, dict[str, Any], list[dict[str, str]]]] = []
 
@@ -214,6 +207,97 @@ class FakeStructuredChatModel:
                 }
 
         return Runner()
+
+
+@pytest.mark.asyncio
+async def test_deepseek_routes_chinese_greeting_with_structured_output() -> None:
+    parsed = AgentRouteDecision(
+        interaction_mode="conversation",
+        is_follow_up=False,
+        response="你好，我可以帮你研究这家公司的业务、产业链、财报和估值。",
+    )
+    chat_model = FakeStructuredChatModel(parsed)
+    model = ChatCompletionsRoutingModel(
+        chat_model,
+        model_id="deepseek-chat",
+        structured_output_method="json_mode",
+    )
+    request = IntentRoutingRequest(
+        question="你好",
+        company_name="SanDisk Corporation",
+        symbol="SNDK",
+        locale="zh-CN",
+        history=[],
+    )
+
+    result = await model.route(request)
+
+    assert result == parsed
+    schema, options, messages = chat_model.calls[0]
+    assert schema is AgentRouteDecision
+    assert options == {"method": "json_mode", "include_raw": True}
+    assert "conversation" in messages[0]["content"]
+    assert "你好" in messages[-1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_router_provider_failure_returns_localized_safe_clarification() -> None:
+    class FailingRoutingModel:
+        model_id = "deepseek-chat"
+        calls = 0
+
+        async def route(self, request: IntentRoutingRequest) -> AgentRouteDecision:
+            self.calls += 1
+            raise RuntimeError("provider secret")
+
+    model = FailingRoutingModel()
+    router = ModelDirectedIntentRouter(model)
+
+    result = await router.route(
+        question="帮我看看",
+        company_name="SanDisk Corporation",
+        symbol="SNDK",
+        locale="zh-CN",
+        history=[],
+    )
+
+    assert result.interaction_mode == "clarification"
+    assert "业务、产业链、财报或估值" in (result.response or "")
+    assert result.resolved_question is None
+    assert model.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_router_retries_one_transient_provider_failure() -> None:
+    expected = AgentRouteDecision(
+        interaction_mode="research",
+        is_follow_up=True,
+        resolved_question="What is SNDK's current P/E ratio?",
+    )
+
+    class FlakyRoutingModel:
+        model_id = "deepseek-chat"
+        calls = 0
+
+        async def route(self, request: IntentRoutingRequest) -> AgentRouteDecision:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("temporary provider failure")
+            return expected
+
+    model = FlakyRoutingModel()
+    router = ModelDirectedIntentRouter(model)
+
+    result = await router.route(
+        question="What about its P/E?",
+        company_name="SanDisk Corporation",
+        symbol="SNDK",
+        locale="en-US",
+        history=["user: Analyze SNDK"],
+    )
+
+    assert result == expected
+    assert model.calls == 2
 
 
 @pytest.mark.asyncio
@@ -305,6 +389,40 @@ def test_chat_answer_dependency_routes_custom_llm_to_chat_completions(
         "temperature": 0,
         "timeout": 180,
         "max_tokens": 8_000,
+        "max_retries": 0,
+    }
+
+
+def test_chat_intent_dependency_routes_custom_llm_to_chat_completions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded: dict[str, Any] = {}
+    chat_model = object()
+
+    def create_model(**kwargs: Any) -> object:
+        recorded.update(kwargs)
+        return chat_model
+
+    monkeypatch.setattr(deps, "create_chat_model", create_model)
+    monkeypatch.setattr(deps.settings, "LLM_API_KEY", "deepseek-key")
+    monkeypatch.setattr(deps.settings, "LLM_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setattr(deps.settings, "RESEARCH_MODEL", "deepseek-chat")
+    monkeypatch.setattr(deps.settings, "CHAT_MODEL_OVERRIDE", None)
+    monkeypatch.setattr(
+        deps.settings,
+        "LLM_STRUCTURED_OUTPUT_METHOD",
+        SimpleNamespace(value="json_mode"),
+    )
+
+    router = deps.get_chat_intent_router(SimpleNamespace())
+
+    assert isinstance(router._model, ChatCompletionsRoutingModel)
+    assert router._model._model is chat_model
+    assert recorded == {
+        "model": "deepseek-chat",
+        "temperature": 0,
+        "timeout": 60,
+        "max_tokens": 1_000,
         "max_retries": 0,
     }
 

@@ -2915,6 +2915,13 @@ a {
   padding: 1rem;
 }
 
+.chat-message--plain p {
+  font-size: 0.84rem;
+  line-height: 1.65;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .chat-message--live {
   box-shadow: 5px 5px 0 var(--research-blue);
 }

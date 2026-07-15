@@ -16,7 +16,13 @@ from app.core.errors import DomainError
 from app.models.chat_model import ChatQuotaLedger
 from app.quota.identity import RequestPrincipal
 
-TERMINAL_COVERAGE = {"complete", "partial", "insufficient"}
+TERMINAL_OUTCOMES = {
+    "complete",
+    "partial",
+    "insufficient",
+    "conversation",
+    "clarification",
+}
 
 
 class ChatQuotaExceeded(DomainError):
@@ -60,9 +66,7 @@ class SqlChatQuotaRepository:
 
     def find_by_request(self, request_id: UUID) -> ChatQuotaRecord | None:
         row = self._session.exec(
-            select(ChatQuotaLedger).where(
-                ChatQuotaLedger.request_id == request_id
-            )
+            select(ChatQuotaLedger).where(ChatQuotaLedger.request_id == request_id)
         ).first()
         return _record(row) if row is not None else None
 
@@ -104,9 +108,7 @@ class SqlChatQuotaRepository:
         *,
         lock: bool = False,
     ) -> ChatQuotaRecord | None:
-        statement = select(ChatQuotaLedger).where(
-            ChatQuotaLedger.id == ledger_id
-        )
+        statement = select(ChatQuotaLedger).where(ChatQuotaLedger.id == ledger_id)
         if lock:
             statement = statement.with_for_update()
         row = self._session.exec(statement).first()
@@ -159,9 +161,7 @@ class SqlChatQuotaRepository:
         *,
         lock: bool,
     ) -> ChatQuotaLedger | None:
-        statement = select(ChatQuotaLedger).where(
-            ChatQuotaLedger.id == ledger_id
-        )
+        statement = select(ChatQuotaLedger).where(ChatQuotaLedger.id == ledger_id)
         if lock:
             statement = statement.with_for_update()
         return self._session.exec(statement).first()
@@ -257,12 +257,12 @@ class ChatQuotaService:
     def consume(
         self,
         ledger_id: UUID,
-        coverage: str,
+        outcome: str,
         *,
         now: datetime,
     ) -> bool:
-        if coverage not in TERMINAL_COVERAGE:
-            raise ValueError("terminal evidence coverage required")
+        if outcome not in TERMINAL_OUTCOMES:
+            raise ValueError("terminal chat outcome required")
         return self._repository.transition(
             ledger_id,
             target="consumed",

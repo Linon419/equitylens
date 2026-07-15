@@ -39,6 +39,7 @@ from app.api.deps import (  # noqa: E402
     get_chat_answer_agent,
     get_chat_context_provider,
     get_chat_evidence_pipeline,
+    get_chat_intent_router,
     get_db,
     get_google_verifier,
     get_intelligence_generator,
@@ -48,6 +49,7 @@ from app.api.deps import (  # noqa: E402
 )
 from app.auth.contracts import GoogleIdentity  # noqa: E402
 from app.auth.errors import AuthError  # noqa: E402
+from app.chat.intents import AgentRouteDecision  # noqa: E402
 from app.chat.schemas import (  # noqa: E402
     AnswerEvidencePack,
     ChatReadiness,
@@ -470,6 +472,20 @@ chat_evidence = E2EChatEvidencePipeline()
 chat_agent = E2EChatAnswerAgent()
 
 
+class E2EChatIntentRouter:
+    model_id = "deterministic-e2e-router"
+
+    async def route(self, **kwargs: Any) -> AgentRouteDecision:
+        return AgentRouteDecision(
+            interaction_mode="research",
+            is_follow_up=bool(kwargs["history"]),
+            resolved_question=kwargs["question"],
+        )
+
+
+chat_intent_router = E2EChatIntentRouter()
+
+
 app = create_app()
 app.dependency_overrides[get_db] = override_db
 app.dependency_overrides[get_google_verifier] = E2EGoogleVerifier
@@ -479,6 +495,7 @@ app.dependency_overrides[get_intelligence_generator] = lambda: generator
 app.dependency_overrides[get_job_backend] = lambda: jobs
 app.dependency_overrides[get_chat_context_provider] = lambda: chat_context
 app.dependency_overrides[get_chat_evidence_pipeline] = lambda: chat_evidence
+app.dependency_overrides[get_chat_intent_router] = lambda: chat_intent_router
 app.dependency_overrides[get_chat_answer_agent] = lambda: chat_agent
 
 

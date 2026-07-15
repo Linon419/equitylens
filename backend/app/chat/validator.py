@@ -58,17 +58,18 @@ def normalize_answer_plan(
 ) -> ResearchAnswerPlan:
     direct = _normalize_point(plan.direct_conclusion, locale)
     key_evidence = [_normalize_point(point, locale) for point in plan.key_evidence]
-    risks = [
-        _normalize_point(point, locale)
-        for point in plan.risks_and_uncertainties
-    ]
+    risks = [_normalize_point(point, locale) for point in plan.risks_and_uncertainties]
     points = [direct, *key_evidence, *risks]
+    coverage = plan.evidence_coverage
+    if evidence.evidence_gaps and coverage == "complete":
+        coverage = "partial"
     return plan.model_copy(
         update={
             "direct_conclusion": direct,
             "key_evidence": key_evidence,
             "risks_and_uncertainties": risks,
             "sources": _ordered_references(points),
+            "evidence_coverage": coverage,
             "web_search_used": evidence.web_search_used,
         }
     )
@@ -120,11 +121,12 @@ def _validate_evidence(evidence: AnswerEvidencePack) -> list[str]:
             issues.append(f"excerpt mismatch: {candidate.evidence_id}")
         if candidate.source_kind == "web":
             artifact_hash = candidate.attributes.get("artifact_sha256")
-            if not isinstance(artifact_hash, str) or re.fullmatch(
-                r"[0-9a-f]{64}", artifact_hash
-            ) is None:
+            if (
+                not isinstance(artifact_hash, str)
+                or re.fullmatch(r"[0-9a-f]{64}", artifact_hash) is None
+            ):
                 issues.append(
-                    "web artifact verification missing: " f"{candidate.evidence_id}"
+                    f"web artifact verification missing: {candidate.evidence_id}"
                 )
     return issues
 
@@ -177,9 +179,7 @@ def _validate_points(
             issues.append(f"{label} does not match locale {locale}")
         cited = [records[item] for item in point.citation_ids if item in records]
         supported_numbers = {
-            number
-            for record in cited
-            for number in _numbers(record.candidate.excerpt)
+            number for record in cited for number in _numbers(record.candidate.excerpt)
         }
         unsupported = _numbers(point.text) - supported_numbers
         if unsupported:
@@ -195,9 +195,7 @@ def _normalize_point(point: AnswerPoint, locale: str) -> AnswerPoint:
     if not inference or _inference_is_labeled(point.text, locale):
         return point.model_copy(update={"inference": inference})
     prefix = "推断：" if locale == "zh-CN" else "Inference: "
-    return point.model_copy(
-        update={"text": f"{prefix}{point.text}", "inference": True}
-    )
+    return point.model_copy(update={"text": f"{prefix}{point.text}", "inference": True})
 
 
 def _ordered_references(points: list[AnswerPoint]) -> list[str]:
@@ -248,11 +246,14 @@ def _inference_is_labeled(value: str, locale: str) -> bool:
 
 
 def _looks_inferential(value: str) -> bool:
-    return re.search(
-        r"\b(may|might|could|likely|suggests|implies)\b|可能|或许|推测",
-        value,
-        re.IGNORECASE,
-    ) is not None
+    return (
+        re.search(
+            r"\b(may|might|could|likely|suggests|implies)\b|可能|或许|推测",
+            value,
+            re.IGNORECASE,
+        )
+        is not None
+    )
 
 
 def _matches_locale(value: str, locale: str) -> bool:
