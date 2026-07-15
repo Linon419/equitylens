@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from pydantic import ValidationError
@@ -5,7 +6,11 @@ from pydantic import ValidationError
 from app.chat.contracts import AnswerPlanningModel
 from app.chat.prompts import AnswerPlanningRequest
 from app.chat.schemas import AnswerEvidencePack, ResearchAnswerPlan
-from app.chat.validator import AnswerValidationError, validate_answer_plan
+from app.chat.validator import (
+    AnswerValidationError,
+    normalize_answer_plan,
+    validate_answer_plan,
+)
 from app.core.errors import DomainError
 
 
@@ -15,6 +20,45 @@ class AnswerProviderError(RuntimeError):
 
 class AnswerModelOutputError(ValueError):
     pass
+
+
+class ChatCompletionsPlanningModel:
+    def __init__(
+        self,
+        model: Any,
+        *,
+        model_id: str,
+        structured_output_method: str = "json_schema",
+    ) -> None:
+        self._model = model
+        self.model_id = model_id
+        self._structured_output_method = structured_output_method
+
+    async def plan(self, request: AnswerPlanningRequest) -> ResearchAnswerPlan:
+        options: dict[str, Any] = {
+            "method": self._structured_output_method,
+            "include_raw": True,
+        }
+        if self._structured_output_method != "json_mode":
+            options["strict"] = True
+        messages = request.messages()
+        if self._structured_output_method == "json_mode":
+            messages = _with_json_schema(messages, ResearchAnswerPlan)
+        try:
+            runnable = self._model.with_structured_output(
+                ResearchAnswerPlan,
+                **options,
+            )
+            result = await runnable.ainvoke(messages)
+            if isinstance(result, dict) and "parsed" in result:
+                if result.get("parsing_error") is not None:
+                    raise AnswerModelOutputError()
+                result = result.get("parsed")
+            return ResearchAnswerPlan.model_validate(result)
+        except (AnswerModelOutputError, ValidationError):
+            raise AnswerModelOutputError() from None
+        except Exception:
+            raise AnswerProviderError() from None
 
 
 class OpenAIResponsesPlanningModel:
@@ -75,6 +119,7 @@ class CitationBoundAnswerAgent:
             try:
                 output = await self._model.plan(request)
                 plan = ResearchAnswerPlan.model_validate(output)
+                plan = normalize_answer_plan(plan, evidence, locale=locale)
                 validate_answer_plan(plan, evidence, locale=locale)
                 return plan
             except AnswerValidationError as error:
@@ -104,3 +149,24 @@ def _schema_feedback(error: Exception) -> str:
         ]
         return "; ".join(messages)
     return "structured answer did not match the required schema"
+
+
+def _with_json_schema(
+    messages: list[dict[str, str]],
+    schema: type[ResearchAnswerPlan],
+) -> list[dict[str, str]]:
+    instruction = {
+        "role": "system",
+        "content": (
+            "Return only valid JSON matching this JSON Schema. Include every "
+            "required property and no additional properties.\nJSON Schema: "
+            + json.dumps(
+                schema.model_json_schema(),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        ),
+    }
+    if messages and messages[0]["role"] == "system":
+        return [messages[0], instruction, *messages[1:]]
+    return [instruction, *messages]

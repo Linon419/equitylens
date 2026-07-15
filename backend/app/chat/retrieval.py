@@ -114,17 +114,33 @@ class OpenAIQueryRewriter:
         self._structured_output_method = structured_output_method
 
     async def rewrite(self, request: RewriteRequest) -> QueryRewrite:
+        options: dict[str, Any] = {"method": self._structured_output_method}
+        if self._structured_output_method != "json_mode":
+            options["strict"] = True
         runnable = self._model.with_structured_output(
             QueryRewrite,
-            method=self._structured_output_method,
-            strict=True,
+            **options,
         )
-        result = await runnable.ainvoke(
-            [
-                ("system", QUERY_REWRITE_SYSTEM_PROMPT),
-                ("human", request.as_prompt_payload()),
-            ]
-        )
+        messages = [
+            ("system", QUERY_REWRITE_SYSTEM_PROMPT),
+            ("human", request.as_prompt_payload()),
+        ]
+        if self._structured_output_method == "json_mode":
+            messages.insert(
+                1,
+                (
+                    "system",
+                    "Return only valid JSON matching this JSON Schema. "
+                    "Include every required property and no additional "
+                    "properties.\nJSON Schema: "
+                    + json.dumps(
+                        QueryRewrite.model_json_schema(),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                ),
+            )
+        result = await runnable.ainvoke(messages)
         rewrite = QueryRewrite.model_validate(result)
         validate_query_rewrite(request, rewrite)
         return rewrite

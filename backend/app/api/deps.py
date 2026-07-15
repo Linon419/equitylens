@@ -26,6 +26,7 @@ from app.chat.evidence_pipeline import (
 )
 from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
 from app.chat.openai_agent import (
+    ChatCompletionsPlanningModel,
     CitationBoundAnswerAgent,
     OpenAIResponsesPlanningModel,
 )
@@ -759,6 +760,22 @@ ChatEvidencePipelineDep = Annotated[
 def get_chat_answer_agent(
     client: ChatOpenAIClientDep,
 ) -> CitationBoundAnswerAgent:
+    if settings.LLM_API_KEY is not None or settings.LLM_BASE_URL is not None:
+        return CitationBoundAnswerAgent(
+            ChatCompletionsPlanningModel(
+                create_chat_model(
+                    model=settings.CHAT_MODEL,
+                    temperature=0,
+                    timeout=180,
+                    max_tokens=8_000,
+                    max_retries=0,
+                ),
+                model_id=settings.CHAT_MODEL,
+                structured_output_method=(
+                    settings.LLM_STRUCTURED_OUTPUT_METHOD.value
+                ),
+            )
+        )
     return CitationBoundAnswerAgent(
         OpenAIResponsesPlanningModel(
             client,

@@ -173,6 +173,40 @@ async def test_openai_rewriter_supports_function_calling_providers() -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_rewriter_supplies_schema_for_json_mode() -> None:
+    model = FakeStructuredModel()
+    rewriter = OpenAIQueryRewriter(
+        model,
+        structured_output_method="json_mode",
+    )
+    request = RewriteRequest(
+        company_name="Apple Inc.",
+        symbol="AAPL",
+        locale="en-US",
+        question="How did FY2025 revenue change?",
+        context_labels=[],
+        history=[],
+    )
+
+    await rewriter.rewrite(request)
+
+    assert model.calls == [
+        (
+            QueryRewrite,
+            {"method": "json_mode"},
+        )
+    ]
+    messages = model.runnable.messages[0]
+    schema_messages = [
+        content
+        for role, content in messages
+        if role == "system" and "JSON Schema" in content
+    ]
+    assert len(schema_messages) == 1
+    assert '"filing_query_en"' in schema_messages[0]
+
+
 def test_rrf_is_stable_for_ties_and_combines_both_channels() -> None:
     a = candidate(1, section=1)
     b = candidate(2, section=1)

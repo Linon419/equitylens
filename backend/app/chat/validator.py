@@ -28,13 +28,44 @@ class AnswerValidationError(ValueError):
 
     @property
     def repair_feedback(self) -> str:
-        return "; ".join(issue[:180] for issue in self.issues)
+        issues = "; ".join(issue[:180] for issue in self.issues)
+        return (
+            "Regenerate the complete answer plan. Every answer point must use "
+            "approved citation IDs. Use only numbers found literally in each "
+            "cited candidate.excerpt. Omit unsupported risks, dates, and numeric "
+            "details. Preserve exact first-appearance source order. Validator "
+            f"issues: {issues}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class ValidatedAnswer:
     plan: ResearchAnswerPlan
     citations: tuple[CitationSnapshot, ...]
+
+
+def normalize_answer_plan(
+    plan: ResearchAnswerPlan,
+    evidence: AnswerEvidencePack,
+    *,
+    locale: str,
+) -> ResearchAnswerPlan:
+    direct = _normalize_point(plan.direct_conclusion, locale)
+    key_evidence = [_normalize_point(point, locale) for point in plan.key_evidence]
+    risks = [
+        _normalize_point(point, locale)
+        for point in plan.risks_and_uncertainties
+    ]
+    points = [direct, *key_evidence, *risks]
+    return plan.model_copy(
+        update={
+            "direct_conclusion": direct,
+            "key_evidence": key_evidence,
+            "risks_and_uncertainties": risks,
+            "sources": _ordered_references(points),
+            "web_search_used": evidence.web_search_used,
+        }
+    )
 
 
 def validate_answer_plan(
@@ -143,6 +174,20 @@ def _validate_points(
         unsupported = _numbers(point.text) - supported_numbers
         if unsupported:
             issues.append(f"{label} has unsupported number: {sorted(unsupported)[0]}")
+
+
+def _normalize_point(point: AnswerPoint, locale: str) -> AnswerPoint:
+    inference = (
+        point.inference
+        or _looks_inferential(point.text)
+        or _inference_is_labeled(point.text, locale)
+    )
+    if not inference or _inference_is_labeled(point.text, locale):
+        return point.model_copy(update={"inference": inference})
+    prefix = "推断：" if locale == "zh-CN" else "Inference: "
+    return point.model_copy(
+        update={"text": f"{prefix}{point.text}", "inference": True}
+    )
 
 
 def _ordered_references(points: list[AnswerPoint]) -> list[str]:
