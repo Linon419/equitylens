@@ -4,8 +4,11 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 from uuid import UUID
 
 if TYPE_CHECKING:
+    from app.chat.artifacts import StoredWebArtifact, WebArtifactPage
     from app.chat.retrieval import ChunkCandidate, QueryRewrite, RewriteRequest
     from app.chat.schemas import ContextSelection, StructuredContextPack
+    from app.chat.web_discovery import SearchDiscovery
+    from app.chat.web_fetcher import FetchedWebPage
     from app.models.company_model import Company
 
 
@@ -53,7 +56,31 @@ class StructuredContextProvider(Protocol):
 
 
 class WebSearchProvider(Protocol):
-    async def search(self, request: Any) -> Any: ...
+    async def search(
+        self,
+        *,
+        question: str,
+        company_name: str,
+        symbol: str,
+        internal_coverage: str,
+        locale: str,
+    ) -> "SearchDiscovery": ...
+
+
+class WebPageFetcher(Protocol):
+    async def fetch(self, url: str) -> "FetchedWebPage": ...
+
+
+class WebArtifactWriter(Protocol):
+    async def store(
+        self,
+        *,
+        principal_scope: str,
+        conversation_id: UUID,
+        message_id: UUID,
+        ordinal: int,
+        page: "WebArtifactPage",
+    ) -> "StoredWebArtifact": ...
 
 
 class AnswerPlanningModel(Protocol):

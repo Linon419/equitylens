@@ -817,13 +817,16 @@ git commit -m "feat(chat): resolve structured company evidence"
 **Files:**
 
 - Create: `backend/app/chat/artifacts.py`
+- Create: `backend/app/chat/web_discovery.py`
+- Create: `backend/app/chat/web_fetcher.py`
 - Create: `backend/app/chat/web_search.py`
+- Create: `backend/app/chat/web_trace.py`
 - Create: `backend/tests/chat/test_artifacts.py`
 - Create: `backend/tests/chat/test_web_search.py`
 - Modify: `backend/app/chat/contracts.py`
 - Modify: `backend/app/chat/schemas.py`
 
-- [ ] **Step 1: Write source-policy and budget tests**
+- [x] **Step 1: Write source-policy and budget tests**
 
 Cover deterministic current-intent triggers, low internal evidence, Agent-requested search, three-query cap, eight-page cap, official priority, trusted-secondary classification, rejected domain classification, deduplicated canonical URLs, and normalized query storage.
 
@@ -841,11 +844,11 @@ async def test_current_question_forces_bounded_web_collection(harness):
 
 Add safety tests that selected URLs pass the existing `PinnedDnsTransport` and controlled collector before they become citable. Verify prompt-injection text stays delimited as untrusted evidence and never changes tool budgets.
 
-- [ ] **Step 2: Write immutable artifact tests**
+- [x] **Step 2: Write immutable artifact tests**
 
 Reuse graph artifact-store patterns. Assert gzip round-trip, SHA-256 verification, `chat-web/<principal-scope>/<conversation>/<message>/<ordinal>-<hash>.json.gz` keys, private access, collision handling, and cleanup by exact returned key.
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd backend
@@ -854,17 +857,17 @@ uv run pytest tests/chat/test_artifacts.py tests/chat/test_web_search.py -q
 
 Expected: imports fail because web and artifact adapters are absent.
 
-- [ ] **Step 4: Implement OpenAI Responses search adapter**
+- [x] **Step 4: Implement OpenAI Responses search adapter**
 
 Use `AsyncOpenAI.responses.create` with a web-search tool and `tool_choice="auto"`. Expose only the bounded `WebSearchProvider` contract. Record provider request ID, tool ordinal, normalized query, search reason, candidate metadata, selected IDs, and duration. Exclude model reasoning and raw page bodies from the database.
 
 Classify sources through an explicit allowlist/configuration object. Prefer SEC, US government/regulators, official company IR/newsrooms, and exchange notices. Treat configured financial publications, industry associations, and research institutions as `trusted_secondary`.
 
-- [ ] **Step 5: Re-fetch and verify selected pages**
+- [x] **Step 5: Re-fetch and verify selected pages**
 
 Pass each selected HTTPS URL through the existing DNS-pinned collector controls. Store the compressed immutable page record in S3/Vercel Blob, save its key/hash on `WebSearchTrace`, and allow exact citations only from stored fetched text. Optional web failure with strong internal evidence yields a partial-evidence note; required-current web failure raises `CHAT_WEB_SEARCH_FAILED`.
 
-- [ ] **Step 6: Validate provider isolation and safety**
+- [x] **Step 6: Validate provider isolation and safety**
 
 ```bash
 cd backend
@@ -873,7 +876,7 @@ uv run pytest tests/chat/test_artifacts.py tests/chat/test_web_search.py tests/s
 
 Expected: all tests pass with deterministic fake Responses and HTTP transports.
 
-- [ ] **Step 7: Commit web evidence**
+- [x] **Step 7: Commit web evidence**
 
 ```bash
 git add backend/app/chat/contracts.py backend/app/chat/schemas.py backend/app/chat/artifacts.py backend/app/chat/web_search.py backend/tests/chat/test_artifacts.py backend/tests/chat/test_web_search.py
