@@ -1492,16 +1492,21 @@ rg -n "(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|BLOB_READ_WRITE
 
 Expected: only planned files appear; secret scan returns no credential matches.
 
-- [ ] **Step 8: Commit release documentation**
+- [x] **Step 8: Commit release documentation**
 
 ```bash
 git add vercel.json README.md docs/deployment.md docs/product-status.md backend/tests/test_docker_profile.py backend/tests/test_vercel_config.py backend/tests/test_readme.py
 git commit -m "docs(chat): document research chat deployment"
 ```
 
-- [ ] **Step 9: Request code review and resolve findings**
+- [x] **Step 9: Request code review and resolve findings**
 
 Use `superpowers:requesting-code-review` against `main...HEAD`. Address every actionable finding, rerun its directly relevant tests, then repeat Steps 4–7. Record any unavailable external deployment check as an explicit release limitation.
+
+Superpowers is disabled for this workspace, so the review ran inline against
+`main...HEAD`. It found and removed one trailing blank line in
+`backend/app/chat/web_search.py`; Ruff and its 14 focused tests passed after the
+fix. The final scope, secret, and whitespace scans are clean.
 
 ## Spec coverage audit
 
