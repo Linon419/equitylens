@@ -1329,7 +1329,7 @@ corepack pnpm lint
 
 Expected: all company feature tests and lint pass.
 
-- [ ] **Step 8: Commit contextual chat UX**
+- [x] **Step 8: Commit contextual chat UX**
 
 ```bash
 git add frontend/src/features/company frontend/src/app/globals.css
@@ -1343,13 +1343,13 @@ git commit -m "feat(chat): connect research context actions"
 - Create: `backend/tests/fixtures/chat/rag-evaluation.json`
 - Create: `backend/tests/integration/test_company_chat_journey.py`
 - Modify: `backend/tests/e2e_app.py`
-- Modify: `frontend/e2e/company-intelligence.spec.ts`
+- Create: `frontend/e2e/company-chat.spec.ts`
 
-- [ ] **Step 1: Build deterministic chat providers in the E2E app**
+- [x] **Step 1: Build deterministic chat providers in the E2E app**
 
 Seed AAPL filings, chunks, structured data, graph evidence, web candidates/artifacts, conversations, and users. Override embedding, query rewrite, web search, answer planning, and summarization providers. Add failure switches for model, required web, and cancellation. Keep every response fabricated and deterministic.
 
-- [ ] **Step 2: Add 20-question RAG fixture**
+- [x] **Step 2: Add 20-question RAG fixture**
 
 Create at least 20 fixed questions spanning revenue, profitability, cash flow, valuation, segments, supply-chain position, competitors, risk factors, and recent events. Each entry contains:
 
@@ -1367,7 +1367,7 @@ Create at least 20 fixed questions spanning revenue, profitability, cash flow, v
 
 The evaluator checks company/period, numerical consistency, citations, exact excerpt support, search decision, coverage, locale, and unsupported material claims.
 
-- [ ] **Step 3: Add the ten approved browser journeys**
+- [x] **Step 3: Add the ten approved browser journeys**
 
 Extend Playwright with:
 
@@ -1382,26 +1382,26 @@ Extend Playwright with:
 9. cross-user conversation 404;
 10. mobile keyboard citation and focus restoration.
 
-- [ ] **Step 4: Add backend journey assertions**
+- [x] **Step 4: Add backend journey assertions**
 
 In `test_company_chat_journey.py`, exercise the same service through FastAPI and inspect database rows after completion/refund/replay. Assert exact net quota and immutable citations.
 
-- [ ] **Step 5: Run integration, RAG, and browser suites**
+- [x] **Step 5: Run integration, RAG, and browser suites**
 
 ```bash
 cd backend
 uv run pytest tests/integration/test_company_chat_journey.py -q
 uv run pytest tests/chat/test_rag_evaluation.py -q
 cd ../frontend
-corepack pnpm test:e2e -- company-intelligence.spec.ts
+corepack pnpm exec playwright test e2e/company-chat.spec.ts
 ```
 
 Expected: all ten browser journeys and all 20 RAG fixtures pass deterministically.
 
-- [ ] **Step 6: Commit acceptance coverage**
+- [x] **Step 6: Commit acceptance coverage**
 
 ```bash
-git add backend/tests/fixtures/chat/rag-evaluation.json backend/tests/chat/test_rag_evaluation.py backend/tests/integration/test_company_chat_journey.py backend/tests/e2e_app.py frontend/e2e/company-intelligence.spec.ts
+git add backend/tests/fixtures/chat/rag-evaluation.json backend/tests/chat/test_rag_evaluation.py backend/tests/integration/test_company_chat_journey.py backend/tests/e2e_app.py frontend/e2e/company-chat.spec.ts
 git commit -m "test(chat): cover research chat journeys"
 ```
 

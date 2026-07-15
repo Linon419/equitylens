@@ -1,0 +1,301 @@
+{
+  "company": {
+    "company_id": 1,
+    "company_name": "Apple Inc.",
+    "symbol": "AAPL"
+  },
+  "records": [
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "financial:revenue-fy2025",
+        "source_kind": "financial",
+        "source_id": "revenue-fy2025",
+        "title": "AAPL Revenue · FY2025",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "revenue-fy2025",
+        "excerpt": "Apple reported FY2025 revenue of 391 billion USD.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"metric_key": "revenue", "period_key": "FY2025"}
+      },
+      "source_text": "Apple reported FY2025 revenue of 391 billion USD."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "filing:gross-margin-fy2025",
+        "source_kind": "filing",
+        "source_id": "gross-margin-fy2025",
+        "title": "Apple FY2025 Form 10-K · Gross Margin",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "gross-margin",
+        "excerpt": "Apple reported a FY2025 gross margin of 46.2%.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"filing_form": "10-K", "fiscal_period": "FY2025"}
+      },
+      "source_text": "Apple reported a FY2025 gross margin of 46.2%."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "financial:operating-cash-flow-fy2025",
+        "source_kind": "financial",
+        "source_id": "operating-cash-flow-fy2025",
+        "title": "AAPL Operating Cash Flow · FY2025",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "operating-cash-flow-fy2025",
+        "excerpt": "Apple generated FY2025 operating cash flow of 118 billion USD.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"metric_key": "operating_cash_flow", "period_key": "FY2025"}
+      },
+      "source_text": "Apple generated FY2025 operating cash flow of 118 billion USD."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "financial:valuation-snapshot",
+        "source_kind": "financial",
+        "source_id": "valuation-snapshot",
+        "title": "AAPL Valuation Snapshot",
+        "source_url": "https://finance.yahoo.com/quote/AAPL/",
+        "source_anchor": "valuation",
+        "excerpt": "AAPL traded at 212.48 USD with a trailing P/E of 33.1 on July 14, 2026.",
+        "published_at": null,
+        "retrieved_at": "2026-07-14T20:00:00Z",
+        "source_tier": "derived",
+        "verification": "supporting",
+        "attributes": {"metric_key": "trailing_pe", "observed_at": "2026-07-14"}
+      },
+      "source_text": "AAPL traded at 212.48 USD with a trailing P/E of 33.1 on July 14, 2026."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "financial:eps-fy2025",
+        "source_kind": "financial",
+        "source_id": "eps-fy2025",
+        "title": "AAPL Diluted EPS · FY2025",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "eps-fy2025",
+        "excerpt": "Apple reported FY2025 diluted EPS of 6.42 USD.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"metric_key": "diluted_eps", "period_key": "FY2025"}
+      },
+      "source_text": "Apple reported FY2025 diluted EPS of 6.42 USD."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "filing:services-segment-fy2025",
+        "source_kind": "filing",
+        "source_id": "services-segment-fy2025",
+        "title": "Apple FY2025 Form 10-K · Services",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "services",
+        "excerpt": "Services generated FY2025 net sales of 96 billion USD.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"filing_form": "10-K", "fiscal_period": "FY2025"}
+      },
+      "source_text": "Services generated FY2025 net sales of 96 billion USD."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "intelligence:core-business",
+        "source_kind": "intelligence",
+        "source_id": "core-business",
+        "title": "Apple Core Business",
+        "source_url": "https://www.apple.com/",
+        "source_anchor": "products",
+        "excerpt": "Apple combines devices, operating systems, and services in an integrated ecosystem.",
+        "published_at": "2026-07-01T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"claim_type": "core_business"}
+      },
+      "source_text": "Apple combines devices, operating systems, and services in an integrated ecosystem."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "filing:customer-concentration-risk",
+        "source_kind": "filing",
+        "source_id": "customer-concentration-risk",
+        "title": "Apple FY2025 Form 10-K · Distribution Risk",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "distribution-risk",
+        "excerpt": "Apple depends on cellular network carriers and other resellers for product distribution.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"filing_form": "10-K", "fiscal_period": "FY2025"}
+      },
+      "source_text": "Apple depends on cellular network carriers and other resellers for product distribution."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "filing:competition-risk",
+        "source_kind": "filing",
+        "source_id": "competition-risk",
+        "title": "Apple FY2025 Form 10-K · Competition",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "competition",
+        "excerpt": "Apple faces substantial competition in smartphones, personal computers, tablets, wearables, and services.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"filing_form": "10-K", "fiscal_period": "FY2025"}
+      },
+      "source_text": "Apple faces substantial competition in smartphones, personal computers, tablets, wearables, and services."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "graph:tsmc-upstream",
+        "source_kind": "graph",
+        "source_id": "tsmc-upstream",
+        "title": "Apple Supply Chain · TSMC",
+        "source_url": "https://www.apple.com/supplier-responsibility/",
+        "source_anchor": "tsmc",
+        "excerpt": "TSMC supplies advanced semiconductor manufacturing capacity used by Apple.",
+        "published_at": "2026-03-15T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"relationship_type": "supplies", "confidence": "High"}
+      },
+      "source_text": "TSMC supplies advanced semiconductor manufacturing capacity used by Apple."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "graph:consumer-downstream",
+        "source_kind": "graph",
+        "source_id": "consumer-downstream",
+        "title": "Apple Supply Chain · Customers",
+        "source_url": "https://www.apple.com/",
+        "source_anchor": "customers",
+        "excerpt": "Consumers and enterprises buy Apple devices and subscribe to Apple services downstream.",
+        "published_at": "2026-07-01T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"relationship_type": "sells_to", "confidence": "High"}
+      },
+      "source_text": "Consumers and enterprises buy Apple devices and subscribe to Apple services downstream."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "graph:apple-position",
+        "source_kind": "graph",
+        "source_id": "apple-position",
+        "title": "Apple Supply Chain Position",
+        "source_url": "https://www.apple.com/",
+        "source_anchor": "business-model",
+        "excerpt": "Apple sits at the platform and branded-device layer between component suppliers and end customers.",
+        "published_at": "2026-07-01T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "derived",
+        "verification": "supporting",
+        "attributes": {"layer": "platform_brand", "confidence": "High"}
+      },
+      "source_text": "Apple sits at the platform and branded-device layer between component suppliers and end customers."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "filing:capital-returns-fy2025",
+        "source_kind": "filing",
+        "source_id": "capital-returns-fy2025",
+        "title": "Apple FY2025 Form 10-K · Capital Returns",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/aapl-20250927.htm",
+        "source_anchor": "capital-returns",
+        "excerpt": "Apple repurchased 89 billion USD of common stock during FY2025.",
+        "published_at": "2025-10-31T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"filing_form": "10-K", "fiscal_period": "FY2025"}
+      },
+      "source_text": "Apple repurchased 89 billion USD of common stock during FY2025."
+    },
+    {
+      "company_id": null,
+      "candidate": {
+        "evidence_id": "web:regulatory-update-2026",
+        "source_kind": "web",
+        "source_id": "regulatory-update-2026",
+        "title": "Technology Platform Regulatory Update",
+        "source_url": "https://www.ftc.gov/news-events/news/press-releases/example",
+        "source_anchor": null,
+        "excerpt": "On July 14, 2026, the FTC published a competition-policy update for large technology platforms.",
+        "published_at": "2026-07-14T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "primary",
+        "verification": "verified",
+        "attributes": {"artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+      },
+      "source_text": "On July 14, 2026, the FTC published a competition-policy update for large technology platforms."
+    },
+    {
+      "company_id": 1,
+      "candidate": {
+        "evidence_id": "graph:apple-position-zh",
+        "source_kind": "graph",
+        "source_id": "apple-position-zh",
+        "title": "苹果产业链位置",
+        "source_url": "https://www.apple.com/",
+        "source_anchor": "business-model",
+        "excerpt": "苹果位于零部件供应商和终端客户之间的平台与品牌设备层。",
+        "published_at": "2026-07-01T00:00:00Z",
+        "retrieved_at": "2026-07-15T12:00:00Z",
+        "source_tier": "derived",
+        "verification": "supporting",
+        "attributes": {"layer": "platform_brand", "confidence": "High"}
+      },
+      "source_text": "苹果位于零部件供应商和终端客户之间的平台与品牌设备层。"
+    }
+  ],
+  "questions": [
+    {"id":"aapl-revenue-01","locale":"en-US","question":"What was Apple's FY2025 revenue?","required_source_kinds":["financial"],"required_facts":["FY2025","391 billion USD"],"evidence_ids":["financial:revenue-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-gross-margin-01","locale":"en-US","question":"What supports Apple's gross margin?","required_source_kinds":["filing"],"required_facts":["gross margin","46.2%"],"evidence_ids":["filing:gross-margin-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-cash-flow-01","locale":"en-US","question":"How much operating cash flow did Apple generate in FY2025?","required_source_kinds":["financial"],"required_facts":["operating cash flow","118 billion USD"],"evidence_ids":["financial:operating-cash-flow-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-valuation-01","locale":"en-US","question":"What are Apple's current price and trailing P/E?","required_source_kinds":["financial"],"required_facts":["212.48 USD","trailing P/E","33.1"],"evidence_ids":["financial:valuation-snapshot"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-eps-valuation-01","locale":"en-US","question":"Which earnings figure underpins Apple's valuation context?","required_source_kinds":["financial"],"required_facts":["diluted EPS","6.42 USD"],"evidence_ids":["financial:eps-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-services-01","locale":"en-US","question":"How large was Apple's Services business in FY2025?","required_source_kinds":["filing"],"required_facts":["Services","96 billion USD"],"evidence_ids":["filing:services-segment-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-core-business-01","locale":"en-US","question":"What are Apple's core businesses?","required_source_kinds":["intelligence"],"required_facts":["devices","operating systems","services"],"evidence_ids":["intelligence:core-business"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-ecosystem-01","locale":"en-US","question":"How does Apple's ecosystem combine products and services?","required_source_kinds":["intelligence"],"required_facts":["integrated ecosystem"],"evidence_ids":["intelligence:core-business"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-upstream-01","locale":"en-US","question":"Who is a key upstream semiconductor supplier?","required_source_kinds":["graph"],"required_facts":["TSMC","semiconductor manufacturing"],"evidence_ids":["graph:tsmc-upstream"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-downstream-01","locale":"en-US","question":"Who sits downstream from Apple?","required_source_kinds":["graph"],"required_facts":["Consumers","enterprises","downstream"],"evidence_ids":["graph:consumer-downstream"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-chain-position-01","locale":"en-US","question":"Where does Apple sit in its industry chain?","required_source_kinds":["graph"],"required_facts":["platform","branded-device layer"],"evidence_ids":["graph:apple-position"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-distribution-risk-01","locale":"en-US","question":"What distribution dependency appears in the filing?","required_source_kinds":["filing"],"required_facts":["cellular network carriers","resellers"],"evidence_ids":["filing:customer-concentration-risk"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-competition-01","locale":"en-US","question":"Which markets expose Apple to competition?","required_source_kinds":["filing"],"required_facts":["smartphones","personal computers","services"],"evidence_ids":["filing:competition-risk"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-capital-return-01","locale":"en-US","question":"How much stock did Apple repurchase in FY2025?","required_source_kinds":["filing"],"required_facts":["repurchased","89 billion USD"],"evidence_ids":["filing:capital-returns-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-profitability-mix-01","locale":"en-US","question":"Summarize FY2025 revenue and gross margin.","required_source_kinds":["financial","filing"],"required_facts":["391 billion USD","46.2%"],"evidence_ids":["financial:revenue-fy2025","filing:gross-margin-fy2025"],"fiscal_period":"FY2025","expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-supplier-position-01","locale":"en-US","question":"Connect Apple's industry-chain position to TSMC.","required_source_kinds":["graph"],"required_facts":["platform","TSMC"],"evidence_ids":["graph:apple-position","graph:tsmc-upstream"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-current-event-01","locale":"en-US","question":"What current regulatory event could matter to Apple?","required_source_kinds":["web"],"required_facts":["July 14, 2026","FTC","competition-policy"],"evidence_ids":["web:regulatory-update-2026"],"expected_web_search":true,"expected_coverage":["complete"]},
+    {"id":"aapl-current-risk-01","locale":"en-US","question":"Has there been a recent technology-platform policy update?","required_source_kinds":["web"],"required_facts":["large technology platforms"],"evidence_ids":["web:regulatory-update-2026"],"expected_web_search":true,"expected_coverage":["complete"]},
+    {"id":"aapl-chain-position-zh-01","locale":"zh-CN","question":"苹果处于产业链的哪一层？","required_source_kinds":["graph"],"required_facts":["平台","品牌设备层","终端客户"],"evidence_ids":["graph:apple-position-zh"],"expected_web_search":false,"expected_coverage":["complete"]},
+    {"id":"aapl-roadmap-gap-01","locale":"en-US","question":"What is Apple's unannounced product roadmap for 2028?","required_source_kinds":[],"required_facts":["product roadmap"],"evidence_ids":[],"expected_web_search":false,"expected_coverage":["insufficient"]}
+  ]
+}

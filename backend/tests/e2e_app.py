@@ -36,6 +36,9 @@ from sqlmodel import Session, SQLModel, create_engine  # noqa: E402
 
 from app import models  # noqa: E402, F401
 from app.api.deps import (  # noqa: E402
+    get_chat_answer_agent,
+    get_chat_context_provider,
+    get_chat_evidence_pipeline,
     get_db,
     get_google_verifier,
     get_intelligence_generator,
@@ -45,6 +48,15 @@ from app.api.deps import (  # noqa: E402
 )
 from app.auth.contracts import GoogleIdentity  # noqa: E402
 from app.auth.errors import AuthError  # noqa: E402
+from app.chat.schemas import (  # noqa: E402
+    AnswerEvidencePack,
+    ChatReadiness,
+    ReadinessResource,
+    ResearchAnswerPlan,
+    StructuredContextPack,
+)
+from app.chat.service import PreparedAnswerEvidence  # noqa: E402
+from app.core.errors import DomainError  # noqa: E402
 from app.jobs.pipeline import CompanyIntelligencePipeline  # noqa: E402
 from app.jobs.schemas import JobSubmission  # noqa: E402
 from app.main import create_app  # noqa: E402
@@ -86,6 +98,7 @@ market = DeterministicMarketProvider()
 sec = DeterministicSecProvider()
 generator = DeterministicIntelligenceGenerator()
 GRAPH_FIXTURES = Path(__file__).parent / "fixtures" / "supply_chain"
+CHAT_FIXTURES = Path(__file__).parent / "fixtures" / "chat"
 
 
 def seed_companies() -> None:
@@ -185,6 +198,88 @@ def graph_localization(graph: AcceptedGraph) -> GraphLocalization:
 GRAPH_LOCALIZATION = graph_localization(GRAPH_ACCEPTED)
 
 
+class E2EChatContextProvider:
+    async def resolve(self, **_kwargs) -> StructuredContextPack:
+        ready = ReadinessResource(state="ready", action=None)
+        return StructuredContextPack(
+            items=[],
+            evidence=[],
+            readiness=ChatReadiness(
+                company_symbol="AAPL",
+                intelligence=ready,
+                filing_text=ready,
+                filing_index=ready,
+                supply_chain_graph=ready,
+                web_recency=ready,
+            ),
+            gaps=[],
+        )
+
+
+class E2EChatEvidencePipeline:
+    async def prepare_internal(self, **kwargs):
+        await asyncio.sleep(0.12)
+        return kwargs["question"]
+
+    async def add_web(self, **kwargs) -> PreparedAnswerEvidence:
+        await asyncio.sleep(0.12)
+        question = kwargs["question"].casefold()
+        if "required web failure" in question:
+            raise DomainError("CHAT_WEB_SEARCH_FAILED", 503)
+        evidence = AnswerEvidencePack.model_validate_json(
+            (CHAT_FIXTURES / "aapl_evidence.json").read_text()
+        )
+        use_web = any(
+            term in question
+            for term in ("current", "recent", "latest", "最新", "近期")
+        )
+        if use_web:
+            return PreparedAnswerEvidence(evidence, [])
+        return PreparedAnswerEvidence(
+            evidence.model_copy(
+                update={
+                    "records": [
+                        record
+                        for record in evidence.records
+                        if record.candidate.source_kind != "web"
+                    ],
+                    "web_search_used": False,
+                }
+            ),
+            [],
+        )
+
+
+class E2EChatAnswerAgent:
+    model_id = "e2e-company-research-agent"
+
+    def __init__(self) -> None:
+        self.failed_once: set[str] = set()
+
+    async def create_plan(
+        self,
+        question: str,
+        evidence: AnswerEvidencePack,
+        **kwargs,
+    ) -> ResearchAnswerPlan:
+        await asyncio.sleep(0.12)
+        if (
+            "force model failure" in question.casefold()
+            and question not in self.failed_once
+        ):
+            self.failed_once.add(question)
+            raise DomainError("CHAT_ANSWER_GENERATION_FAILED", 503)
+        answers = json.loads((CHAT_FIXTURES / "aapl_answers.json").read_text())
+        answer = answers["valid_zh" if kwargs["locale"] == "zh-CN" else "valid_en"]
+        if not evidence.web_search_used:
+            answer["risks_and_uncertainties"] = []
+            answer["sources"] = [
+                source for source in answer["sources"] if not source.startswith("web:")
+            ]
+            answer["web_search_used"] = False
+        return ResearchAnswerPlan.model_validate(answer)
+
+
 class E2EOfficialSourceTools:
     async def fetch_official_source(
         self,
@@ -237,13 +332,26 @@ class E2EEntityResolver:
 
 class E2EGoogleVerifier:
     def verify(self, credential: str) -> GoogleIdentity:
-        if credential != "e2e-google-token":
+        identities = {
+            "e2e-google-token": (
+                "e2e-google-sub",
+                "investor@example.com",
+                "E2E Investor",
+            ),
+            "e2e-google-token-2": (
+                "e2e-google-sub-2",
+                "analyst@example.com",
+                "E2E Analyst",
+            ),
+        }
+        if credential not in identities:
             raise AuthError("AUTH_INVALID_GOOGLE_TOKEN", 401)
+        subject, email, full_name = identities[credential]
         return GoogleIdentity(
-            subject="e2e-google-sub",
-            email="investor@example.com",
+            subject=subject,
+            email=email,
             email_verified=True,
-            full_name="E2E Investor",
+            full_name=full_name,
             picture=None,
         )
 
@@ -335,7 +443,7 @@ class E2EJobBackend:
             try:
                 await pipeline.collect(job_id)
                 session.commit()
-                await asyncio.sleep(4.5)
+                await asyncio.sleep(2.0)
                 for step in (
                     pipeline.extract,
                     pipeline.resolve,
@@ -357,6 +465,9 @@ class E2EJobBackend:
 
 
 jobs = E2EJobBackend()
+chat_context = E2EChatContextProvider()
+chat_evidence = E2EChatEvidencePipeline()
+chat_agent = E2EChatAnswerAgent()
 
 
 app = create_app()
@@ -366,6 +477,9 @@ app.dependency_overrides[get_market_data_provider] = lambda: market
 app.dependency_overrides[get_sec_data_provider] = lambda: sec
 app.dependency_overrides[get_intelligence_generator] = lambda: generator
 app.dependency_overrides[get_job_backend] = lambda: jobs
+app.dependency_overrides[get_chat_context_provider] = lambda: chat_context
+app.dependency_overrides[get_chat_evidence_pipeline] = lambda: chat_evidence
+app.dependency_overrides[get_chat_answer_agent] = lambda: chat_agent
 
 
 @app.post("/__e2e__/reset", include_in_schema=False)
@@ -373,6 +487,7 @@ async def reset_e2e_state() -> dict[str, str]:
     await jobs.drain()
     jobs.enqueued_since_reset = 0
     jobs.intelligence_enqueued_since_reset = 0
+    chat_agent.failed_once.clear()
     SQLModel.metadata.drop_all(engine)
     SQLModel.metadata.create_all(engine)
     seed_companies()
