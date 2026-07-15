@@ -10,6 +10,9 @@ import { isSameOrigin } from "@/lib/auth/security";
 import { researchBackendRequest } from "@/lib/research/backend";
 import type { ResearchHttpMethod } from "@/lib/research/types";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 const MAX_BODY_BYTES = 64 * 1_024;
 const SYMBOL = "[A-Za-z][A-Za-z0-9.-]{0,15}";
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
