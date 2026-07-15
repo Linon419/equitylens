@@ -421,7 +421,7 @@ git commit -m "feat(chat): add conversation persistence"
 - Create: `backend/tests/chat/test_schemas.py`
 - Create: `backend/tests/chat/test_repository.py`
 
-- [ ] **Step 1: Write failing schema tests**
+- [x] **Step 1: Write failing schema tests**
 
 Cover locale, title, 2,000-character message limit, Unicode normalization, closed context kinds, UUID requirements, and cursor shape:
 
@@ -446,7 +446,7 @@ def test_message_request_normalizes_text_and_rejects_unknown_context():
 
 The context union contains `market_metric`, `financial_metric`, `business_claim`, `supply_chain_node`, and `supply_chain_edge`.
 
-- [ ] **Step 2: Write failing repository isolation tests**
+- [x] **Step 2: Write failing repository isolation tests**
 
 In `backend/tests/chat/test_repository.py`, cover:
 
@@ -473,7 +473,7 @@ conversation = repository.get_owned(
 assert conversation is None
 ```
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd backend
@@ -482,7 +482,7 @@ uv run pytest tests/chat/test_schemas.py tests/chat/test_repository.py -q
 
 Expected: imports fail because chat schemas and repository are absent.
 
-- [ ] **Step 4: Add closed API schemas and provider protocols**
+- [x] **Step 4: Add closed API schemas and provider protocols**
 
 Define `Locale = Literal["en-US", "zh-CN"]`, context discriminated unions, `ConversationCreate`, `ConversationPatch`, `ConversationPublic`, `MessageCreate`, `MessagePublic`, `CitationPublic`, `MessagePage`, `ChatReadiness`, and the SSE payload schemas in `backend/app/chat/schemas.py`. Set `extra="forbid"` on write models.
 
@@ -506,13 +506,13 @@ class AnswerPlanningModel(Protocol):
     async def plan(self, request: AnswerPlanningRequest) -> ResearchAnswerPlan: ...
 ```
 
-- [ ] **Step 5: Implement repository predicates and lifecycle**
+- [x] **Step 5: Implement repository predicates and lifecycle**
 
 Build SQLModel statements through one `_owner_predicate(principal)` helper. User ownership compares `user_id`; guest ownership compares the signed principal's `principal_hash`. Every single-resource lookup includes the owner predicate, active state, expiry rule, and company where applicable.
 
 Use cursor `(created_at, id)` and `limit + 1` pagination. Archive with a row lock and update `updated_at`. Guest creation archives an expired active row before inserting the successor. Return artifact keys from cleanup and let the service delete objects after the database transaction commits.
 
-- [ ] **Step 6: Validate repository behavior**
+- [x] **Step 6: Validate repository behavior**
 
 ```bash
 cd backend
@@ -521,7 +521,7 @@ uv run pytest tests/chat/test_schemas.py tests/chat/test_repository.py -q
 
 Expected: all schema and ownership tests pass.
 
-- [ ] **Step 7: Commit the conversation domain**
+- [x] **Step 7: Commit the conversation domain**
 
 ```bash
 git add backend/app/chat/__init__.py backend/app/chat/contracts.py backend/app/chat/schemas.py backend/app/chat/repository.py backend/tests/chat

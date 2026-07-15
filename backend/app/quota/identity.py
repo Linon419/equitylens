@@ -20,10 +20,11 @@ class RequestPrincipal:
     principal_type: Literal["guest", "user"]
     principal_hash: str
     ip_hash: str | None
+    user_id: int | None = None
 
     @classmethod
     def guest(cls, principal_hash: str, ip_hash: str) -> "RequestPrincipal":
-        return cls("guest", principal_hash, ip_hash)
+        return cls("guest", principal_hash, ip_hash, None)
 
     @classmethod
     def user(
@@ -31,7 +32,7 @@ class RequestPrincipal:
         user_id: int,
         secret: str,
     ) -> "RequestPrincipal":
-        return cls("user", _keyed_hash(secret, f"user:{user_id}"), None)
+        return cls("user", _keyed_hash(secret, f"user:{user_id}"), None, user_id)
 
 
 def sign_guest_assertion(
