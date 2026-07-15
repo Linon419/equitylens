@@ -5,6 +5,8 @@ from uuid import UUID
 
 if TYPE_CHECKING:
     from app.chat.retrieval import ChunkCandidate, QueryRewrite, RewriteRequest
+    from app.chat.schemas import ContextSelection, StructuredContextPack
+    from app.models.company_model import Company
 
 
 class EmbeddingProvider(Protocol):
@@ -41,7 +43,13 @@ class QueryRewriter(Protocol):
 
 
 class StructuredContextProvider(Protocol):
-    async def build(self, request: Any) -> Any: ...
+    async def resolve(
+        self,
+        *,
+        company: "Company",
+        selections: list["ContextSelection"],
+        locale: str,
+    ) -> "StructuredContextPack": ...
 
 
 class WebSearchProvider(Protocol):

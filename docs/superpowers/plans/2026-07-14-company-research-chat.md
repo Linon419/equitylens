@@ -761,7 +761,7 @@ git commit -m "feat(chat): add hybrid filing retrieval"
 - Modify: `backend/app/chat/contracts.py`
 - Modify: `backend/app/chat/schemas.py`
 
-- [ ] **Step 1: Write context-resolution tests**
+- [x] **Step 1: Write context-resolution tests**
 
 Cover latest market observation, four annual periods plus TTM, published intelligence claims, published graph nodes/edges, exact excerpts, stale snapshots, missing resources, and cross-company IDs. Every client label must be ignored:
 
@@ -781,7 +781,7 @@ async def test_cross_company_context_has_stable_error(services):
         await services.resolve(company=aapl, selections=[msft_metric], locale="en-US")
 ```
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd backend
@@ -790,13 +790,13 @@ uv run pytest tests/chat/test_structured_context.py -q
 
 Expected: import failure because structured context is absent.
 
-- [ ] **Step 3: Implement typed server resolution**
+- [x] **Step 3: Implement typed server resolution**
 
 Create adapters around existing market, financial, intelligence, and supply-chain repositories. Resolve `market_metric` and `financial_metric` from allowlisted metric keys; resolve claim/node/edge IDs through company-scoped snapshot queries. Build immutable evidence candidates with `source_kind`, stable internal ID, title, HTTPS URL, anchor, excerpt, publication/observation time, source tier, and verification.
 
 Return readiness independently for company intelligence, filing text, filing index, graph, and web recency. Missing optional resources add readiness actions and evidence-gap records.
 
-- [ ] **Step 4: Validate context and regress existing domains**
+- [x] **Step 4: Validate context and regress existing domains**
 
 ```bash
 cd backend
@@ -805,7 +805,7 @@ uv run pytest tests/chat/test_structured_context.py tests/market_data tests/fina
 
 Expected: all focused suites pass.
 
-- [ ] **Step 5: Commit structured evidence**
+- [x] **Step 5: Commit structured evidence**
 
 ```bash
 git add backend/app/chat/contracts.py backend/app/chat/schemas.py backend/app/chat/structured_context.py backend/tests/chat/test_structured_context.py

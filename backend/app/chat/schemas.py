@@ -27,6 +27,10 @@ PeriodKey = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=32),
 ]
+ClaimKey = Annotated[
+    str,
+    StringConstraints(pattern=r"^[a-z]+-[0-9]+$"),
+]
 
 
 class StrictModel(BaseModel):
@@ -65,7 +69,7 @@ class FinancialMetricContext(StrictModel):
 
 class BusinessClaimContext(StrictModel):
     kind: Literal["business_claim"] = "business_claim"
-    id: UUID
+    id: ClaimKey
     snapshot_id: UUID
 
 
@@ -145,6 +149,72 @@ class CitationPublic(StrictModel):
     verification: Literal["verified", "supporting"]
 
 
+EvidenceAttribute = str | int | float | bool | None
+
+
+class EvidenceCandidate(StrictModel):
+    evidence_id: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+    ]
+    source_kind: Literal["filing", "financial", "intelligence", "graph", "web"]
+    source_id: str | None
+    title: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+    ]
+    source_url: str
+    source_anchor: str | None
+    excerpt: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=1_000),
+    ]
+    published_at: datetime | None
+    retrieved_at: datetime
+    source_tier: Literal["primary", "trusted_secondary", "derived"]
+    verification: Literal["verified", "supporting"]
+    attributes: dict[str, EvidenceAttribute] = Field(default_factory=dict)
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_source_url(cls, value: str) -> str:
+        if not value.startswith("https://") or len(value) > 2_000:
+            raise ValueError("evidence source URL must use HTTPS")
+        return value
+
+
+class StructuredContextItem(StrictModel):
+    kind: Literal[
+        "market_metric",
+        "financial_metric",
+        "business_claim",
+        "supply_chain_node",
+        "supply_chain_edge",
+    ]
+    source_id: str
+    label: str
+    description: str
+    citation: EvidenceCandidate
+
+
+class EvidenceGap(StrictModel):
+    resource: Literal[
+        "market",
+        "financials",
+        "intelligence",
+        "filing_text",
+        "filing_index",
+        "supply_chain_graph",
+        "web_recency",
+    ]
+    code: str
+    action: Literal[
+        "company_analysis",
+        "filing_index",
+        "supply_chain_graph",
+    ] | None = None
+
+
 class MessagePublic(StrictModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -180,6 +250,13 @@ class ChatReadiness(StrictModel):
     filing_index: ReadinessResource
     supply_chain_graph: ReadinessResource
     web_recency: ReadinessResource
+
+
+class StructuredContextPack(StrictModel):
+    items: list[StructuredContextItem]
+    evidence: list[EvidenceCandidate]
+    readiness: ChatReadiness
+    gaps: list[EvidenceGap]
 
 
 class ChatQuotaStatus(StrictModel):

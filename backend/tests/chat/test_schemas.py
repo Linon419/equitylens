@@ -57,7 +57,7 @@ def test_context_selections_require_typed_server_identifiers() -> None:
                 observed_at=datetime(2026, 7, 15, tzinfo=UTC),
             ),
             FinancialMetricContext(metric_key="revenue", period_key="FY2025"),
-            BusinessClaimContext(id=object_id, snapshot_id=snapshot_id),
+            BusinessClaimContext(id="business-1", snapshot_id=snapshot_id),
             SupplyChainNodeContext(id=object_id, snapshot_id=snapshot_id),
             SupplyChainEdgeContext(id=object_id, snapshot_id=snapshot_id),
         ],
@@ -70,6 +70,8 @@ def test_context_selections_require_typed_server_identifiers() -> None:
         "supply_chain_node",
         "supply_chain_edge",
     ]
+    with pytest.raises(ValidationError):
+        BusinessClaimContext(id=str(object_id), snapshot_id=snapshot_id)
     with pytest.raises(ValidationError):
         MessageCreate(
             client_request_id=uuid4(),
