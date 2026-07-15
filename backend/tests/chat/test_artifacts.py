@@ -1,11 +1,15 @@
 from datetime import UTC, datetime
 from hashlib import sha256
+from io import BytesIO
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
 from app.chat.artifacts import (
     ChatArtifactError,
+    S3ChatArtifactStore,
+    VercelBlobChatArtifactStore,
     WebArtifactArchive,
     WebArtifactPage,
 )
@@ -37,6 +41,43 @@ class RecordingStore:
     async def delete(self, *, artifact_key: str) -> None:
         self.deletes.append(artifact_key)
         self.objects.pop(artifact_key, None)
+
+
+class FakeS3Client:
+    def __init__(self) -> None:
+        self.objects: dict[str, tuple[bytes, dict[str, str]]] = {}
+
+    def put_object(self, **kwargs) -> None:
+        key = kwargs["Key"]
+        if key in self.objects:
+            raise RuntimeError("precondition failed")
+        self.objects[key] = (kwargs["Body"], kwargs["Metadata"])
+
+    def head_object(self, **kwargs) -> dict:
+        return {"Metadata": self.objects[kwargs["Key"]][1]}
+
+    def get_object(self, **kwargs) -> dict:
+        return {"Body": BytesIO(self.objects[kwargs["Key"]][0])}
+
+    def delete_object(self, **kwargs) -> None:
+        self.objects.pop(kwargs["Key"], None)
+
+
+class FakeBlobClient:
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+
+    async def put(self, path: str, body: bytes, **kwargs):
+        if path in self.objects:
+            raise RuntimeError("already exists")
+        self.objects[path] = body
+        return SimpleNamespace(url=f"https://private.example/{path}")
+
+    async def get(self, path: str, **kwargs):
+        return SimpleNamespace(status_code=200, content=self.objects[path])
+
+    async def delete(self, path: str) -> None:
+        self.objects.pop(path, None)
 
 
 def page() -> WebArtifactPage:
@@ -71,13 +112,16 @@ async def test_web_artifact_round_trip_has_scoped_immutable_key() -> None:
     )
     assert len(stored.payload_sha256) == 64
     assert await archive.load(stored) == page()
-    assert await archive.store(
-        principal_scope="guest-abc123",
-        conversation_id=conversation_id,
-        message_id=message_id,
-        ordinal=0,
-        page=page(),
-    ) == stored
+    assert (
+        await archive.store(
+            principal_scope="guest-abc123",
+            conversation_id=conversation_id,
+            message_id=message_id,
+            ordinal=0,
+            page=page(),
+        )
+        == stored
+    )
 
 
 @pytest.mark.asyncio
@@ -132,3 +176,34 @@ async def test_web_artifact_rejects_unsafe_scope_and_collision() -> None:
             ordinal=0,
             page=page(),
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["s3", "vercel_blob"])
+async def test_production_artifact_stores_keep_exact_private_key(provider: str) -> None:
+    key = "chat-web/guest-safe/conversation/message/0-page.json.gz"
+    body = b"compressed artifact"
+    digest = sha256(body).hexdigest()
+    if provider == "s3":
+        client = FakeS3Client()
+        store = S3ChatArtifactStore(client, bucket="filings", prefix="chat-web")
+    else:
+        client = FakeBlobClient()
+        store = VercelBlobChatArtifactStore(client, prefix="chat-web")
+
+    first = await store.put(
+        object_key=key,
+        body=body,
+        content_type="application/gzip",
+        sha256=digest,
+    )
+    replay = await store.put(
+        object_key=key,
+        body=body,
+        content_type="application/gzip",
+        sha256=digest,
+    )
+
+    assert first == replay == key
+    assert await store.get(artifact_key=key) == body
+    await store.delete(artifact_key=key)

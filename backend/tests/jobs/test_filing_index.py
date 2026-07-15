@@ -166,3 +166,33 @@ async def test_filing_index_pipeline_completes_all_states(
     assert job.state == "completed"
     assert job.current_step == "completed"
     assert indexer.company_ids == [job_company.id]
+
+
+def test_filing_index_pipeline_resumes_retryable_failed_stage(
+    job_session,
+    job_company,
+) -> None:
+    job = IngestionJob(
+        job_type="filing_index",
+        company_id=job_company.id,
+        requested_by_type="guest",
+        requested_by_hash="index-guest",
+        deduplication_key="filing-index:retry",
+        state="failed",
+        current_step="embedding",
+        error_code="CHAT_EMBEDDING_FAILED",
+        retry_eligible=True,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    job_session.add(job)
+    job_session.commit()
+    pipeline = FilingIndexJobPipeline(job_session, FakeIndexer())
+
+    pipeline.resume_retry(job.id)
+    job_session.refresh(job)
+
+    assert job.state == "chunking"
+    assert job.current_step == "chunking"
+    assert job.attempt_count == 1
+    assert job.error_code is None

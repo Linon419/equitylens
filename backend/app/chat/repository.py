@@ -1,6 +1,6 @@
 import base64
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, delete, false, or_
@@ -45,7 +45,7 @@ class ConversationRepository:
             .with_for_update()
         ).first()
         if existing is not None and existing.expires_at is not None:
-            if existing.expires_at > now:
+            if _as_utc(existing.expires_at) > _as_utc(now):
                 return existing
             existing.archived_at = now
             existing.updated_at = now
@@ -547,3 +547,9 @@ def decode_message_cursor(value: str) -> tuple[datetime, UUID]:
         return datetime.fromisoformat(payload["created_at"]), UUID(payload["id"])
     except (TypeError, ValueError, KeyError, json.JSONDecodeError) as error:
         raise ValueError("CHAT_MESSAGE_CURSOR_INVALID") from error
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

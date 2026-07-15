@@ -15,7 +15,7 @@ from app.jobs.schemas import (
     JobBackend,
     JobPublic,
 )
-from app.jobs.state import has_reached, next_state
+from app.jobs.state import has_reached, next_state, prior_state
 from app.models.chat_model import FilingChunk
 from app.models.company_model import Company
 from app.models.job_model import IngestionJob
@@ -123,6 +123,22 @@ class FilingIndexJobPipeline:
         self._advance(job_id, "embedding", "indexing")
         self._advance(job_id, "indexing", "completed")
 
+    def resume_retry(self, job_id: UUID) -> None:
+        job = self._lock_job(job_id)
+        if job.state != "failed":
+            return
+        if not job.retry_eligible:
+            raise PipelineStepError(
+                job.error_code or "JOB_RETRY_UNAVAILABLE",
+                retryable=False,
+            )
+        job.state = prior_state(job.job_type, job.current_step)
+        job.current_step = job.state
+        job.attempt_count += 1
+        job.error_code = None
+        self._session.add(job)
+        self._session.commit()
+
     def _advance(self, job_id: UUID, expected: str, target: str) -> None:
         job = self._lock_job(job_id)
         if has_reached(job.job_type, job.state, target):
@@ -146,9 +162,7 @@ class FilingIndexJobPipeline:
 
     def _lock_job(self, job_id: UUID) -> IngestionJob:
         job = self._session.exec(
-            select(IngestionJob)
-            .where(IngestionJob.id == job_id)
-            .with_for_update()
+            select(IngestionJob).where(IngestionJob.id == job_id).with_for_update()
         ).first()
         if job is None or job.job_type != "filing_index":
             raise PipelineStepError("JOB_NOT_FOUND", retryable=False)

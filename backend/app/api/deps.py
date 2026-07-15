@@ -8,16 +8,46 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from openai import AsyncOpenAI
 from sqlmodel import Session, create_engine, select
 
 from app.auth.contracts import GoogleVerifier
 from app.auth.errors import AuthError
 from app.auth.google import GoogleTokenVerifier
+from app.chat.artifacts import (
+    ChatArtifactStore,
+    S3ChatArtifactStore,
+    VercelBlobChatArtifactStore,
+    WebArtifactArchive,
+)
+from app.chat.contracts import StructuredContextProvider
+from app.chat.evidence_pipeline import (
+    CompanyResearchEvidencePipeline,
+    DeterministicConversationSummarizer,
+)
 from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
+from app.chat.openai_agent import (
+    CitationBoundAnswerAgent,
+    OpenAIResponsesPlanningModel,
+)
+from app.chat.quota import ChatQuotaService, SqlChatQuotaRepository
+from app.chat.repository import ConversationRepository
+from app.chat.retrieval import (
+    HybridFilingRetriever,
+    OpenAIQueryRewriter,
+    SqlFilingChunkRepository,
+)
+from app.chat.service import CompanyResearchChatService
+from app.chat.structured_context import StructuredContextService
+from app.chat.structured_repository import SqlStructuredContextRepository
+from app.chat.web_discovery import OpenAIWebSearchProvider, SourceClassifier
+from app.chat.web_fetcher import PinnedWebPageFetcher
+from app.chat.web_search import BoundedWebSearchService
 from app.core.config import settings
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
 from app.filings.sec_client import SecClient
+from app.jobs._filing_index import FilingIndexJobPipeline
 from app.jobs.pipeline import CompanyIntelligencePipeline
 from app.jobs.rq_backend import RQJobBackend
 from app.jobs.schemas import JobBackend
@@ -212,12 +242,8 @@ async def get_job_backend() -> AsyncIterator[JobBackend]:
                 client,
                 settings.WORKFLOW_TRIGGER_URL,
                 settings.INTERNAL_JOB_SECRET,
-                supply_chain_trigger_url=(
-                    settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL
-                ),
-                filing_index_trigger_url=(
-                    settings.CHAT_INDEX_WORKFLOW_TRIGGER_URL
-                ),
+                supply_chain_trigger_url=(settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL),
+                filing_index_trigger_url=(settings.CHAT_INDEX_WORKFLOW_TRIGGER_URL),
             )
         return
     yield UnconfiguredJobBackend()
@@ -469,8 +495,8 @@ IntelligenceGeneratorDep = Annotated[
 ]
 
 
-def get_filing_index_service(session: SessionDep) -> FilingIndexService:
-    embeddings = LangChainEmbeddingProvider(
+def get_chat_embedding_provider() -> LangChainEmbeddingProvider:
+    return LangChainEmbeddingProvider(
         OpenAIEmbeddings(
             model=settings.CHAT_EMBEDDING_MODEL,
             dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
@@ -478,6 +504,18 @@ def get_filing_index_service(session: SessionDep) -> FilingIndexService:
         model_id=settings.CHAT_EMBEDDING_MODEL,
         dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
     )
+
+
+ChatEmbeddingProviderDep = Annotated[
+    LangChainEmbeddingProvider,
+    Depends(get_chat_embedding_provider),
+]
+
+
+def get_filing_index_service(
+    session: SessionDep,
+    embeddings: ChatEmbeddingProviderDep,
+) -> FilingIndexService:
     return FilingIndexService(
         session,
         embeddings,
@@ -491,6 +529,19 @@ def get_filing_index_service(session: SessionDep) -> FilingIndexService:
 FilingIndexServiceDep = Annotated[
     FilingIndexService,
     Depends(get_filing_index_service),
+]
+
+
+def get_filing_index_pipeline(
+    session: SessionDep,
+    indexer: FilingIndexServiceDep,
+) -> FilingIndexJobPipeline:
+    return FilingIndexJobPipeline(session, indexer)
+
+
+FilingIndexJobPipelineDep = Annotated[
+    FilingIndexJobPipeline,
+    Depends(get_filing_index_pipeline),
 ]
 
 
@@ -514,6 +565,231 @@ def get_company_intelligence_pipeline(
 CompanyIntelligencePipelineDep = Annotated[
     CompanyIntelligencePipeline,
     Depends(get_company_intelligence_pipeline),
+]
+
+
+def get_chat_repository(session: SessionDep) -> ConversationRepository:
+    return ConversationRepository(session)
+
+
+ChatRepositoryDep = Annotated[
+    ConversationRepository,
+    Depends(get_chat_repository),
+]
+
+
+def get_chat_quota_service(session: SessionDep) -> ChatQuotaService:
+    return ChatQuotaService(
+        SqlChatQuotaRepository(session),
+        guest_limit=settings.CHAT_GUEST_DAILY_LIMIT,
+        user_limit=settings.CHAT_USER_DAILY_LIMIT,
+    )
+
+
+ChatQuotaServiceDep = Annotated[
+    ChatQuotaService,
+    Depends(get_chat_quota_service),
+]
+
+
+def get_chat_context_provider(session: SessionDep) -> StructuredContextProvider:
+    return StructuredContextService(session)
+
+
+ChatContextProviderDep = Annotated[
+    StructuredContextProvider,
+    Depends(get_chat_context_provider),
+]
+
+
+async def get_chat_openai_client() -> AsyncIterator[AsyncOpenAI]:
+    client = AsyncOpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        organization=settings.OPENAI_ORGANIZATION,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+ChatOpenAIClientDep = Annotated[
+    AsyncOpenAI,
+    Depends(get_chat_openai_client),
+]
+
+
+def get_chat_retriever(
+    session: SessionDep,
+    embeddings: ChatEmbeddingProviderDep,
+) -> HybridFilingRetriever:
+    rewriter = OpenAIQueryRewriter(
+        ChatOpenAI(
+            model=settings.CHAT_MODEL,
+            temperature=0,
+            timeout=60,
+            max_retries=0,
+        )
+    )
+    return HybridFilingRetriever(
+        SqlFilingChunkRepository(
+            session,
+            embedding_dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
+        ),
+        embeddings,
+        rewriter,
+        candidate_limit=settings.CHAT_RETRIEVAL_CANDIDATES,
+        max_chunks=settings.CHAT_RETRIEVAL_MAX_CHUNKS,
+        max_per_section=settings.CHAT_RETRIEVAL_MAX_PER_SECTION,
+        token_budget=settings.CHAT_RETRIEVAL_TOKEN_BUDGET,
+        rrf_k=settings.CHAT_RRF_K,
+    )
+
+
+ChatRetrieverDep = Annotated[
+    HybridFilingRetriever,
+    Depends(get_chat_retriever),
+]
+
+
+def get_chat_artifact_store() -> ChatArtifactStore:
+    prefix = settings.CHAT_WEB_ARTIFACT_PREFIX
+    if settings.OBJECT_STORAGE_PROVIDER.value == "s3":
+        required = (
+            settings.S3_ENDPOINT_URL,
+            settings.S3_BUCKET,
+            settings.S3_ACCESS_KEY_ID,
+            settings.S3_SECRET_ACCESS_KEY,
+        )
+        if not all(required):
+            raise RuntimeError("S3 chat artifact storage is not configured")
+        endpoint, bucket, access_key, secret_key = required
+        assert endpoint and bucket and access_key and secret_key
+        return S3ChatArtifactStore(
+            _get_s3_graph_client(
+                endpoint,
+                access_key,
+                secret_key,
+                "us-east-1",
+            ),
+            bucket=bucket,
+            prefix=prefix,
+        )
+    token = settings.BLOB_READ_WRITE_TOKEN
+    if settings.OBJECT_STORAGE_PROVIDER.value == "vercel_blob" and token:
+        return VercelBlobChatArtifactStore(
+            _get_vercel_blob_client(token),
+            prefix=prefix,
+        )
+    raise RuntimeError("Chat artifact storage provider is unsupported")
+
+
+ChatArtifactStoreDep = Annotated[
+    ChatArtifactStore,
+    Depends(get_chat_artifact_store),
+]
+
+
+async def get_chat_web_search_service(
+    client: ChatOpenAIClientDep,
+    store: ChatArtifactStoreDep,
+) -> AsyncIterator[BoundedWebSearchService]:
+    fetcher = PinnedWebPageFetcher.create(
+        user_agent=settings.SEC_USER_AGENT,
+        max_bytes=min(settings.MAX_FILING_BYTES, 1_500_000),
+        max_model_chars=40_000,
+        min_host_interval=0.25,
+    )
+    try:
+        yield BoundedWebSearchService(
+            OpenAIWebSearchProvider(
+                client,
+                model_id=settings.CHAT_MODEL,
+                max_queries=settings.CHAT_WEB_MAX_QUERIES,
+            ),
+            fetcher,
+            WebArtifactArchive(
+                store,
+                prefix=settings.CHAT_WEB_ARTIFACT_PREFIX,
+            ),
+            classifier=SourceClassifier(
+                trusted_secondary_hosts=(
+                    "reuters.com",
+                    "ft.com",
+                    "wsj.com",
+                    "bloomberg.com",
+                )
+            ),
+            max_queries=settings.CHAT_WEB_MAX_QUERIES,
+            max_pages=settings.CHAT_WEB_MAX_PAGES,
+        )
+    finally:
+        await fetcher.aclose()
+
+
+ChatWebSearchServiceDep = Annotated[
+    BoundedWebSearchService,
+    Depends(get_chat_web_search_service),
+]
+
+
+def get_chat_evidence_pipeline(
+    session: SessionDep,
+    retriever: ChatRetrieverDep,
+    web_search: ChatWebSearchServiceDep,
+) -> CompanyResearchEvidencePipeline:
+    return CompanyResearchEvidencePipeline(
+        SqlStructuredContextRepository(session),
+        retriever,
+        web_search,
+    )
+
+
+ChatEvidencePipelineDep = Annotated[
+    CompanyResearchEvidencePipeline,
+    Depends(get_chat_evidence_pipeline),
+]
+
+
+def get_chat_answer_agent(
+    client: ChatOpenAIClientDep,
+) -> CitationBoundAnswerAgent:
+    return CitationBoundAnswerAgent(
+        OpenAIResponsesPlanningModel(
+            client,
+            model_id=settings.CHAT_MODEL,
+        )
+    )
+
+
+ChatAnswerAgentDep = Annotated[
+    CitationBoundAnswerAgent,
+    Depends(get_chat_answer_agent),
+]
+
+
+def get_chat_service(
+    session: SessionDep,
+    repository: ChatRepositoryDep,
+    quota: ChatQuotaServiceDep,
+    context_provider: ChatContextProviderDep,
+    evidence_pipeline: ChatEvidencePipelineDep,
+    answer_agent: ChatAnswerAgentDep,
+) -> CompanyResearchChatService:
+    return CompanyResearchChatService(
+        session,
+        repository=repository,
+        quota=quota,
+        context_provider=context_provider,
+        evidence_pipeline=evidence_pipeline,
+        answer_agent=answer_agent,
+        summarizer=DeterministicConversationSummarizer(),
+    )
+
+
+ChatServiceDep = Annotated[
+    CompanyResearchChatService,
+    Depends(get_chat_service),
 ]
 
 

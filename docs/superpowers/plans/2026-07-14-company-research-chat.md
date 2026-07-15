@@ -1062,7 +1062,7 @@ git commit -m "feat(chat): stream durable research answers"
 - Modify: `backend/app/api/routes/internal_jobs.py`
 - Modify: `backend/tests/api/test_internal_jobs.py`
 
-- [ ] **Step 1: Write API contract tests**
+- [x] **Step 1: Write API contract tests**
 
 Cover all approved routes and exact behaviors:
 
@@ -1082,7 +1082,7 @@ GET    /chat-quota
 
 Assert guest singleton response, user create/rename/archive, guest rename policy, ownership 404, invalid context 422, quota 429 before SSE, `text/event-stream`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`, cursor pagination, and locale preservation.
 
-- [ ] **Step 2: Confirm the red state**
+- [x] **Step 2: Confirm the red state**
 
 ```bash
 cd backend
@@ -1091,17 +1091,17 @@ uv run pytest tests/api/test_chat.py -q
 
 Expected: 404 responses because the router is absent.
 
-- [ ] **Step 3: Wire production dependencies**
+- [x] **Step 3: Wire production dependencies**
 
 In `backend/app/api/deps.py`, provide request-scoped chat repository/quota/service, `OpenAIEmbeddings` with 1,536 dimensions, structured context adapter, OpenAI Responses web provider, answer-planning Agent, controlled collector, and S3/Vercel Blob artifact store selected through existing deployment settings. Reuse `AgentPrincipal` and the current database session.
 
 Keep route handlers thin. Convert `DomainError` through the existing public error shape. Stream with `StreamingResponse(generator, media_type="text/event-stream", headers=...)`.
 
-- [ ] **Step 4: Add readiness index endpoint and Workflow step**
+- [x] **Step 4: Add readiness index endpoint and Workflow step**
 
 `chat-readiness` reads resource state without quota. `chat-index/sync` calls zero-quota `synchronize_filing_index`. Extend `internal_jobs.py` with authenticated `filing_index` Workflow steps that invoke the same indexer as RQ.
 
-- [ ] **Step 5: Validate APIs and regress auth/security**
+- [x] **Step 5: Validate APIs and regress auth/security**
 
 ```bash
 cd backend
@@ -1110,7 +1110,7 @@ uv run pytest tests/api/test_chat.py tests/api/test_internal_jobs.py tests/api/t
 
 Expected: routes pass for guest and user principals; ownership leaks remain covered by 404 assertions.
 
-- [ ] **Step 6: Commit the FastAPI surface**
+- [x] **Step 6: Commit the FastAPI surface**
 
 ```bash
 git add backend/app/api/routes/chat.py backend/app/api/deps.py backend/app/api/main.py backend/app/api/routes/internal_jobs.py backend/tests/api/test_chat.py backend/tests/api/test_internal_jobs.py

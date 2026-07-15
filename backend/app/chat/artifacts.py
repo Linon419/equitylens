@@ -1,3 +1,4 @@
+import asyncio
 import gzip
 import hashlib
 import hmac
@@ -6,7 +7,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from io import BytesIO
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 
@@ -133,6 +134,136 @@ class WebArtifactArchive:
             raise ChatArtifactError() from None
 
 
+class S3ChatArtifactStore:
+    def __init__(self, client: Any, *, bucket: str, prefix: str) -> None:
+        self._client = client
+        self._bucket = bucket.strip()
+        self._prefix = _safe_segment(prefix)
+        if not self._bucket:
+            raise ChatArtifactError()
+
+    async def put(
+        self,
+        *,
+        object_key: str,
+        body: bytes,
+        content_type: str,
+        sha256: str,
+    ) -> str:
+        key = self._key(object_key)
+        _verify_body(body, sha256)
+        try:
+            await asyncio.to_thread(
+                self._client.put_object,
+                Bucket=self._bucket,
+                Key=key,
+                Body=body,
+                ContentType=content_type,
+                Metadata={"sha256": sha256},
+                IfNoneMatch="*",
+            )
+        except Exception:
+            try:
+                existing = await asyncio.to_thread(
+                    self._client.head_object,
+                    Bucket=self._bucket,
+                    Key=key,
+                )
+                metadata = existing.get("Metadata", {})
+            except Exception:
+                raise ChatArtifactError() from None
+            if not isinstance(metadata, dict) or not hmac.compare_digest(
+                str(metadata.get("sha256", "")),
+                sha256,
+            ):
+                raise ChatArtifactError() from None
+        return key
+
+    async def get(self, *, artifact_key: str) -> bytes:
+        key = self._key(artifact_key)
+        try:
+            response = await asyncio.to_thread(
+                self._client.get_object,
+                Bucket=self._bucket,
+                Key=key,
+            )
+            body = await asyncio.to_thread(response["Body"].read)
+        except Exception:
+            raise ChatArtifactError() from None
+        if not isinstance(body, bytes):
+            raise ChatArtifactError()
+        return body
+
+    async def delete(self, *, artifact_key: str) -> None:
+        key = self._key(artifact_key)
+        try:
+            await asyncio.to_thread(
+                self._client.delete_object,
+                Bucket=self._bucket,
+                Key=key,
+            )
+        except Exception:
+            raise ChatArtifactError() from None
+
+    def _key(self, value: str) -> str:
+        _validate_artifact_key(value, prefix=self._prefix)
+        return value
+
+
+class VercelBlobChatArtifactStore:
+    def __init__(self, client: Any, *, prefix: str) -> None:
+        self._client = client
+        self._prefix = _safe_segment(prefix)
+
+    async def put(
+        self,
+        *,
+        object_key: str,
+        body: bytes,
+        content_type: str,
+        sha256: str,
+    ) -> str:
+        key = self._key(object_key)
+        _verify_body(body, sha256)
+        try:
+            await self._client.put(
+                key,
+                body,
+                access="private",
+                add_random_suffix=False,
+                overwrite=False,
+                content_type=content_type,
+            )
+        except Exception:
+            existing = await self.get(artifact_key=key)
+            _verify_body(existing, sha256)
+        return key
+
+    async def get(self, *, artifact_key: str) -> bytes:
+        key = self._key(artifact_key)
+        try:
+            result = await self._client.get(key, access="private", use_cache=True)
+        except Exception:
+            raise ChatArtifactError() from None
+        content = getattr(result, "content", None)
+        if getattr(result, "status_code", None) != 200 or not isinstance(
+            content, bytes
+        ):
+            raise ChatArtifactError()
+        return content
+
+    async def delete(self, *, artifact_key: str) -> None:
+        key = self._key(artifact_key)
+        try:
+            await self._client.delete(key)
+        except Exception:
+            raise ChatArtifactError() from None
+
+    def _key(self, value: str) -> str:
+        _validate_artifact_key(value, prefix=self._prefix)
+        return value
+
+
 _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
@@ -148,6 +279,17 @@ def _validate_artifact_key(value: str, *, prefix: str) -> None:
     parts = value.split("/")
     unsafe_part = any(part in {"", ".", ".."} for part in parts)
     if not parts or parts[0] != prefix or unsafe_part:
+        raise ChatArtifactError()
+
+
+def _verify_body(body: bytes, expected_sha256: str) -> None:
+    if (
+        not isinstance(body, bytes)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None
+    ):
+        raise ChatArtifactError()
+    actual = hashlib.sha256(body).hexdigest()
+    if not hmac.compare_digest(actual, expected_sha256):
         raise ChatArtifactError()
 
 

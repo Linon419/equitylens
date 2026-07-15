@@ -10,6 +10,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.api.deps import (
     get_company_intelligence_pipeline,
     get_db,
+    get_filing_index_pipeline,
     get_supply_chain_graph_pipeline,
 )
 from app.main import create_app
@@ -129,12 +130,42 @@ class FakeGraphPipeline:
 
 
 @dataclass
+class FakeFilingIndexPipeline:
+    session: Session
+    calls: list[UUID] = field(default_factory=list)
+    resume_calls: int = 0
+
+    def resume_retry(self, job_id: UUID) -> None:
+        self.resume_calls += 1
+        job = self.session.get(IngestionJob, job_id)
+        assert job is not None
+        job.state = "queued"
+        job.current_step = "queued"
+        job.error_code = None
+        self.session.add(job)
+        self.session.commit()
+
+    async def run(self, job_id: UUID) -> None:
+        job = self.session.get(IngestionJob, job_id)
+        assert job is not None
+        if job.state == "completed":
+            return
+        self.calls.append(job_id)
+        job.state = "completed"
+        job.current_step = "completed"
+        self.session.add(job)
+        self.session.commit()
+
+
+@dataclass
 class InternalHarness:
     client: TestClient
     job_id: UUID
     pipeline: FakePipeline
     graph_job_id: UUID
     graph_pipeline: FakeGraphPipeline
+    filing_job_id: UUID
+    filing_pipeline: FakeFilingIndexPipeline
 
 
 @pytest.fixture
@@ -174,11 +205,23 @@ def internal_jobs() -> Generator[InternalHarness, None, None]:
         current_step="queued",
     )
     session.add(graph_job)
+    filing_job = IngestionJob(
+        job_type="filing_index",
+        company_id=company.id,
+        requested_by_type="guest",
+        requested_by_hash="guest-hash",
+        deduplication_key="internal-filing-index-test",
+        state="queued",
+        current_step="queued",
+    )
+    session.add(filing_job)
     session.commit()
     session.refresh(job)
     session.refresh(graph_job)
+    session.refresh(filing_job)
     pipeline = FakePipeline(session)
     graph_pipeline = FakeGraphPipeline(session)
+    filing_pipeline = FakeFilingIndexPipeline(session)
     app = create_app()
 
     def override_db():
@@ -187,6 +230,7 @@ def internal_jobs() -> Generator[InternalHarness, None, None]:
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_company_intelligence_pipeline] = lambda: pipeline
     app.dependency_overrides[get_supply_chain_graph_pipeline] = lambda: graph_pipeline
+    app.dependency_overrides[get_filing_index_pipeline] = lambda: filing_pipeline
     with TestClient(app) as client:
         yield InternalHarness(
             client,
@@ -194,6 +238,8 @@ def internal_jobs() -> Generator[InternalHarness, None, None]:
             pipeline,
             graph_job.id,
             graph_pipeline,
+            filing_job.id,
+            filing_pipeline,
         )
     session.close()
 
@@ -209,6 +255,13 @@ def graph_headers(job_id: UUID, step: str) -> dict[str, str]:
     return {
         "authorization": f"Bearer {'i' * 32}",
         "x-idempotency-key": f"{job_id}:supply-chain-graph:{step}:v1",
+    }
+
+
+def filing_headers(job_id: UUID) -> dict[str, str]:
+    return {
+        "authorization": f"Bearer {'i' * 32}",
+        "x-idempotency-key": f"{job_id}:filing-index:v1",
     }
 
 
@@ -273,6 +326,50 @@ def test_graph_steps_run_in_durable_order(internal_jobs) -> None:
         assert response.status_code == 204
 
     assert internal_jobs.graph_pipeline.calls == list(GRAPH_NEXT_STATE)
+
+
+def test_filing_index_workflow_runs_shared_pipeline_idempotently(
+    internal_jobs,
+) -> None:
+    job_id = internal_jobs.filing_job_id
+    path = f"/api/v1/internal/jobs/{job_id}/filing-index"
+
+    first = internal_jobs.client.post(path, headers=filing_headers(job_id))
+    replay = internal_jobs.client.post(path, headers=filing_headers(job_id))
+
+    assert first.status_code == replay.status_code == 204
+    assert internal_jobs.filing_pipeline.calls == [job_id]
+
+
+def test_filing_index_workflow_rejects_job_type_mismatch(internal_jobs) -> None:
+    job_id = internal_jobs.job_id
+    response = internal_jobs.client.post(
+        f"/api/v1/internal/jobs/{job_id}/filing-index",
+        headers=filing_headers(job_id),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "JOB_TYPE_CONFLICT"
+
+
+def test_filing_index_workflow_resumes_retryable_failure(internal_jobs) -> None:
+    job_id = internal_jobs.filing_job_id
+    job = internal_jobs.filing_pipeline.session.get(IngestionJob, job_id)
+    assert job is not None
+    job.state = "failed"
+    job.current_step = "embedding"
+    job.error_code = "CHAT_EMBEDDING_FAILED"
+    job.retry_eligible = True
+    internal_jobs.filing_pipeline.session.add(job)
+    internal_jobs.filing_pipeline.session.commit()
+
+    response = internal_jobs.client.post(
+        f"/api/v1/internal/jobs/{job_id}/filing-index",
+        headers=filing_headers(job_id),
+    )
+
+    assert response.status_code == 204
+    assert internal_jobs.filing_pipeline.resume_calls == 1
 
 
 def test_graph_step_replay_returns_stored_result(internal_jobs) -> None:

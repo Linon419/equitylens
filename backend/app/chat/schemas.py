@@ -141,6 +141,10 @@ class MessageCreate(StrictModel):
         return re.sub(r"\s+", " ", normalized).strip()
 
 
+class RetryCreate(StrictModel):
+    client_request_id: UUID
+
+
 class CitationPublic(StrictModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -183,11 +187,14 @@ class EvidenceGap(StrictModel):
         "web_recency",
     ]
     code: str
-    action: Literal[
-        "company_analysis",
-        "filing_index",
-        "supply_chain_graph",
-    ] | None = None
+    action: (
+        Literal[
+            "company_analysis",
+            "filing_index",
+            "supply_chain_graph",
+        ]
+        | None
+    ) = None
 
 
 class MessagePublic(StrictModel):
