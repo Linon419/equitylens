@@ -19,20 +19,27 @@ SEC_USER_AGENT=EquityLens admin@example.com
 Use `COOKIE_SECURE=false` only for native HTTP development on localhost.
 
 OpenAI-compatible Chat Completions providers can power intelligence generation,
-the supply-chain Agent, and query rewriting. This example uses DeepSeek while
-OpenAI supplies research-chat Responses and embeddings:
+the supply-chain Agent, query rewriting, web-search routing, and answer planning.
+This example uses DeepSeek with Tavily search; OpenAI supplies filing embeddings:
 
 ```dotenv
 OPENAI_API_KEY=replace-with-openai-key
 OPENAI_ORGANIZATION=replace-with-openai-organization
 OPENAI_BASE_URL=
 LLM_API_KEY=replace-with-deepseek-key
-LLM_BASE_URL=https://api.deepseek.com/beta
-LLM_STRUCTURED_OUTPUT_METHOD=function_calling
+LLM_BASE_URL=https://api.deepseek.com
+LLM_STRUCTURED_OUTPUT_METHOD=json_mode
+TAVILY_API_KEY=
+CHAT_WEB_SEARCH_PROVIDER=tavily
+CHAT_TAVILY_SEARCH_DEPTH=basic
+CHAT_TAVILY_MAX_RESULTS=5
 RESEARCH_MODEL=deepseek-v4-pro
 CHAT_MODEL_OVERRIDE=deepseek-v4-pro
 SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=deepseek-v4-pro
 ```
+
+A blank `TAVILY_API_KEY` uses Tavily's free keyless mode. Set a free key in
+production for a larger, account-scoped allowance.
 
 ```bash
 docker compose config

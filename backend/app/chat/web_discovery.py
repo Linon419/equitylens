@@ -44,6 +44,7 @@ class OpenAIWebSearchProvider:
         symbol: str,
         internal_coverage: str,
         locale: str,
+        official_hosts: tuple[str, ...] = (),
     ) -> SearchDiscovery:
         response = await self._client.responses.create(
             model=self.model_id,
@@ -53,6 +54,7 @@ class OpenAIWebSearchProvider:
                 symbol=symbol,
                 internal_coverage=internal_coverage,
                 locale=locale,
+                official_hosts=official_hosts,
                 max_queries=self._max_queries,
             ),
             tools=[{"type": "web_search"}],
@@ -163,6 +165,7 @@ def _provider_prompt(**values: Any) -> str:
         f"Use at most {values['max_queries']} concise queries.\n"
         f"Company: {values['company_name']} ({values['symbol']})\n"
         f"Locale: {values['locale']}\n"
+        f"Known official domains: {', '.join(values['official_hosts']) or 'none'}\n"
         f"Internal evidence coverage: {values['internal_coverage']}\n"
         f"Question: {values['question']}"
     )

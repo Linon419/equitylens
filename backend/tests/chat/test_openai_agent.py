@@ -282,3 +282,22 @@ def test_chat_answer_dependency_routes_custom_llm_to_chat_completions(
         "max_tokens": 8_000,
         "max_retries": 0,
     }
+
+
+@pytest.mark.asyncio
+async def test_custom_llm_skips_the_openai_responses_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps.settings, "LLM_API_KEY", "deepseek-key")
+    monkeypatch.setattr(deps.settings, "LLM_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setattr(
+        deps,
+        "create_responses_client",
+        lambda: pytest.fail("OpenAI Responses client should not be created"),
+    )
+
+    dependency = deps.get_chat_openai_client()
+
+    assert await anext(dependency) is None
+    with pytest.raises(StopAsyncIteration):
+        await anext(dependency)

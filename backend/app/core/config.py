@@ -40,6 +40,18 @@ class StructuredOutputMethod(StrEnum):
     JSON_MODE = "json_mode"
 
 
+class WebSearchProviderName(StrEnum):
+    TAVILY = "tavily"
+    OPENAI = "openai"
+
+
+class TavilySearchDepth(StrEnum):
+    BASIC = "basic"
+    ADVANCED = "advanced"
+    FAST = "fast"
+    ULTRA_FAST = "ultra-fast"
+
+
 def parse_cors(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
@@ -72,6 +84,7 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str | None = None
     LLM_API_KEY: str | None = None
     LLM_BASE_URL: str | None = None
+    TAVILY_API_KEY: str | None = None
     LLM_STRUCTURED_OUTPUT_METHOD: StructuredOutputMethod = (
         StructuredOutputMethod.JSON_SCHEMA
     )
@@ -126,7 +139,9 @@ class Settings(BaseSettings):
     CHAT_RRF_K: int = 60
     CHAT_WEB_MAX_QUERIES: int = 3
     CHAT_WEB_MAX_PAGES: int = 8
-    CHAT_WEB_SEARCH_PROVIDER: str = "openai"
+    CHAT_WEB_SEARCH_PROVIDER: WebSearchProviderName = WebSearchProviderName.TAVILY
+    CHAT_TAVILY_SEARCH_DEPTH: TavilySearchDepth = TavilySearchDepth.BASIC
+    CHAT_TAVILY_MAX_RESULTS: int = 5
     CHAT_EMBEDDING_MODEL: str = "text-embedding-3-small"
     CHAT_EMBEDDING_DIMENSIONS: int = 1_536
     CHAT_MODEL_OVERRIDE: str | None = None
@@ -220,13 +235,17 @@ class Settings(BaseSettings):
             raise ValueError(f"{info.field_name} must be an absolute HTTP URL")
         return normalized
 
-    @field_validator("LLM_API_KEY", mode="before")
+    @field_validator("LLM_API_KEY", "TAVILY_API_KEY", mode="before")
     @classmethod
-    def normalize_optional_llm_api_key(cls, value: Any) -> str | None:
+    def normalize_optional_api_key(
+        cls,
+        value: Any,
+        info: ValidationInfo,
+    ) -> str | None:
         if value is None:
             return None
         if not isinstance(value, str):
-            raise ValueError("LLM_API_KEY must be a string")
+            raise ValueError(f"{info.field_name} must be a string")
         return value.strip() or None
 
     @model_validator(mode="after")
@@ -336,6 +355,7 @@ class Settings(BaseSettings):
             "CHAT_RRF_K",
             "CHAT_WEB_MAX_QUERIES",
             "CHAT_WEB_MAX_PAGES",
+            "CHAT_TAVILY_MAX_RESULTS",
         )
         for field in positive_fields:
             if getattr(self, field) < 1:

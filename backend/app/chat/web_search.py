@@ -116,6 +116,7 @@ class BoundedWebSearchService:
                 symbol=request.symbol,
                 internal_coverage=request.internal_coverage,
                 locale=request.locale,
+                official_hosts=request.official_hosts,
             )
         except Exception:
             return _handle_search_failure(initial_decision)

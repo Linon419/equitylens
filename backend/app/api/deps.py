@@ -40,6 +40,7 @@ from app.chat.retrieval import (
 from app.chat.service import CompanyResearchChatService
 from app.chat.structured_context import StructuredContextService
 from app.chat.structured_repository import SqlStructuredContextRepository
+from app.chat.tavily_discovery import TavilyWebSearchProvider
 from app.chat.web_discovery import OpenAIWebSearchProvider, SourceClassifier
 from app.chat.web_fetcher import PinnedWebPageFetcher
 from app.chat.web_search import BoundedWebSearchService
@@ -610,7 +611,10 @@ ChatContextProviderDep = Annotated[
 ]
 
 
-async def get_chat_openai_client() -> AsyncIterator[AsyncOpenAI]:
+async def get_chat_openai_client() -> AsyncIterator[AsyncOpenAI | None]:
+    if settings.LLM_API_KEY is not None or settings.LLM_BASE_URL is not None:
+        yield None
+        return
     client = create_responses_client()
     try:
         yield client
@@ -619,7 +623,7 @@ async def get_chat_openai_client() -> AsyncIterator[AsyncOpenAI]:
 
 
 ChatOpenAIClientDep = Annotated[
-    AsyncOpenAI,
+    AsyncOpenAI | None,
     Depends(get_chat_openai_client),
 ]
 
@@ -697,7 +701,6 @@ ChatArtifactStoreDep = Annotated[
 
 
 async def get_chat_web_search_service(
-    client: ChatOpenAIClientDep,
     store: ChatArtifactStoreDep,
 ) -> AsyncIterator[BoundedWebSearchService]:
     fetcher = PinnedWebPageFetcher.create(
@@ -706,13 +709,36 @@ async def get_chat_web_search_service(
         max_model_chars=40_000,
         min_host_interval=0.25,
     )
+    provider_client: httpx.AsyncClient | AsyncOpenAI | None = None
     try:
-        yield BoundedWebSearchService(
-            OpenAIWebSearchProvider(
-                client,
+        if settings.CHAT_WEB_SEARCH_PROVIDER.value == "tavily":
+            provider_client = httpx.AsyncClient(timeout=30)
+            provider = TavilyWebSearchProvider(
+                create_chat_model(
+                    model=settings.CHAT_MODEL,
+                    temperature=0,
+                    timeout=60,
+                    max_retries=0,
+                ),
+                provider_client,
+                api_key=settings.TAVILY_API_KEY,
                 model_id=settings.CHAT_MODEL,
                 max_queries=settings.CHAT_WEB_MAX_QUERIES,
-            ),
+                max_results=settings.CHAT_TAVILY_MAX_RESULTS,
+                search_depth=settings.CHAT_TAVILY_SEARCH_DEPTH.value,
+                structured_output_method=(
+                    settings.LLM_STRUCTURED_OUTPUT_METHOD.value
+                ),
+            )
+        else:
+            provider_client = create_responses_client()
+            provider = OpenAIWebSearchProvider(
+                provider_client,
+                model_id=settings.CHAT_MODEL,
+                max_queries=settings.CHAT_WEB_MAX_QUERIES,
+            )
+        yield BoundedWebSearchService(
+            provider,
             fetcher,
             WebArtifactArchive(
                 store,
@@ -724,6 +750,7 @@ async def get_chat_web_search_service(
                     "ft.com",
                     "wsj.com",
                     "bloomberg.com",
+                    "finance.yahoo.com",
                 )
             ),
             max_queries=settings.CHAT_WEB_MAX_QUERIES,
@@ -731,6 +758,10 @@ async def get_chat_web_search_service(
         )
     finally:
         await fetcher.aclose()
+        if isinstance(provider_client, httpx.AsyncClient):
+            await provider_client.aclose()
+        elif provider_client is not None:
+            await provider_client.close()
 
 
 ChatWebSearchServiceDep = Annotated[
@@ -776,6 +807,8 @@ def get_chat_answer_agent(
                 ),
             )
         )
+    if client is None:
+        raise RuntimeError("OpenAI Responses client is unavailable")
     return CitationBoundAnswerAgent(
         OpenAIResponsesPlanningModel(
             client,

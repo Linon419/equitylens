@@ -36,6 +36,10 @@ Variables:
 - `LLM_API_KEY` (optional Chat Completions provider override)
 - `LLM_BASE_URL` (optional Chat Completions provider override)
 - `LLM_STRUCTURED_OUTPUT_METHOD` (defaults to `json_schema`)
+- `TAVILY_API_KEY` (optional; blank uses rate-limited keyless search)
+- `CHAT_WEB_SEARCH_PROVIDER` (defaults to `tavily`)
+- `CHAT_TAVILY_SEARCH_DEPTH` (defaults to `basic`)
+- `CHAT_TAVILY_MAX_RESULTS` (defaults to `5`)
 - `FIRST_SUPERUSER`
 - `FIRST_SUPERUSER_PASSWORD`
 - `GOOGLE_CLIENT_ID`
@@ -56,9 +60,10 @@ Variables:
 
 `LLM_API_KEY` defaults to `OPENAI_API_KEY`, and `LLM_BASE_URL` defaults to
 `OPENAI_BASE_URL`. A DeepSeek-backed generation profile can set
-`LLM_BASE_URL=https://api.deepseek.com/beta` and
-`LLM_STRUCTURED_OUTPUT_METHOD=function_calling` while OpenAI continues to
-provide the Responses API and embeddings used by research chat.
+`LLM_BASE_URL=https://api.deepseek.com`,
+`LLM_STRUCTURED_OUTPUT_METHOD=json_mode`, and
+`CHAT_WEB_SEARCH_PROVIDER=tavily`. Tavily supplies web search and OpenAI supplies
+the filing embeddings used by research chat.
 
 Use a temporary trusted origin for `CORS_ORIGINS` during the first deployment.
 The production Web origin is applied in step 3.

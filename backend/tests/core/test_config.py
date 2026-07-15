@@ -39,8 +39,26 @@ VERCEL_PROVIDERS = {
 }
 
 
+@pytest.fixture(autouse=True)
+def isolate_local_model_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    for field in (
+        "OPENAI_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_BASE_URL",
+        "LLM_STRUCTURED_OUTPUT_METHOD",
+        "RESEARCH_MODEL",
+        "SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS",
+        "CHAT_EMBEDDING_MODEL",
+        "CHAT_WEB_SEARCH_PROVIDER",
+        "CHAT_TAVILY_SEARCH_DEPTH",
+        "CHAT_TAVILY_MAX_RESULTS",
+    ):
+        monkeypatch.delenv(field, raising=False)
+
+
 def test_docker_profile_accepts_docker_providers() -> None:
     settings = Settings(
+        _env_file=None,
         **BASE,
         **DOCKER_PROVIDERS,
         DEPLOYMENT_TARGET="docker",
@@ -167,6 +185,7 @@ def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None
 
 def test_chat_defaults_follow_approved_contract() -> None:
     value = Settings(
+        _env_file=None,
         **BASE,
         **DOCKER_PROVIDERS,
         RESEARCH_MODEL="gpt-5-mini",
@@ -188,6 +207,9 @@ def test_chat_defaults_follow_approved_contract() -> None:
     assert value.CHAT_RRF_K == 60
     assert value.CHAT_WEB_MAX_QUERIES == 3
     assert value.CHAT_WEB_MAX_PAGES == 8
+    assert value.CHAT_WEB_SEARCH_PROVIDER == "tavily"
+    assert value.CHAT_TAVILY_SEARCH_DEPTH == "basic"
+    assert value.CHAT_TAVILY_MAX_RESULTS == 5
     assert value.CHAT_EMBEDDING_MODEL == "text-embedding-3-small"
     assert value.CHAT_EMBEDDING_DIMENSIONS == 1_536
     assert value.CHAT_PROMPT_VERSION == "company-chat.2026-07-14"
@@ -204,6 +226,21 @@ def test_chat_model_override_takes_precedence() -> None:
     )
 
     assert value.CHAT_MODEL == "gpt-5.4"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "invalid_field"),
+    [
+        ({"CHAT_WEB_SEARCH_PROVIDER": "unknown"}, "CHAT_WEB_SEARCH_PROVIDER"),
+        ({"CHAT_TAVILY_SEARCH_DEPTH": "deep"}, "CHAT_TAVILY_SEARCH_DEPTH"),
+    ],
+)
+def test_chat_rejects_unknown_web_search_configuration(
+    overrides: dict[str, str],
+    invalid_field: str,
+) -> None:
+    with pytest.raises(ValidationError, match=invalid_field):
+        Settings(**BASE, **DOCKER_PROVIDERS, **overrides)
 
 
 @pytest.mark.parametrize(

@@ -33,12 +33,13 @@ reports completion.
 | `SECRET_KEY_ACCESS_API` | Access-token signing secret |
 | `GOOGLE_CLIENT_ID` | Google ID-token audience on FastAPI |
 | `FRONTEND_URL` | Exact public web origin |
-| `OPENAI_API_KEY` | OpenAI Responses API, web research, and embeddings |
+| `OPENAI_API_KEY` | Filing embeddings and optional OpenAI Responses fallback |
 | `OPENAI_ORGANIZATION` | OpenAI organization scope |
 | `OPENAI_BASE_URL` | Optional base URL for OpenAI Responses and embedding clients |
 | `LLM_API_KEY` | Optional Chat Completions provider key; defaults to `OPENAI_API_KEY` |
 | `LLM_BASE_URL` | Optional Chat Completions provider URL; defaults to `OPENAI_BASE_URL` |
 | `LLM_STRUCTURED_OUTPUT_METHOD` | `json_schema` for OpenAI, `json_mode` for DeepSeek thinking models, or `function_calling` for strict tool providers |
+| `TAVILY_API_KEY` | Optional Tavily credential; blank enables free keyless search |
 | `SEC_USER_AGENT` | Application name plus monitored contact email |
 | `GUEST_SIGNING_SECRET` | Shared BFF/backend guest assertion secret |
 | `QUOTA_HASH_SECRET` | Backend principal hashing secret |
@@ -68,7 +69,9 @@ reports completion.
 | `CHAT_RRF_K` | Reciprocal-rank-fusion constant |
 | `CHAT_WEB_MAX_QUERIES` | Maximum Agent-selected search queries |
 | `CHAT_WEB_MAX_PAGES` | Maximum fetched web evidence pages |
-| `CHAT_WEB_SEARCH_PROVIDER` | Bounded web search provider |
+| `CHAT_WEB_SEARCH_PROVIDER` | `tavily` by default; `openai` keeps the Responses fallback |
+| `CHAT_TAVILY_SEARCH_DEPTH` | Tavily relevance/cost mode; default `basic` uses one credit per query |
+| `CHAT_TAVILY_MAX_RESULTS` | Tavily candidates returned per query; default `5` |
 | `CHAT_EMBEDDING_MODEL` | Filing chunk embedding model |
 | `CHAT_EMBEDDING_DIMENSIONS` | pgvector embedding dimensions |
 | `CHAT_MODEL_OVERRIDE` | Optional chat-specific model |
@@ -81,11 +84,11 @@ Use independent random values of at least 32 characters for every secret. The
 frontend and backend receive the same `GUEST_SIGNING_SECRET` and
 `INTERNAL_JOB_SECRET` values.
 
-The intelligence generator, supply-chain graph Agent, and query rewriter use
-the `LLM_*` endpoint. This supports OpenAI-compatible Chat Completions providers
-such as DeepSeek. Research-chat web discovery, answer planning, and filing
-embeddings use the `OPENAI_*` endpoint because they require OpenAI Responses and
-Embeddings APIs.
+The intelligence generator, supply-chain graph Agent, query rewriter, web-search
+router, and answer planner use the `LLM_*` endpoint. This supports
+OpenAI-compatible Chat Completions providers such as DeepSeek. Tavily performs
+web discovery, while the `OPENAI_*` endpoint supplies filing embeddings. Setting
+`CHAT_WEB_SEARCH_PROVIDER=openai` restores the OpenAI Responses search path.
 
 Example mixed-provider configuration:
 
@@ -94,12 +97,21 @@ OPENAI_API_KEY=replace-with-openai-key
 OPENAI_ORGANIZATION=replace-with-openai-organization
 OPENAI_BASE_URL=
 LLM_API_KEY=replace-with-deepseek-key
-LLM_BASE_URL=https://api.deepseek.com/beta
-LLM_STRUCTURED_OUTPUT_METHOD=function_calling
+LLM_BASE_URL=https://api.deepseek.com
+LLM_STRUCTURED_OUTPUT_METHOD=json_mode
+TAVILY_API_KEY=
+CHAT_WEB_SEARCH_PROVIDER=tavily
+CHAT_TAVILY_SEARCH_DEPTH=basic
+CHAT_TAVILY_MAX_RESULTS=5
 RESEARCH_MODEL=deepseek-v4-pro
 CHAT_MODEL_OVERRIDE=deepseek-v4-pro
 SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=deepseek-v4-pro
 ```
+
+Keyless Tavily search is free and rate-limited. A free API key raises the
+allowance to 1,000 credits per month; `basic` search consumes one credit per
+query. Production deployments should set `TAVILY_API_KEY` for predictable rate
+limits.
 
 ### Frontend values
 

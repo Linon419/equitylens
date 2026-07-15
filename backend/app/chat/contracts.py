@@ -69,6 +69,7 @@ class WebSearchProvider(Protocol):
         symbol: str,
         internal_coverage: str,
         locale: str,
+        official_hosts: tuple[str, ...] = (),
     ) -> "SearchDiscovery": ...
 
 
