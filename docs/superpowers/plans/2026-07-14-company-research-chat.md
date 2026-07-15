@@ -701,7 +701,7 @@ git commit -m "feat(chat): index latest filing evidence"
 - Modify: `backend/app/chat/schemas.py`
 - Modify: `backend/app/chat/repository.py`
 
-- [ ] **Step 1: Write rewrite and ranker tests**
+- [x] **Step 1: Write rewrite and ranker tests**
 
 Fixtures must preserve company identity, ticker, fiscal periods, metrics, and selected graph entities for English and Chinese questions. Add RRF tests for top-20 inputs, `k=60`, stable ties, three-per-section diversity, eight-chunk cap, and 6,000-token budget:
 
@@ -714,11 +714,11 @@ def test_rrf_is_stable_and_enforces_section_diversity():
     assert sum(item.token_count for item in selected) <= 6000
 ```
 
-- [ ] **Step 2: Write PostgreSQL retrieval tests**
+- [x] **Step 2: Write PostgreSQL retrieval tests**
 
 Seed two companies and two filings. Assert FTS and cosine searches filter by company and latest filing, return at most 20 each, and use the expected indexes through `EXPLAIN`. Mark with `@pytest.mark.postgres`.
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd backend
@@ -727,15 +727,15 @@ uv run pytest tests/chat/test_retrieval.py -q
 
 Expected: import failure because retrieval code is absent.
 
-- [ ] **Step 4: Implement standalone query rewriting**
+- [x] **Step 4: Implement standalone query rewriting**
 
 Define `QueryRewrite` with `filing_query_en`, `display_query`, `current_intent`, and preserved typed entities. Build the input from current question, resolved context labels, previous eight messages, summary, company name, ticker, and locale. Use a strict structured model call and validate explicit dates, fiscal periods, ticker, metric names, and context entities remain present.
 
-- [ ] **Step 5: Implement PostgreSQL and in-memory retrieval**
+- [x] **Step 5: Implement PostgreSQL and in-memory retrieval**
 
 Use parameterized SQLAlchemy expressions for `plainto_tsquery('english', :query)` and pgvector cosine distance. Fetch 20 candidates from each channel, fuse with `score += 1 / (60 + rank)`, break ties by best individual rank then UUID, and apply diversity/token bounds. Return evidence objects with exact section, filing, URL, anchor, excerpt, and retrieval scores. Keep SQL construction inside the repository.
 
-- [ ] **Step 6: Validate both ranking paths**
+- [x] **Step 6: Validate both ranking paths**
 
 ```bash
 cd backend
@@ -745,7 +745,7 @@ TEST_POSTGRES_URL="$DATABASE_URL" uv run pytest tests/integration/test_chat_post
 
 Expected: deterministic tests pass; PostgreSQL retrieval passes when configured.
 
-- [ ] **Step 7: Commit hybrid retrieval**
+- [x] **Step 7: Commit hybrid retrieval**
 
 ```bash
 git add backend/app/chat/contracts.py backend/app/chat/schemas.py backend/app/chat/repository.py backend/app/chat/retrieval.py backend/tests/chat/test_retrieval.py backend/tests/integration/test_chat_postgres_retrieval.py

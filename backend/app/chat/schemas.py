@@ -33,6 +33,18 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class QueryRewrite(StrictModel):
+    filing_query_en: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=500),
+    ]
+    display_query: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=500),
+    ]
+    current_intent: bool
+
+
 class MarketMetricContext(StrictModel):
     kind: Literal["market_metric"] = "market_metric"
     metric_key: Literal[

@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from app.chat.retrieval import ChunkCandidate, QueryRewrite, RewriteRequest
 
 
 class EmbeddingProvider(Protocol):
@@ -14,9 +17,27 @@ class EmbeddingProvider(Protocol):
 
 
 class FilingChunkRepository(Protocol):
-    def full_text_candidates(self, request: Any) -> list[Any]: ...
+    def full_text_candidates(
+        self,
+        *,
+        company_id: int,
+        filing_id: UUID,
+        query: str,
+        limit: int,
+    ) -> list["ChunkCandidate"]: ...
 
-    def vector_candidates(self, request: Any) -> list[Any]: ...
+    def vector_candidates(
+        self,
+        *,
+        company_id: int,
+        filing_id: UUID,
+        embedding: list[float],
+        limit: int,
+    ) -> list["ChunkCandidate"]: ...
+
+
+class QueryRewriter(Protocol):
+    async def rewrite(self, request: "RewriteRequest") -> "QueryRewrite": ...
 
 
 class StructuredContextProvider(Protocol):
