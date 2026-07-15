@@ -102,6 +102,21 @@ describe("research backend requests", () => {
     expect(requestHeader(fetchMock, 0, "accept-language")).toBe("zh-CN");
     expect(requestHeader(fetchMock, 0, "x-untrusted-header")).toBeNull();
   });
+
+  it("propagates the caller abort signal to every backend attempt", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ symbol: "AAPL" }));
+    const controller = new AbortController();
+    const request = new NextRequest("https://example.com/api/research/companies/AAPL", {
+      signal: controller.signal,
+    });
+
+    await researchBackendRequest(request, "companies/AAPL");
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(init.signal).toBe(request.signal);
+  });
 });
 
 function requestWithCookies(cookie: string) {

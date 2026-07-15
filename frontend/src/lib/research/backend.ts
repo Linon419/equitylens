@@ -23,6 +23,7 @@ export async function researchBackendRequest(
     method: init.method ?? request.method,
     body: init.body,
     headers,
+    signal: request.signal,
   } satisfies RequestInit;
 
   if (!accessToken) {

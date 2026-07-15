@@ -1,4 +1,4 @@
-export type ResearchHttpMethod = "GET" | "POST" | "DELETE";
+export type ResearchHttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
 export interface ResearchErrorResponse {
   code: string;
@@ -168,7 +168,7 @@ export interface IngestionJob {
   attempt_count: number;
   retry_eligible: boolean;
   error_code: string | null;
-  result_kind: "company_intelligence" | "supply_chain_graph";
+  result_kind: "company_intelligence" | "supply_chain_graph" | "filing_index";
   snapshot_id: string | null;
   graph_snapshot_id: string | null;
   provider_run_id: string | null;

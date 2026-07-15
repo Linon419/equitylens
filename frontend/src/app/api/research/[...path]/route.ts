@@ -11,7 +11,7 @@ import { researchBackendRequest } from "@/lib/research/backend";
 import type { ResearchHttpMethod } from "@/lib/research/types";
 
 const MAX_BODY_BYTES = 64 * 1_024;
-const SYMBOL = "[A-Za-z][A-Za-z0-9.-]{0,9}";
+const SYMBOL = "[A-Za-z][A-Za-z0-9.-]{0,15}";
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const ALLOWED_REQUESTS: ReadonlyArray<[ResearchHttpMethod, RegExp]> = [
   ["GET", /^companies\/search$/],
@@ -21,11 +21,25 @@ const ALLOWED_REQUESTS: ReadonlyArray<[ResearchHttpMethod, RegExp]> = [
   ["GET", new RegExp(`^jobs\/${UUID}$`)],
   ["GET", /^agent-quota$/],
   ["GET", /^watchlist$/],
+  ["GET", new RegExp(`^companies\/${SYMBOL}\/chat-readiness$`)],
+  ["GET", new RegExp(`^companies\/${SYMBOL}\/conversations$`)],
+  ["GET", new RegExp(`^conversations\/${UUID}$`)],
+  ["GET", new RegExp(`^conversations\/${UUID}\/messages$`)],
+  ["GET", /^chat-quota$/],
   ["POST", new RegExp(`^companies\/${SYMBOL}\/sync$`)],
   ["POST", new RegExp(`^companies\/${SYMBOL}\/supply-chain-graph\/sync$`)],
   ["POST", new RegExp(`^jobs\/${UUID}\/retry$`)],
   ["POST", new RegExp(`^watchlist\/${SYMBOL}$`)],
+  ["POST", new RegExp(`^companies\/${SYMBOL}\/chat-index\/sync$`)],
+  ["POST", new RegExp(`^companies\/${SYMBOL}\/conversations$`)],
+  ["POST", new RegExp(`^conversations\/${UUID}\/messages$`)],
+  [
+    "POST",
+    new RegExp(`^conversations\/${UUID}\/messages\/${UUID}\/retry$`),
+  ],
+  ["PATCH", new RegExp(`^conversations\/${UUID}$`)],
   ["DELETE", new RegExp(`^watchlist\/${SYMBOL}$`)],
+  ["DELETE", new RegExp(`^conversations\/${UUID}$`)],
 ];
 
 type RouteContext = { params: Promise<{ path: string[] }> };
@@ -134,13 +148,24 @@ async function readBoundedBody(
 
 async function copyUpstreamResponse(upstream: Response): Promise<NextResponse> {
   const headers = new Headers();
-  for (const name of ["content-type", "retry-after"] as const) {
+  for (const name of [
+    "content-type",
+    "cache-control",
+    "x-accel-buffering",
+    "retry-after",
+  ] as const) {
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
   }
+  const streaming = upstream.headers
+    .get("content-type")
+    ?.toLowerCase()
+    .startsWith("text/event-stream");
   const body = [204, 205, 304].includes(upstream.status)
     ? null
-    : await upstream.arrayBuffer();
+    : streaming
+      ? upstream.body
+      : await upstream.arrayBuffer();
   return new NextResponse(body, { status: upstream.status, headers });
 }
 
@@ -150,4 +175,5 @@ function errorResponse(code: string, status: number): NextResponse {
 
 export const GET = handleResearchRequest;
 export const POST = handleResearchRequest;
+export const PATCH = handleResearchRequest;
 export const DELETE = handleResearchRequest;

@@ -1130,7 +1130,7 @@ git commit -m "feat(chat): expose company research APIs"
 - Modify: `frontend/src/app/api/research/[...path]/route.ts`
 - Modify: `frontend/src/app/api/research/[...path]/route.test.ts`
 
-- [ ] **Step 1: Write BFF allowlist and stream tests**
+- [x] **Step 1: Write BFF allowlist and stream tests**
 
 Add exact regex entries for every chat route and `PATCH`. Keep method/path pairing closed. Test origin enforcement, 64 KiB body cap, guest assertion, token refresh, upstream 404/422/429 forwarding, and a delayed two-chunk SSE response where the first chunk reaches the caller before the second resolves.
 
@@ -1144,11 +1144,11 @@ it("forwards SSE incrementally", async () => {
 });
 ```
 
-- [ ] **Step 2: Write closed SSE parser tests**
+- [x] **Step 2: Write closed SSE parser tests**
 
 Test chunk splits across UTF-8 boundaries, multiple events per chunk, comments, multiline data, monotonic IDs, invalid JSON, unknown events, cancellation, and final incomplete frames. Define a discriminated `ChatStreamEvent` union for the six event kinds.
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd frontend
@@ -1157,13 +1157,13 @@ corepack pnpm test -- src/app/api/research/'[...path]'/route.test.ts src/lib/cha
 
 Expected: route allowlist and parser tests fail.
 
-- [ ] **Step 4: Forward streaming bodies directly**
+- [x] **Step 4: Forward streaming bodies directly**
 
 Extend `ResearchHttpMethod` with `PATCH`. In `copyUpstreamResponse`, branch on `content-type: text/event-stream` and return `upstream.body` directly. Forward `content-type`, `cache-control`, `x-accel-buffering`, and `retry-after`; avoid `arrayBuffer()` for SSE. Preserve cookie rotation and guest-cookie attachment on the streaming response.
 
 Propagate caller abort to the backend request by passing `request.signal` through `researchBackendRequest` and `fetch`.
 
-- [ ] **Step 5: Implement incremental parser**
+- [x] **Step 5: Implement incremental parser**
 
 Expose:
 
@@ -1176,7 +1176,7 @@ export async function* parseChatEventStream(
 
 Use `TextDecoder(..., { stream: true })`, buffer until blank-line boundaries, ignore comments, parse closed event names, validate monotonic numeric IDs, and validate payload fields with explicit type guards.
 
-- [ ] **Step 6: Validate BFF and parser**
+- [x] **Step 6: Validate BFF and parser**
 
 ```bash
 cd frontend
@@ -1185,7 +1185,7 @@ corepack pnpm test -- src/app/api/research/'[...path]'/route.test.ts src/lib/res
 
 Expected: all focused tests pass and incremental delivery assertion observes the first delayed chunk.
 
-- [ ] **Step 7: Commit the streaming boundary**
+- [x] **Step 7: Commit the streaming boundary**
 
 ```bash
 git add frontend/src/lib/chat frontend/src/lib/research/types.ts frontend/src/lib/research/backend.ts frontend/src/lib/research/backend.test.ts frontend/src/app/api/research/'[...path]'/route.ts frontend/src/app/api/research/'[...path]'/route.test.ts

@@ -10,6 +10,7 @@ vi.mock("@/lib/research/backend", () => ({
 import {
   DELETE,
   GET,
+  PATCH,
   POST,
   isAllowedResearchRequest,
 } from "./route";
@@ -30,11 +31,25 @@ describe("research BFF route", () => {
     ["GET", "jobs/11111111-1111-4111-8111-111111111111"],
     ["GET", "agent-quota"],
     ["GET", "watchlist"],
+    ["GET", "companies/AAPL/chat-readiness"],
+    ["GET", "companies/AAPL/conversations"],
+    ["GET", "conversations/11111111-1111-4111-8111-111111111111"],
+    ["GET", "conversations/11111111-1111-4111-8111-111111111111/messages"],
+    ["GET", "chat-quota"],
     ["POST", "companies/AAPL/sync"],
     ["POST", "companies/AAPL/supply-chain-graph/sync"],
     ["POST", "jobs/11111111-1111-4111-8111-111111111111/retry"],
     ["POST", "watchlist/AAPL"],
+    ["POST", "companies/AAPL/chat-index/sync"],
+    ["POST", "companies/AAPL/conversations"],
+    ["POST", "conversations/11111111-1111-4111-8111-111111111111/messages"],
+    [
+      "POST",
+      "conversations/11111111-1111-4111-8111-111111111111/messages/22222222-2222-4222-8222-222222222222/retry",
+    ],
+    ["PATCH", "conversations/11111111-1111-4111-8111-111111111111"],
     ["DELETE", "watchlist/AAPL"],
+    ["DELETE", "conversations/11111111-1111-4111-8111-111111111111"],
   ])("allows %s %s", (method, path) => {
     expect(isAllowedResearchRequest(method, path)).toBe(true);
   });
@@ -118,8 +133,94 @@ describe("research BFF route", () => {
     expect(response.status).toBe(413);
     expect(backendRequest).not.toHaveBeenCalled();
   });
+
+  it.each([404, 422, 429])("forwards an upstream %s response", async (status) => {
+    backendRequest.mockResolvedValue({
+      response: Response.json({ code: `CHAT_${status}` }, { status }),
+    });
+    const response = await GET(
+      new NextRequest("https://example.com/api/research/chat-quota"),
+      context("chat-quota"),
+    );
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({ code: `CHAT_${status}` });
+  });
+
+  it("forwards SSE incrementally with streaming headers", async () => {
+    let releaseSecond!: () => void;
+    let secondChunkReleased = false;
+    const second = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("event: accepted\n\n"));
+        void second.then(() => {
+          secondChunkReleased = true;
+          controller.enqueue(new TextEncoder().encode("event: complete\n\n"));
+          controller.close();
+        });
+      },
+    });
+    backendRequest.mockResolvedValue({
+      response: new Response(upstream, {
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache, no-transform",
+          "x-accel-buffering": "no",
+        },
+      }),
+    });
+    const response = await POST(
+      mutationRequest("conversations/11111111-1111-4111-8111-111111111111/messages"),
+      context(
+        "conversations",
+        "11111111-1111-4111-8111-111111111111",
+        "messages",
+      ),
+    );
+    const reader = response.body!.getReader();
+
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toContain("event: accepted");
+    expect(secondChunkReleased).toBe(false);
+    expect(response.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(response.headers.get("x-accel-buffering")).toBe("no");
+
+    releaseSecond();
+    const next = await reader.read();
+    expect(new TextDecoder().decode(next.value)).toContain("event: complete");
+  });
+
+  it("accepts PATCH only for conversation rename", async () => {
+    backendRequest.mockResolvedValue({ response: Response.json({ title: "Renamed" }) });
+    const id = "11111111-1111-4111-8111-111111111111";
+
+    const response = await PATCH(
+      mutationRequest(`conversations/${id}`, "PATCH"),
+      context("conversations", id),
+    );
+
+    expect(response.status).toBe(200);
+    expect(isAllowedResearchRequest("PATCH", `conversations/${id}/messages`)).toBe(
+      false,
+    );
+  });
 });
 
 function context(...path: string[]) {
   return { params: Promise.resolve({ path }) };
+}
+
+function mutationRequest(path: string, method = "POST") {
+  return new NextRequest(`https://example.com/api/research/${path}`, {
+    method,
+    headers: {
+      origin: "https://example.com",
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/json",
+    },
+    body: "{}",
+  });
 }
