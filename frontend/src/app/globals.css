@@ -1920,6 +1920,20 @@ a {
   padding: 1.25rem 1rem 1.4rem;
 }
 
+.market-cards article > button,
+.business-summary__ask {
+  align-self: end;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgba(7, 27, 45, 0.28);
+  color: #1f63b6;
+  cursor: pointer;
+  font: 650 0.56rem var(--font-mono), monospace;
+  padding: 0.55rem 0 0;
+  text-align: left;
+  text-transform: uppercase;
+}
+
 .market-cards article + article {
   border-left: 1px solid var(--research-navy);
 }
@@ -1981,6 +1995,20 @@ a {
   font-size: 0.83rem;
 }
 
+.financial-table__ask {
+  background: transparent;
+  border: 0;
+  color: var(--research-navy);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.financial-table__ask span {
+  color: #1f63b6;
+  font-size: 0.65rem;
+}
+
 .business-summary ol {
   list-style: none;
   margin: 0;
@@ -2022,6 +2050,11 @@ a {
 
 .business-summary li strong {
   font: 600 0.7rem var(--font-mono), monospace;
+}
+
+.business-summary__ask {
+  display: block;
+  margin: 0.8rem 0 0;
 }
 
 .claim-citations {
@@ -2420,6 +2453,10 @@ a {
   z-index: 30;
 }
 
+.chat-workbench__backdrop {
+  display: none;
+}
+
 .chat-workbench button,
 .chat-workbench input,
 .chat-workbench textarea {
@@ -2651,6 +2688,91 @@ a {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 1.2rem;
+}
+
+.chat-readiness {
+  border: 1px solid rgba(244, 241, 231, 0.28);
+  margin-bottom: 1.2rem;
+}
+
+.chat-readiness > header {
+  align-items: center;
+  background: #102b44;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.65rem 0.75rem;
+}
+
+.chat-readiness h3 {
+  font: 650 0.62rem var(--font-mono), monospace;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.chat-readiness > header span {
+  color: var(--research-blue);
+  font: 700 0.62rem var(--font-mono), monospace;
+}
+
+.chat-readiness ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chat-readiness li {
+  align-items: center;
+  border-top: 1px solid rgba(244, 241, 231, 0.16);
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.55rem 0.7rem;
+}
+
+.chat-readiness li > span {
+  font-size: 0.65rem;
+}
+
+.chat-readiness li > strong {
+  font: 700 0.52rem var(--font-mono), monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chat-readiness li > strong::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: "";
+  display: inline-block;
+  height: 0.4rem;
+  margin-right: 0.35rem;
+  width: 0.4rem;
+}
+
+.chat-readiness .is-ready { color: #7dffa6; }
+.chat-readiness .is-missing { color: #ffcf83; }
+.chat-readiness .is-running { color: var(--research-blue); }
+.chat-readiness .is-failed { color: #ff9e82; }
+
+.chat-readiness li > button {
+  background: var(--research-blue);
+  border: 0;
+  color: var(--research-navy);
+  font-size: 0.54rem;
+  font-weight: 700;
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 0.45rem 0.55rem;
+}
+
+.chat-readiness > p {
+  border-top: 1px solid rgba(244, 241, 231, 0.16);
+  color: #aebdca;
+  font-size: 0.55rem;
+  line-height: 1.45;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
 }
 
 .chat-workbench__more {
@@ -3033,6 +3155,17 @@ a {
   font-size: 0.9rem;
 }
 
+.supply-chain-inspector__ask {
+  background: var(--research-blue);
+  border: 1px solid var(--research-navy);
+  color: var(--research-navy);
+  cursor: pointer;
+  font: 650 0.64rem var(--font-mono), monospace;
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.8rem;
+  width: 100%;
+}
+
 .chat-workbench button:focus-visible,
 .chat-workbench input:focus-visible,
 .chat-workbench textarea:focus-visible,
@@ -3055,6 +3188,78 @@ a {
   .company-page--chat-open .analysis-control {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .company-page--chat-open {
+    display: block;
+  }
+
+  .chat-workbench__backdrop {
+    background: rgba(1, 9, 16, 0.68);
+    border: 0;
+    display: block;
+    inset: 0;
+    position: fixed;
+    z-index: 80;
+  }
+
+  .chat-workbench {
+    animation: chat-sheet-in 220ms ease-out;
+    border-left: 0;
+    border-top: 1px solid rgba(244, 241, 231, 0.45);
+    bottom: 0;
+    height: 92dvh;
+    left: 0;
+    max-height: 92dvh;
+    position: fixed;
+    right: 0;
+    top: auto;
+    width: 100%;
+    z-index: 81;
+  }
+
+  .chat-workbench::before {
+    background: rgba(244, 241, 231, 0.52);
+    border-radius: 999px;
+    content: "";
+    height: 0.25rem;
+    left: 50%;
+    position: absolute;
+    top: 0.45rem;
+    transform: translateX(-50%);
+    width: 3.2rem;
+    z-index: 3;
+  }
+
+  .chat-workbench__header {
+    padding-top: 1.35rem;
+  }
+
+  .chat-composer {
+    bottom: 0;
+    position: sticky;
+  }
+
+  .chat-history {
+    max-height: calc(92dvh - 5.6rem);
+  }
+}
+
+@keyframes chat-sheet-in {
+  from { transform: translateY(12%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-message__stage::before,
+  .chat-workbench {
+    animation: none;
+  }
+
+  .chat-workbench__messages {
+    scroll-behavior: auto;
   }
 }
 

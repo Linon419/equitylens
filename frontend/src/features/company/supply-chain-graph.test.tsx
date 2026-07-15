@@ -66,7 +66,8 @@ describe("SupplyChainGraph", () => {
 
   it("opens source evidence when a relationship is selected", async () => {
     const user = userEvent.setup();
-    renderGraph();
+    const onAskContext = vi.fn();
+    renderGraph({ onAskContext });
 
     await user.click(
       screen.getByRole("button", { name: /Supplier 1 supplies Apple Inc\./i }),
@@ -79,6 +80,14 @@ describe("SupplyChainGraph", () => {
     expect(
       screen.getByRole("link", { name: "Open official source" }),
     ).toHaveAttribute("href", expect.stringContaining("sec.gov"));
+    await user.click(
+      screen.getByRole("button", { name: "Ask EquityLens about this relationship" }),
+    );
+    expect(onAskContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selection: expect.objectContaining({ kind: "supply_chain_edge" }),
+      }),
+    );
   });
 
   it("reveals potential relationships after the user enables them", async () => {
@@ -95,10 +104,17 @@ describe("SupplyChainGraph", () => {
   it("opens node details, centers a resolved company, and closes the inspector", async () => {
     const user = userEvent.setup();
     const centerCompany = vi.fn();
-    renderGraph({ onCenterCompany: centerCompany });
+    const onAskContext = vi.fn();
+    renderGraph({ onAskContext, onCenterCompany: centerCompany });
 
     await user.click(screen.getByRole("button", { name: /Select Supplier 1 \(/i }));
     expect(screen.getByRole("heading", { name: "Supplier 1" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Ask EquityLens: Supplier 1/ }));
+    expect(onAskContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selection: expect.objectContaining({ kind: "supply_chain_node" }),
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Center on this company" }));
     expect(centerCompany).toHaveBeenCalledWith("SUP1");
     await user.click(screen.getByRole("button", { name: "Close evidence" }));

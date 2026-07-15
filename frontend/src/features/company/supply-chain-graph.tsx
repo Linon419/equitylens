@@ -32,6 +32,7 @@ import {
 } from "./supply-chain-relationship-list";
 import { isTerminalGraphJob, useSupplyChainResearch } from "./use-supply-chain-research";
 import type { Locale } from "@/lib/i18n";
+import type { SelectedChatContext } from "@/lib/chat/types";
 import {
   type QuotaStatus,
   type SupplyChainGraphResponse,
@@ -47,6 +48,7 @@ export function SupplyChainGraph({
   graph: initialGraph,
   initialQuota,
   locale,
+  onAskContext,
   onCenterCompany,
   onQuotaChange,
   symbol,
@@ -56,6 +58,7 @@ export function SupplyChainGraph({
   graph: SupplyChainGraphResponse | null;
   initialQuota?: QuotaStatus;
   locale: Locale;
+  onAskContext?: (context: SelectedChatContext) => void;
   onCenterCompany?: (symbol: string) => void | Promise<void>;
   onQuotaChange?: (quota: QuotaStatus) => void;
   symbol: string;
@@ -250,9 +253,11 @@ export function SupplyChainGraph({
                 directEdges={selectedNode ? directVerifiedEdges(selectedNode.id, graph.edges) : []}
                 locale={locale}
                 nodes={graph.nodes}
+                onAskContext={onAskContext}
                 onCenterCompany={(nextSymbol) => void centerCompany(nextSymbol)}
                 onClose={closeInspector}
                 selection={selectedNode ? { type: "node", value: selectedNode } : { type: "edge", value: selectedEdge! }}
+                snapshotId={graph.snapshot.id}
                 sources={graph.sources}
               />
             ) : null}

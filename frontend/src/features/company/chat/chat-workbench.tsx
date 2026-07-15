@@ -2,11 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { ChatLocale, ChatMessage } from "@/lib/chat/types";
+import type {
+  ChatLocale,
+  ChatMessage,
+  SelectedChatContext,
+} from "@/lib/chat/types";
 import type { CompanyChatCopy } from "../copy";
 import { AnswerSections } from "./answer-sections";
 import { ContextChips } from "./context-chips";
 import { ConversationHistory } from "./conversation-history";
+import { ReadinessPanel } from "./readiness-panel";
 import { useCompanyChat } from "./use-company-chat";
 
 export function ChatWorkbench({
@@ -14,20 +19,29 @@ export function ChatWorkbench({
   copy,
   locale,
   onClose,
+  onContextConsumed,
+  onReadinessNavigate,
   open,
+  pendingContext,
   symbol,
 }: {
   authenticated: boolean;
   copy: CompanyChatCopy;
   locale: ChatLocale;
   onClose: () => void;
+  onContextConsumed?: () => void;
+  onReadinessNavigate?: (action: "company_analysis" | "supply_chain_graph") => void;
   open: boolean;
+  pendingContext?: SelectedChatContext | null;
   symbol: string;
 }) {
   const chat = useCompanyChat({ authenticated, locale, open, symbol });
+  const addContext = chat.addContext;
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const messageEnd = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (
@@ -37,6 +51,44 @@ export function ChatWorkbench({
       messageEnd.current.scrollIntoView({ block: "end" });
     }
   }, [chat.live, chat.messages.length, chat.streaming]);
+
+  useEffect(() => {
+    if (!open || !pendingContext) return;
+    addContext(pendingContext);
+    onContextConsumed?.();
+  }, [addContext, onContextConsumed, open, pendingContext]);
+
+  useEffect(() => {
+    if (!open) return;
+    const origin = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.setTimeout(() => closeButton.current?.focus(), 0);
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeButton.current?.click();
+        return;
+      }
+      if (event.key !== "Tab" || !panel.current) return;
+      const controls = focusableElements(panel.current);
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", trapFocus);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", trapFocus);
+      window.setTimeout(() => origin?.focus(), 0);
+    };
+  }, [open]);
 
   if (!open) return null;
   const quotaEmpty = chat.quota?.remaining === 0;
@@ -51,7 +103,21 @@ export function ChatWorkbench({
   }
 
   return (
-    <aside className="chat-workbench" aria-label={copy.title}>
+    <>
+    <button
+      aria-hidden="true"
+      className="chat-workbench__backdrop"
+      tabIndex={-1}
+      type="button"
+      onClick={onClose}
+    />
+    <aside
+      aria-label={copy.title}
+      aria-modal="true"
+      className="chat-workbench"
+      ref={panel}
+      role="dialog"
+    >
       <header className="chat-workbench__header">
         <div>
           <p>{copy.eyebrow}</p>
@@ -68,7 +134,12 @@ export function ChatWorkbench({
           >
             {historyOpen ? copy.hideHistory : copy.history}
           </button>
-          <button aria-label={copy.close} type="button" onClick={onClose}>×</button>
+          <button
+            aria-label={copy.close}
+            ref={closeButton}
+            type="button"
+            onClick={onClose}
+          >×</button>
         </div>
       </header>
 
@@ -90,6 +161,15 @@ export function ChatWorkbench({
       ) : null}
 
       <div className="chat-workbench__messages">
+        {chat.readiness ? (
+          <ReadinessPanel
+            copy={copy}
+            onNavigate={(action) => onReadinessNavigate?.(action)}
+            onRefresh={() => void chat.refreshReadiness()}
+            readiness={chat.readiness}
+            symbol={symbol}
+          />
+        ) : null}
         {chat.loading && chat.messages.length === 0 ? (
           <p className="chat-workbench__empty">{copy.sending}</p>
         ) : null}
@@ -112,9 +192,11 @@ export function ChatWorkbench({
         {chat.live ? (
           <article className="chat-message chat-message--assistant chat-message--live">
             {chat.live.stage ? (
-              <p className="chat-message__stage">{copy.stages[chat.live.stage]}</p>
+              <p aria-live="polite" className="chat-message__stage">
+                {copy.stages[chat.live.stage]}
+              </p>
             ) : (
-              <p className="chat-message__stage">{copy.sending}</p>
+              <p aria-live="polite" className="chat-message__stage">{copy.sending}</p>
             )}
             <AnswerSections
               citations={chat.live.citations}
@@ -168,6 +250,7 @@ export function ChatWorkbench({
         <p className="chat-composer__disclaimer">{copy.disclaimer}</p>
       </footer>
     </aside>
+    </>
   );
 }
 
@@ -248,4 +331,10 @@ function errorCopy(code: string | null, copy: CompanyChatCopy): string {
   if (code === "CHAT_LOAD_FAILED") return copy.errors.load;
   if (code === "CHAT_STREAM_INTERRUPTED") return copy.errors.stream;
   return copy.errors.generic;
+}
+
+function focusableElements(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )].filter((element) => !element.hasAttribute("hidden"));
 }

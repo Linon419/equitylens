@@ -14,6 +14,7 @@ import { FinancialTable } from "./financial-table";
 import { MarketContext } from "./market-context";
 import { SupplyChainGraph } from "./supply-chain-graph";
 import type { Locale } from "@/lib/i18n";
+import type { SelectedChatContext } from "@/lib/chat/types";
 import {
   parseResearchResponse,
   type Citation,
@@ -56,6 +57,8 @@ export function CompanyPage({
   });
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [pendingChatContext, setPendingChatContext] =
+    useState<SelectedChatContext | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -127,6 +130,27 @@ export function CompanyPage({
     }));
   }, []);
 
+  const handleAskContext = useCallback((context: SelectedChatContext) => {
+    setPendingChatContext(context);
+    setChatOpen(true);
+  }, []);
+
+  const handleReadinessNavigate = useCallback(
+    (action: "company_analysis" | "supply_chain_graph") => {
+      setChatOpen(false);
+      const selector = action === "company_analysis"
+        ? ".analysis-control"
+        : ".supply-chain-section";
+      window.setTimeout(() => {
+        const target = document.querySelector<HTMLElement>(selector);
+        if (typeof target?.scrollIntoView === "function") {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 0);
+    },
+    [],
+  );
+
   if (resources.loading) {
     return <main className="company-page-state">{copy.loading}</main>;
   }
@@ -159,7 +183,12 @@ export function CompanyPage({
       ) : null}
 
       {resources.market ? (
-        <MarketContext copy={copy.market} data={resources.market} locale={locale} />
+        <MarketContext
+          copy={copy.market}
+          data={resources.market}
+          locale={locale}
+          onAskContext={handleAskContext}
+        />
       ) : (
         <UnavailableSection title={copy.market.title} message={copy.unavailable} />
       )}
@@ -170,8 +199,10 @@ export function CompanyPage({
         </header>
         {resources.financials ? (
           <FinancialTable
+            askLabel={copy.financials.ask}
             data={resources.financials}
             locale={locale === "zh-CN" ? "zh" : "en"}
+            onAskContext={handleAskContext}
           />
         ) : <p>{copy.unavailable}</p>}
       </section>
@@ -182,7 +213,9 @@ export function CompanyPage({
             citations={intelligence.citations}
             claims={intelligence.content.core_businesses}
             copy={copy.business}
+            onAskContext={handleAskContext}
             onCitation={setSelectedCitation}
+            snapshotId={intelligence.snapshot_id}
           />
         </>
       ) : (
@@ -196,6 +229,7 @@ export function CompanyPage({
         graph={resources.supplyChainGraph ?? null}
         initialQuota={resources.quota}
         locale={locale}
+        onAskContext={handleAskContext}
         onQuotaChange={handleQuotaChange}
         symbol={symbol}
         unavailable={resources.unavailable.includes("supplyChainGraph")}
@@ -236,7 +270,10 @@ export function CompanyPage({
         copy={copy.chat}
         locale={locale}
         onClose={() => setChatOpen(false)}
+        onContextConsumed={() => setPendingChatContext(null)}
+        onReadinessNavigate={handleReadinessNavigate}
         open={chatOpen}
+        pendingContext={pendingChatContext}
         symbol={symbol}
       />
     </main>

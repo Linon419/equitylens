@@ -1,21 +1,27 @@
 import type { Citation, IntelligenceClaim } from "@/lib/research/types";
+import type { SelectedChatContext } from "@/lib/chat/types";
 
 export function BusinessSummary({
   citations,
   claims,
   copy,
+  onAskContext,
   onCitation,
+  snapshotId,
 }: {
   citations: Citation[];
   claims: IntelligenceClaim[];
   copy: {
     eyebrow: string;
     title: string;
+    ask: string;
     empty: string;
     revenue: string;
     citation: string;
   };
+  onAskContext?: (context: SelectedChatContext) => void;
   onCitation: (citation: Citation) => void;
+  snapshotId?: string;
 }) {
   return (
     <section className="company-section business-summary">
@@ -30,6 +36,24 @@ export function BusinessSummary({
               <div>
                 <h3>{claim.title}</h3>
                 <p>{claim.explanation}</p>
+                {onAskContext && snapshotId ? (
+                  <button
+                    aria-label={`${copy.ask}: ${claim.title}`}
+                    className="business-summary__ask"
+                    type="button"
+                    onClick={() => onAskContext({
+                      key: `business_claim:${claim.claim_id}:${snapshotId}`,
+                      label: claim.title,
+                      selection: {
+                        kind: "business_claim",
+                        id: claim.claim_id,
+                        snapshot_id: snapshotId,
+                      },
+                    })}
+                  >
+                    {copy.ask} ↗
+                  </button>
+                ) : null}
                 {claim.revenue_share ? (
                   <strong>{copy.revenue}: {claim.revenue_share}% · {claim.revenue_period}</strong>
                 ) : null}

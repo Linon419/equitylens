@@ -166,6 +166,20 @@ export function useCompanyChat({
     dispatch({ type: "messages", items: page.items, append: true });
   }, [nextCursor, selectedId]);
 
+  const refreshReadiness = useCallback(async () => {
+    try {
+      setReadiness(
+        await getJson<ChatReadiness>(
+          `/api/research/companies/${symbol}/chat-readiness?locale=${locale}`,
+        ),
+      );
+    } catch (error) {
+      if (!isAbort(error)) {
+        dispatch({ type: "transport_error", code: "CHAT_LOAD_FAILED" });
+      }
+    }
+  }, [locale, symbol]);
+
   const runStream = useCallback(async (
     path: string,
     body: string,
@@ -251,6 +265,7 @@ export function useCompanyChat({
     loading,
     nextCursor,
     readiness,
+    refreshReadiness,
     removeContext: (key: string) =>
       setContexts((current) => current.filter((item) => item.key !== key)),
     renameConversation,

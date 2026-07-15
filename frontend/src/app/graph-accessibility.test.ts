@@ -20,4 +20,11 @@ describe("supply-chain graph accessibility styles", () => {
     expect(styles).toContain(".supply-chain-node.is-focus button { transition: none; }");
     expect(styles).toContain(".supply-chain-node.is-focus button { transform: none; }");
   });
+
+  it("caps the mobile chat sheet and removes its reduced-motion animation", () => {
+    expect(styles).toContain("@media (max-width: 767px)");
+    expect(styles).toContain("max-height: 92dvh");
+    expect(styles).toContain(".chat-message__stage::before");
+    expect(styles).toContain(".chat-workbench {\n    animation: none;");
+  });
 });

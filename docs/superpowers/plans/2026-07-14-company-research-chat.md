@@ -1282,7 +1282,7 @@ git commit -m "feat(chat): add company research workbench"
 - Modify: `frontend/src/features/company/test-fixtures.ts`
 - Modify: `frontend/src/app/globals.css`
 
-- [ ] **Step 1: Write typed context-action tests**
+- [x] **Step 1: Write typed context-action tests**
 
 Click price, P/E, a financial cell, business claim, graph node, and graph edge. Assert each action opens chat and sends only approved identifiers plus snapshot/period fields. Assert visible labels stay outside the request payload.
 
@@ -1294,11 +1294,11 @@ expect(onAsk).toHaveBeenCalledWith({
 });
 ```
 
-- [ ] **Step 2: Write readiness and accessibility tests**
+- [x] **Step 2: Write readiness and accessibility tests**
 
 Cover independent ready/missing rows, zero-quota index action, existing analysis/graph actions, suggested questions from available categories, mobile bottom sheet, 92dvh cap, focus trap, Escape close, focus restoration, `aria-live="polite"`, heading order, keyboard citation access, and reduced-motion classes.
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd frontend
@@ -1307,19 +1307,19 @@ corepack pnpm test -- src/features/company/chat/context-actions.test.tsx src/fea
 
 Expected: context and mobile/accessibility assertions fail.
 
-- [ ] **Step 4: Add context entry points**
+- [x] **Step 4: Add context entry points**
 
 Introduce one `onAskContext(selection)` callback from `CompanyPage` and pass it into the existing market, financial, business, node, edge, and inspector components. Add compact `Ask EquityLens` buttons with specific accessible names. The workbench resolves selected chips only from server-returned labels after conversation/message validation.
 
-- [ ] **Step 5: Add readiness controls**
+- [x] **Step 5: Add readiness controls**
 
 Show structured intelligence, filing text, filing index, graph, and web recency. Wire `Prepare 10-K for chat` to `/chat-index/sync`; show its job state without decrementing either quota. Reuse existing analysis and graph hooks for quota-consuming readiness actions and display their current quota separately from chat quota.
 
-- [ ] **Step 6: Implement mobile and accessibility behavior**
+- [x] **Step 6: Implement mobile and accessibility behavior**
 
 Below 768 px, render a near-full-height dialog sheet with drag handle, `max-height: 92dvh`, scrollable message body, composer using `position: sticky`, focus trap sentinels, Escape close, and origin focus restoration. Respect `prefers-reduced-motion: reduce`. Announce stage text politely and final errors assertively.
 
-- [ ] **Step 7: Validate context, mobile, and accessibility**
+- [x] **Step 7: Validate context, mobile, and accessibility**
 
 ```bash
 cd frontend

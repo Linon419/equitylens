@@ -1,4 +1,5 @@
 import type { CompanyPageCopy } from "./copy";
+import type { SelectedChatContext } from "@/lib/chat/types";
 import type {
   SupplyChainGraphEdge,
   SupplyChainGraphNode,
@@ -14,18 +15,22 @@ export function SupplyChainInspector({
   directEdges,
   locale,
   nodes,
+  onAskContext,
   onCenterCompany,
   onClose,
   selection,
+  snapshotId,
   sources,
 }: {
   copy: CompanyPageCopy["graph"];
   directEdges: SupplyChainGraphEdge[];
   locale: string;
   nodes: SupplyChainGraphNode[];
+  onAskContext?: (context: SelectedChatContext) => void;
   onCenterCompany: (symbol: string) => void;
   onClose: () => void;
   selection: InspectorSelection;
+  snapshotId?: string;
   sources: SupplyChainSource[];
 }) {
   const sourceById = new Map(sources.map((source) => [source.id, source]));
@@ -42,7 +47,9 @@ export function SupplyChainInspector({
           directEdges={directEdges}
           node={selection.value}
           nodes={nodes}
+          onAskContext={onAskContext}
           onCenterCompany={onCenterCompany}
+          snapshotId={snapshotId}
         />
       ) : (
         <EdgeEvidence
@@ -50,6 +57,8 @@ export function SupplyChainInspector({
           edge={selection.value}
           locale={locale}
           nodes={nodes}
+          onAskContext={onAskContext}
+          snapshotId={snapshotId}
           sourceById={sourceById}
         />
       )}
@@ -62,13 +71,17 @@ function NodeEvidence({
   directEdges,
   node,
   nodes,
+  onAskContext,
   onCenterCompany,
+  snapshotId,
 }: {
   copy: CompanyPageCopy["graph"];
   directEdges: SupplyChainGraphEdge[];
   node: SupplyChainGraphNode;
   nodes: SupplyChainGraphNode[];
+  onAskContext?: (context: SelectedChatContext) => void;
   onCenterCompany: (symbol: string) => void;
+  snapshotId?: string;
 }) {
   return (
     <div className="supply-chain-inspector__body">
@@ -87,6 +100,24 @@ function NodeEvidence({
           <li key={edge.id}>{relationshipSentence(edge, nodes, copy)}</li>
         ))}
       </ul>
+      {onAskContext && snapshotId ? (
+        <button
+          aria-label={`${copy.askNode}: ${node.label}`}
+          className="supply-chain-inspector__ask"
+          type="button"
+          onClick={() => onAskContext({
+            key: `supply_chain_node:${node.id}:${snapshotId}`,
+            label: node.label,
+            selection: {
+              kind: "supply_chain_node",
+              id: node.id,
+              snapshot_id: snapshotId,
+            },
+          })}
+        >
+          {copy.askNode} ↗
+        </button>
+      ) : null}
       {node.symbol ? (
         <button
           className="supply-chain-inspector__center"
@@ -105,12 +136,16 @@ function EdgeEvidence({
   edge,
   locale,
   nodes,
+  onAskContext,
+  snapshotId,
   sourceById,
 }: {
   copy: CompanyPageCopy["graph"];
   edge: SupplyChainGraphEdge;
   locale: string;
   nodes: SupplyChainGraphNode[];
+  onAskContext?: (context: SelectedChatContext) => void;
+  snapshotId?: string;
   sourceById: Map<string, SupplyChainSource>;
 }) {
   return (
@@ -124,6 +159,24 @@ function EdgeEvidence({
         <div><dt>{copy.confidence}</dt><dd>{edge.confidence}</dd></div>
         <div><dt>{copy.status}</dt><dd>{edge.evidence_status === "verified" ? copy.verified : copy.potential}</dd></div>
       </dl>
+      {onAskContext && snapshotId ? (
+        <button
+          aria-label={copy.askRelationship}
+          className="supply-chain-inspector__ask"
+          type="button"
+          onClick={() => onAskContext({
+            key: `supply_chain_edge:${edge.id}:${snapshotId}`,
+            label: relationshipSentence(edge, nodes, copy),
+            selection: {
+              kind: "supply_chain_edge",
+              id: edge.id,
+              snapshot_id: snapshotId,
+            },
+          })}
+        >
+          {copy.askRelationship} ↗
+        </button>
+      ) : null}
       <h4>{copy.sources}</h4>
       <div className="supply-chain-inspector__sources">
         {edge.citations.map((citation) => {

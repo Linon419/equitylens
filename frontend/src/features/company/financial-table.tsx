@@ -1,4 +1,5 @@
 import type { FinancialsResponse } from "@/lib/research/types";
+import type { SelectedChatContext } from "@/lib/chat/types";
 
 const METRICS = [
   "revenue",
@@ -28,11 +29,15 @@ const LABELS = {
 } as const;
 
 export function FinancialTable({
+  askLabel,
   data,
   locale,
+  onAskContext,
 }: {
+  askLabel?: string;
   data: FinancialsResponse;
   locale: "en" | "zh";
+  onAskContext?: (context: SelectedChatContext) => void;
 }) {
   const labels = LABELS[locale];
   const periods = Array.from(
@@ -64,19 +69,73 @@ export function FinancialTable({
                 <th scope="row">{labels[metric]}</th>
                 {periods.map((period) => (
                   <td key={period}>
-                    {formatFinancial(
-                      series?.annual.find((point) => point.period_key === period)?.value,
-                      locale,
-                    )}
+                    <FinancialValue
+                      askLabel={askLabel}
+                      label={labels[metric]}
+                      locale={locale}
+                      metric={metric}
+                      onAskContext={onAskContext}
+                      period={period}
+                      value={series?.annual.find((point) => point.period_key === period)?.value}
+                    />
                   </td>
                 ))}
-                <td>{formatFinancial(series?.ttm?.value, locale)}</td>
+                <td>
+                  <FinancialValue
+                    askLabel={askLabel}
+                    label={labels[metric]}
+                    locale={locale}
+                    metric={metric}
+                    onAskContext={onAskContext}
+                    period="TTM"
+                    value={series?.ttm?.value}
+                  />
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function FinancialValue({
+  askLabel,
+  label,
+  locale,
+  metric,
+  onAskContext,
+  period,
+  value,
+}: {
+  askLabel?: string;
+  label: string;
+  locale: "en" | "zh";
+  metric: string;
+  onAskContext?: (context: SelectedChatContext) => void;
+  period: string;
+  value?: string;
+}) {
+  const periodLabel = period === "TTM" ? period : formatPeriod(period, locale);
+  if (!onAskContext || !askLabel) return formatFinancial(value, locale);
+  return (
+    <button
+      aria-label={`${askLabel}: ${label} ${periodLabel}`}
+      className="financial-table__ask"
+      type="button"
+      onClick={() => onAskContext({
+        key: `financial_metric:${metric}:${period}`,
+        label: `${label} · ${periodLabel}`,
+        selection: {
+          kind: "financial_metric",
+          metric_key: metric,
+          period_key: period,
+        },
+      })}
+    >
+      {formatFinancial(value, locale)} <span aria-hidden="true">↗</span>
+    </button>
   );
 }
 

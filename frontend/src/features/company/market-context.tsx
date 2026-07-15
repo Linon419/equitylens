@@ -1,8 +1,10 @@
 import type { MarketMetric, MarketResponse } from "@/lib/research/types";
+import type { SelectedChatContext } from "@/lib/chat/types";
 
 type MarketCopy = {
   eyebrow: string;
   title: string;
+  ask: string;
   price: string;
   marketCap: string;
   trailingEps: string;
@@ -17,17 +19,24 @@ export function MarketContext({
   copy,
   data,
   locale,
+  onAskContext,
 }: {
   copy: MarketCopy;
   data: MarketResponse;
   locale: "en-US" | "zh-CN";
+  onAskContext?: (context: SelectedChatContext) => void;
 }) {
-  const cards: Array<[string, MarketMetric, "money" | "compact" | "multiple"]> = [
-    [copy.price, data.price, "money"],
-    [copy.marketCap, data.market_cap, "compact"],
-    [copy.trailingEps, data.trailing_eps, "money"],
-    [copy.trailingPe, data.trailing_pe, "multiple"],
-    [copy.forwardPe, data.forward_pe, "multiple"],
+  const cards: Array<[
+    "price" | "market_cap" | "trailing_eps" | "trailing_pe" | "forward_pe",
+    string,
+    MarketMetric,
+    "money" | "compact" | "multiple",
+  ]> = [
+    ["price", copy.price, data.price, "money"],
+    ["market_cap", copy.marketCap, data.market_cap, "compact"],
+    ["trailing_eps", copy.trailingEps, data.trailing_eps, "money"],
+    ["trailing_pe", copy.trailingPe, data.trailing_pe, "multiple"],
+    ["forward_pe", copy.forwardPe, data.forward_pe, "multiple"],
   ];
   return (
     <section className="company-section company-market">
@@ -43,11 +52,28 @@ export function MarketContext({
         </div>
       </header>
       <div className="market-cards">
-        {cards.map(([label, metric, format]) => (
-          <article key={label}>
+        {cards.map(([key, label, metric, format]) => (
+          <article key={key}>
             <span>{label}</span>
             <strong>{formatMetric(metric, format, locale)}</strong>
             {metric.missing_reason ? <small>{metric.missing_reason}</small> : null}
+            {onAskContext ? (
+              <button
+                aria-label={`${copy.ask}: ${label}`}
+                type="button"
+                onClick={() => onAskContext({
+                  key: `market_metric:${key}`,
+                  label,
+                  selection: {
+                    kind: "market_metric",
+                    metric_key: key,
+                    observed_at: data.observed_at,
+                  },
+                })}
+              >
+                {copy.ask} ↗
+              </button>
+            ) : null}
           </article>
         ))}
       </div>

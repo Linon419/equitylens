@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { companyPageCopy } from "../copy";
@@ -198,7 +199,91 @@ describe("ChatWorkbench", () => {
     expect(await screen.findByText("Later question")).toBeVisible();
     expect(screen.queryByRole("button", { name: companyPageCopy.en.chat.loadMore })).toBeNull();
   });
+
+  it("keeps context labels outside the validated message payload", async () => {
+    const user = userEvent.setup();
+    let requestBody = "";
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      chatFetch({
+        onMessage(body) {
+          requestBody = body;
+          return eventResponse(
+            frame(1, "accepted", acceptedQuota()) +
+              frame(2, "complete", completePayload()),
+          );
+        },
+      }),
+    );
+    const onContextConsumed = vi.fn();
+
+    render(
+      <ChatWorkbench
+        authenticated={false}
+        copy={companyPageCopy.en.chat}
+        locale="en-US"
+        onClose={vi.fn()}
+        onContextConsumed={onContextConsumed}
+        open
+        pendingContext={{
+          key: "financial_metric:revenue:FY2025",
+          label: "Revenue · FY 2025",
+          selection: {
+            kind: "financial_metric",
+            metric_key: "revenue",
+            period_key: "FY2025",
+          },
+        }}
+        symbol="AAPL"
+      />,
+    );
+
+    expect(await screen.findByText("Revenue · FY 2025")).toBeVisible();
+    await user.type(screen.getByRole("textbox"), "Why did revenue change?");
+    await user.click(screen.getByRole("button", { name: companyPageCopy.en.chat.send }));
+    await screen.findByText("Margins benefited from services mix.");
+
+    expect(JSON.parse(requestBody).context).toEqual([
+      { kind: "financial_metric", metric_key: "revenue", period_key: "FY2025" },
+    ]);
+    expect(requestBody).not.toContain("Revenue · FY 2025");
+    expect(onContextConsumed).toHaveBeenCalledOnce();
+  });
+
+  it("uses a modal sheet boundary and restores focus after close", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockImplementation(chatFetch());
+    render(<WorkbenchHarness />);
+
+    const origin = screen.getByRole("button", { name: "Open research" });
+    await user.click(origin);
+    expect(await screen.findByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeVisible();
+    const first = screen.getByRole("button", { name: companyPageCopy.en.chat.history });
+    first.focus();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(screen.getByRole("textbox")).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeNull();
+    await waitFor(() => expect(origin).toHaveFocus());
+  });
 });
+
+function WorkbenchHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>Open research</button>
+      <ChatWorkbench
+        authenticated={false}
+        copy={companyPageCopy.en.chat}
+        locale="en-US"
+        onClose={() => setOpen(false)}
+        open={open}
+        symbol="AAPL"
+      />
+    </>
+  );
+}
 
 function chatFetch({
   conversations = [conversation()],
