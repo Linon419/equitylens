@@ -105,6 +105,7 @@ class OpenAISupplyChainAgent:
         max_tool_result_chars: int = 40_000,
         max_tool_calls: int = 8,
         token_counter: Callable[[str], int] | None = None,
+        structured_output_method: str = "json_schema",
     ) -> None:
         if stage_timeout_seconds <= 0:
             raise ValueError("stage_timeout_seconds must be positive")
@@ -120,6 +121,7 @@ class OpenAISupplyChainAgent:
         self._max_source_tokens = max_source_tokens
         self._max_tool_result_chars = max_tool_result_chars
         self._max_tool_calls = max_tool_calls
+        self._structured_output_method = structured_output_method
         model_counter = getattr(model, "get_num_tokens", None)
         self._token_counter = token_counter or model_counter or _utf8_token_bound
 
@@ -359,7 +361,7 @@ class OpenAISupplyChainAgent:
         try:
             runnable = self._model.with_structured_output(
                 provider_schema,
-                method="json_schema",
+                method=self._structured_output_method,
                 strict=True,
                 include_raw=True,
             )

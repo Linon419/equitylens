@@ -11,9 +11,9 @@ from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
 )
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from app.api.deps import CurrentUser
+from app.core.ai_clients import create_chat_model, create_embedding_model
 from app.core.config import logger, settings
 from app.schemas.chat_schema import ChatBody
 
@@ -33,7 +33,7 @@ chat_history = [AIMessage(content="Hello, I am a bot. How can I help you?")]
 
 def get_context_retriever_chain(vector_store):
     logger.info("Creating context retriever chain")
-    llm = ChatOpenAI(model_name="gpt-4-turbo")
+    llm = create_chat_model(model=settings.RESEARCH_MODEL)
 
     retriever = vector_store.as_retriever()
 
@@ -56,7 +56,7 @@ def get_context_retriever_chain(vector_store):
 
 def get_conversational_rag_chain(retriever_chain):
 
-    llm = ChatOpenAI()
+    llm = create_chat_model(model=settings.RESEARCH_MODEL)
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -81,7 +81,7 @@ async def chat_action(
 ):
     global chat_history
 
-    embeddings = OpenAIEmbeddings()
+    embeddings = create_embedding_model()
 
     store = PGVector(
         collection_name="docs",

@@ -7,7 +7,6 @@ import httpx
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from openai import AsyncOpenAI
 from sqlmodel import Session, create_engine, select
 
@@ -43,6 +42,11 @@ from app.chat.structured_repository import SqlStructuredContextRepository
 from app.chat.web_discovery import OpenAIWebSearchProvider, SourceClassifier
 from app.chat.web_fetcher import PinnedWebPageFetcher
 from app.chat.web_search import BoundedWebSearchService
+from app.core.ai_clients import (
+    create_chat_model,
+    create_embedding_model,
+    create_responses_client,
+)
 from app.core.config import settings
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
@@ -367,7 +371,7 @@ OfficialSourceCollectorDep = Annotated[
 def get_supply_chain_agent() -> SupplyChainAgent:
     model_id = settings.SUPPLY_CHAIN_GRAPH_MODEL
     return OpenAISupplyChainAgent(
-        model=ChatOpenAI(
+        model=create_chat_model(
             model=model_id,
             temperature=0,
             timeout=60,
@@ -378,6 +382,7 @@ def get_supply_chain_agent() -> SupplyChainAgent:
         prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
         stage_timeout_seconds=60,
         max_source_tokens=settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET,
+        structured_output_method=settings.LLM_STRUCTURED_OUTPUT_METHOD.value,
     )
 
 
@@ -484,8 +489,9 @@ GraphSynchronizationServicesDep = Annotated[
 
 def get_intelligence_generator() -> IntelligenceGenerator:
     return OpenAIIntelligenceGenerator(
-        ChatOpenAI(model=settings.RESEARCH_MODEL),
+        create_chat_model(model=settings.RESEARCH_MODEL),
         settings.RESEARCH_MODEL,
+        structured_output_method=settings.LLM_STRUCTURED_OUTPUT_METHOD.value,
     )
 
 
@@ -497,7 +503,7 @@ IntelligenceGeneratorDep = Annotated[
 
 def get_chat_embedding_provider() -> LangChainEmbeddingProvider:
     return LangChainEmbeddingProvider(
-        OpenAIEmbeddings(
+        create_embedding_model(
             model=settings.CHAT_EMBEDDING_MODEL,
             dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
         ),
@@ -603,10 +609,7 @@ ChatContextProviderDep = Annotated[
 
 
 async def get_chat_openai_client() -> AsyncIterator[AsyncOpenAI]:
-    client = AsyncOpenAI(
-        api_key=settings.OPENAI_API_KEY,
-        organization=settings.OPENAI_ORGANIZATION,
-    )
+    client = create_responses_client()
     try:
         yield client
     finally:
@@ -624,12 +627,13 @@ def get_chat_retriever(
     embeddings: ChatEmbeddingProviderDep,
 ) -> HybridFilingRetriever:
     rewriter = OpenAIQueryRewriter(
-        ChatOpenAI(
+        create_chat_model(
             model=settings.CHAT_MODEL,
             temperature=0,
             timeout=60,
             max_retries=0,
-        )
+        ),
+        structured_output_method=settings.LLM_STRUCTURED_OUTPUT_METHOD.value,
     )
     return HybridFilingRetriever(
         SqlFilingChunkRepository(

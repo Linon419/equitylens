@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import httpx
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from rq import Retry
 from sqlmodel import Session, create_engine, select
 
 from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
+from app.core.ai_clients import create_chat_model, create_embedding_model
 from app.core.config import settings
 from app.filings.sec_client import SecClient
 from app.jobs._filing_index import FilingIndexJobPipeline
@@ -115,10 +115,13 @@ async def pipeline_context(
                 settings.SEC_USER_AGENT,
                 max_filing_bytes=settings.MAX_FILING_BYTES,
             )
-            model = ChatOpenAI(model=settings.RESEARCH_MODEL)
+            model = create_chat_model(model=settings.RESEARCH_MODEL)
             generator = OpenAIIntelligenceGenerator(
                 model,
                 settings.RESEARCH_MODEL,
+                structured_output_method=(
+                    settings.LLM_STRUCTURED_OUTPUT_METHOD.value
+                ),
             )
             yield CompanyIntelligencePipeline(
                 session,
@@ -178,7 +181,7 @@ async def graph_pipeline_context(
             )
             model_id = settings.SUPPLY_CHAIN_GRAPH_MODEL
             agent = OpenAISupplyChainAgent(
-                model=ChatOpenAI(
+                model=create_chat_model(
                     model=model_id,
                     temperature=0,
                     timeout=60,
@@ -189,6 +192,9 @@ async def graph_pipeline_context(
                 prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
                 max_source_tokens=(
                     settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET
+                ),
+                structured_output_method=(
+                    settings.LLM_STRUCTURED_OUTPUT_METHOD.value
                 ),
             )
             yield SupplyChainGraphPipeline(
@@ -275,7 +281,7 @@ def _entity_resolver(session: Session) -> DeterministicEntityResolver:
 
 
 def _filing_indexer(session: Session) -> FilingIndexService:
-    model = OpenAIEmbeddings(
+    model = create_embedding_model(
         model=settings.CHAT_EMBEDDING_MODEL,
         dimensions=settings.CHAT_EMBEDDING_DIMENSIONS,
     )

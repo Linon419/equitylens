@@ -21,9 +21,16 @@ StructuredResult = TypeVar("StructuredResult", bound=BaseModel)
 
 
 class OpenAIIntelligenceGenerator:
-    def __init__(self, model: ChatOpenAI, model_id: str) -> None:
+    def __init__(
+        self,
+        model: ChatOpenAI,
+        model_id: str,
+        *,
+        structured_output_method: str = "json_schema",
+    ) -> None:
         self._model = model
         self.model_id = model_id
+        self._structured_output_method = structured_output_method
 
     async def generate(self, bundle: EvidenceBundle) -> IntelligenceDraft:
         return await self._invoke(
@@ -59,7 +66,7 @@ class OpenAIIntelligenceGenerator:
     ) -> StructuredResult:
         structured = self._model.with_structured_output(
             schema,
-            method="json_schema",
+            method=self._structured_output_method,
         )
         result: Any = await structured.ainvoke(
             [("system", system_prompt), ("human", payload)]

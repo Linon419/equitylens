@@ -141,6 +141,10 @@ def test_environment_template_contains_placeholders_only() -> None:
 
     assert "DEPLOYMENT_TARGET=docker" in template
     assert "OPENAI_API_KEY=replace-with-openai-key" in template
+    assert "OPENAI_BASE_URL=" in template
+    assert "LLM_API_KEY=" in template
+    assert "LLM_BASE_URL=" in template
+    assert "LLM_STRUCTURED_OUTPUT_METHOD=json_schema" in template
     assert (
         "SECRET_KEY_ACCESS_API=replace-with-at-least-32-random-characters" in template
     )
@@ -167,3 +171,7 @@ def test_native_backend_template_uses_local_service_addresses() -> None:
     )
     assert "REDIS_URL=redis://localhost:6379/0" in template
     assert "S3_ENDPOINT_URL=http://localhost:9000" in template
+    assert "OPENAI_BASE_URL=" in template
+    assert "LLM_API_KEY=" in template
+    assert "LLM_BASE_URL=" in template
+    assert "LLM_STRUCTURED_OUTPUT_METHOD=json_schema" in template

@@ -104,13 +104,19 @@ class RewriteRequest:
 
 
 class OpenAIQueryRewriter:
-    def __init__(self, model: Any) -> None:
+    def __init__(
+        self,
+        model: Any,
+        *,
+        structured_output_method: str = "json_schema",
+    ) -> None:
         self._model = model
+        self._structured_output_method = structured_output_method
 
     async def rewrite(self, request: RewriteRequest) -> QueryRewrite:
         runnable = self._model.with_structured_output(
             QueryRewrite,
-            method="json_schema",
+            method=self._structured_output_method,
             strict=True,
         )
         result = await runnable.ainvoke(

@@ -1,7 +1,7 @@
 
 from langchain.embeddings import CacheBackedEmbeddings
-from langchain_openai import OpenAIEmbeddings
 
+from app.core.ai_clients import create_embedding_model
 from app.init_db import logger
 
 
@@ -37,7 +37,7 @@ def get_embedding_model() -> CacheBackedEmbeddings:
     Get the embedding model from the embedding model type.
     """
 
-    underlying_embeddings = OpenAIEmbeddings()
+    underlying_embeddings = create_embedding_model()
 
     # embedder = CacheBackedEmbeddingsExtended(underlying_embeddings)
 

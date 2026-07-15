@@ -2,10 +2,11 @@ import sys
 from enum import StrEnum
 from functools import cached_property
 from typing import Annotated, Any, Self
+from urllib.parse import urlsplit
 
 from loguru import logger
-from pydantic import BeforeValidator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BeforeValidator, ValidationInfo, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
 
@@ -33,6 +34,11 @@ class MarketDataProviderName(StrEnum):
     YAHOO = "yahoo"
 
 
+class StructuredOutputMethod(StrEnum):
+    JSON_SCHEMA = "json_schema"
+    FUNCTION_CALLING = "function_calling"
+
+
 def parse_cors(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
@@ -41,7 +47,7 @@ def parse_cors(value: Any) -> list[str]:
     raise ValueError("CORS_ORIGINS must be a comma-separated string or list")
 
 
-CorsOrigins = Annotated[list[str], BeforeValidator(parse_cors)]
+CorsOrigins = Annotated[list[str], NoDecode, BeforeValidator(parse_cors)]
 
 
 class Settings(BaseSettings):
@@ -62,6 +68,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     OPENAI_API_KEY: str
     OPENAI_ORGANIZATION: str
+    OPENAI_BASE_URL: str | None = None
+    LLM_API_KEY: str | None = None
+    LLM_BASE_URL: str | None = None
+    LLM_STRUCTURED_OUTPUT_METHOD: StructuredOutputMethod = (
+        StructuredOutputMethod.JSON_SCHEMA
+    )
     FIRST_SUPERUSER: str
     FIRST_SUPERUSER_PASSWORD: str
 
@@ -149,6 +161,20 @@ class Settings(BaseSettings):
     def CHAT_MODEL(self) -> str:
         return self.CHAT_MODEL_OVERRIDE or self.RESEARCH_MODEL
 
+    @property
+    def LLM_API_KEY_VALUE(self) -> str:
+        return self.LLM_API_KEY or self.OPENAI_API_KEY
+
+    @property
+    def LLM_BASE_URL_VALUE(self) -> str | None:
+        return self.LLM_BASE_URL or self.OPENAI_BASE_URL
+
+    @property
+    def LLM_ORGANIZATION(self) -> str | None:
+        if self.LLM_API_KEY is not None or self.LLM_BASE_URL is not None:
+            return None
+        return self.OPENAI_ORGANIZATION
+
     @cached_property
     def ASYNC_DATABASE_URI(self) -> str:
         return (
@@ -164,6 +190,41 @@ class Settings(BaseSettings):
             .set(drivername="postgresql+psycopg2")
             .render_as_string(hide_password=False)
         )
+
+    @field_validator("OPENAI_BASE_URL", "LLM_BASE_URL", mode="before")
+    @classmethod
+    def normalize_provider_base_url(
+        cls,
+        value: Any,
+        info: ValidationInfo,
+    ) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f"{info.field_name} must be an absolute HTTP URL")
+        normalized = value.strip().rstrip("/")
+        if not normalized:
+            return None
+        parsed = urlsplit(normalized)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(f"{info.field_name} must be an absolute HTTP URL")
+        return normalized
+
+    @field_validator("LLM_API_KEY", mode="before")
+    @classmethod
+    def normalize_optional_llm_api_key(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("LLM_API_KEY must be a string")
+        return value.strip() or None
 
     @model_validator(mode="after")
     def validate_deployment_profile(self) -> Self:

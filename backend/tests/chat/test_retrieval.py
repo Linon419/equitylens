@@ -147,6 +147,32 @@ async def test_openai_rewriter_uses_strict_schema_and_validates_output() -> None
     assert "Earlier discussion." in payload
 
 
+@pytest.mark.asyncio
+async def test_openai_rewriter_supports_function_calling_providers() -> None:
+    model = FakeStructuredModel()
+    rewriter = OpenAIQueryRewriter(
+        model,
+        structured_output_method="function_calling",
+    )
+    request = RewriteRequest(
+        company_name="Apple Inc.",
+        symbol="AAPL",
+        locale="en-US",
+        question="How did FY2025 revenue change?",
+        context_labels=[],
+        history=[],
+    )
+
+    await rewriter.rewrite(request)
+
+    assert model.calls == [
+        (
+            QueryRewrite,
+            {"method": "function_calling", "strict": True},
+        )
+    ]
+
+
 def test_rrf_is_stable_for_ties_and_combines_both_channels() -> None:
     a = candidate(1, section=1)
     b = candidate(2, section=1)

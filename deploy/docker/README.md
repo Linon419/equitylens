@@ -18,6 +18,22 @@ SEC_USER_AGENT=EquityLens admin@example.com
 
 Use `COOKIE_SECURE=false` only for native HTTP development on localhost.
 
+OpenAI-compatible Chat Completions providers can power intelligence generation,
+the supply-chain Agent, and query rewriting. This example uses DeepSeek while
+OpenAI supplies research-chat Responses and embeddings:
+
+```dotenv
+OPENAI_API_KEY=replace-with-openai-key
+OPENAI_ORGANIZATION=replace-with-openai-organization
+OPENAI_BASE_URL=
+LLM_API_KEY=replace-with-deepseek-key
+LLM_BASE_URL=https://api.deepseek.com/beta
+LLM_STRUCTURED_OUTPUT_METHOD=function_calling
+RESEARCH_MODEL=deepseek-v4-pro
+CHAT_MODEL_OVERRIDE=deepseek-v4-pro
+SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=deepseek-v4-pro
+```
+
 ```bash
 docker compose config
 docker compose build

@@ -841,7 +841,7 @@ def test_dependency_wires_deterministic_graph_agent(
         def __init__(self, **kwargs: Any) -> None:
             recorded.update(kwargs)
 
-    monkeypatch.setattr(deps, "ChatOpenAI", Model)
+    monkeypatch.setattr(deps, "create_chat_model", Model)
     monkeypatch.setattr(deps.settings, "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE", "gpt-test")
     monkeypatch.setattr(
         deps.settings,

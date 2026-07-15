@@ -32,6 +32,10 @@ Variables:
 - `SECRET_KEY_ACCESS_API`
 - `OPENAI_API_KEY`
 - `OPENAI_ORGANIZATION`
+- `OPENAI_BASE_URL` (optional)
+- `LLM_API_KEY` (optional Chat Completions provider override)
+- `LLM_BASE_URL` (optional Chat Completions provider override)
+- `LLM_STRUCTURED_OUTPUT_METHOD` (defaults to `json_schema`)
 - `FIRST_SUPERUSER`
 - `FIRST_SUPERUSER_PASSWORD`
 - `GOOGLE_CLIENT_ID`
@@ -49,6 +53,12 @@ Variables:
 - `MARKET_DATA_PROVIDER`
 - `RESEARCH_MODEL`
 - `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` (optional)
+
+`LLM_API_KEY` defaults to `OPENAI_API_KEY`, and `LLM_BASE_URL` defaults to
+`OPENAI_BASE_URL`. A DeepSeek-backed generation profile can set
+`LLM_BASE_URL=https://api.deepseek.com/beta` and
+`LLM_STRUCTURED_OUTPUT_METHOD=function_calling` while OpenAI continues to
+provide the Responses API and embeddings used by research chat.
 
 Use a temporary trusted origin for `CORS_ORIGINS` during the first deployment.
 The production Web origin is applied in step 3.

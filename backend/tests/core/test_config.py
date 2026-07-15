@@ -61,6 +61,64 @@ def test_docker_profile_accepts_docker_providers() -> None:
     assert settings.USER_DAILY_ANALYSIS_LIMIT == 10
     assert settings.IP_DAILY_ANALYSIS_LIMIT == 10
     assert settings.MARKET_QUOTE_TTL_SECONDS == 900
+    assert settings.OPENAI_BASE_URL is None
+    assert settings.LLM_API_KEY is None
+    assert settings.LLM_BASE_URL is None
+    assert settings.LLM_STRUCTURED_OUTPUT_METHOD == "json_schema"
+    assert settings.LLM_API_KEY_VALUE == "test"
+    assert settings.LLM_BASE_URL_VALUE is None
+    assert settings.LLM_ORGANIZATION == "test"
+
+
+def test_cors_origins_accepts_single_origin_environment_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:3000")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.CORS_ORIGINS == ["http://localhost:3000"]
+
+
+def test_custom_llm_endpoint_is_independent_from_openai_services() -> None:
+    settings = Settings(
+        **BASE,
+        **DOCKER_PROVIDERS,
+        OPENAI_BASE_URL="https://openai-proxy.example/v1/",
+        LLM_API_KEY="deepseek-key",
+        LLM_BASE_URL="https://api.deepseek.com/beta/",
+        LLM_STRUCTURED_OUTPUT_METHOD="function_calling",
+    )
+
+    assert settings.OPENAI_BASE_URL == "https://openai-proxy.example/v1"
+    assert settings.LLM_API_KEY_VALUE == "deepseek-key"
+    assert settings.LLM_BASE_URL_VALUE == "https://api.deepseek.com/beta"
+    assert settings.LLM_STRUCTURED_OUTPUT_METHOD == "function_calling"
+    assert settings.LLM_ORGANIZATION is None
+
+
+def test_blank_llm_overrides_fall_back_to_openai() -> None:
+    settings = Settings(
+        **BASE,
+        **DOCKER_PROVIDERS,
+        LLM_API_KEY=" ",
+        LLM_BASE_URL=" ",
+    )
+
+    assert settings.LLM_API_KEY is None
+    assert settings.LLM_BASE_URL is None
+    assert settings.LLM_API_KEY_VALUE == "test"
+    assert settings.LLM_ORGANIZATION == "test"
+
+
+@pytest.mark.parametrize("field", ["OPENAI_BASE_URL", "LLM_BASE_URL"])
+def test_provider_base_urls_require_absolute_http_urls(field: str) -> None:
+    with pytest.raises(ValidationError, match=field):
+        Settings(
+            **BASE,
+            **DOCKER_PROVIDERS,
+            **{field: "api.provider.example/v1"},
+        )
 
 
 def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:

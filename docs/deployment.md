@@ -33,8 +33,12 @@ reports completion.
 | `SECRET_KEY_ACCESS_API` | Access-token signing secret |
 | `GOOGLE_CLIENT_ID` | Google ID-token audience on FastAPI |
 | `FRONTEND_URL` | Exact public web origin |
-| `OPENAI_API_KEY` | Structured research generation and verification |
+| `OPENAI_API_KEY` | OpenAI Responses API, web research, and embeddings |
 | `OPENAI_ORGANIZATION` | OpenAI organization scope |
+| `OPENAI_BASE_URL` | Optional base URL for OpenAI Responses and embedding clients |
+| `LLM_API_KEY` | Optional Chat Completions provider key; defaults to `OPENAI_API_KEY` |
+| `LLM_BASE_URL` | Optional Chat Completions provider URL; defaults to `OPENAI_BASE_URL` |
+| `LLM_STRUCTURED_OUTPUT_METHOD` | `json_schema` for OpenAI or `function_calling` for strict tool providers |
 | `SEC_USER_AGENT` | Application name plus monitored contact email |
 | `GUEST_SIGNING_SECRET` | Shared BFF/backend guest assertion secret |
 | `QUOTA_HASH_SECRET` | Backend principal hashing secret |
@@ -74,6 +78,26 @@ reports completion.
 Use independent random values of at least 32 characters for every secret. The
 frontend and backend receive the same `GUEST_SIGNING_SECRET` and
 `INTERNAL_JOB_SECRET` values.
+
+The intelligence generator, supply-chain graph Agent, and query rewriter use
+the `LLM_*` endpoint. This supports OpenAI-compatible Chat Completions providers
+such as DeepSeek. Research-chat web discovery, answer planning, and filing
+embeddings use the `OPENAI_*` endpoint because they require OpenAI Responses and
+Embeddings APIs.
+
+Example mixed-provider configuration:
+
+```dotenv
+OPENAI_API_KEY=replace-with-openai-key
+OPENAI_ORGANIZATION=replace-with-openai-organization
+OPENAI_BASE_URL=
+LLM_API_KEY=replace-with-deepseek-key
+LLM_BASE_URL=https://api.deepseek.com/beta
+LLM_STRUCTURED_OUTPUT_METHOD=function_calling
+RESEARCH_MODEL=deepseek-v4-pro
+CHAT_MODEL_OVERRIDE=deepseek-v4-pro
+SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=deepseek-v4-pro
+```
 
 ### Frontend values
 
