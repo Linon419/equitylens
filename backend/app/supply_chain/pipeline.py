@@ -183,9 +183,6 @@ class SupplyChainGraphPipeline:
         job, snapshot, completed = self._stage_context(job_id)
         if completed is not None:
             return completed
-        stored = self._stage(snapshot, "localization")
-        if stored is not None:
-            return GraphLocalization.model_validate(stored)
         try:
             graph = self._required_stage(snapshot, "accepted", AcceptedGraph)
             self._lifecycle.advance_to(job, "localizing")

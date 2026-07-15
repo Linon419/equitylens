@@ -1,3 +1,5 @@
+from pydantic import ValidationError
+
 from app.models.supply_chain_model import SupplyChainGraphSnapshot
 from app.supply_chain.pipeline_types import SupplyChainPipelineServices
 from app.supply_chain.schemas import (
@@ -7,6 +9,10 @@ from app.supply_chain.schemas import (
     GraphLocalization,
     GraphVerification,
     OfficialSourceDocument,
+)
+from app.supply_chain.validator import (
+    GraphLocalizationError,
+    validate_localization,
 )
 
 
@@ -108,10 +114,21 @@ class SupplyChainStageRunner:
             stage="localization",
         )
         if stored is not None:
-            return GraphLocalization.model_validate(stored)
+            try:
+                localization = GraphLocalization.model_validate(stored)
+                return validate_localization(
+                    graph=graph,
+                    localization=localization,
+                )
+            except (GraphLocalizationError, ValidationError):
+                pass
         localization = await self._services.agent.localize_graph(
             graph=graph,
             locale="zh",
+        )
+        localization = validate_localization(
+            graph=graph,
+            localization=localization,
         )
         self._services.repository.save_stage(
             snapshot.id,

@@ -3,6 +3,7 @@ import json
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from typing import Any, Literal
 
 import httpx
@@ -35,6 +36,7 @@ from app.supply_chain.schemas import (
     SourcePlan,
     SourceType,
 )
+from app.supply_chain.validator import validate_localization
 
 type OutputValidator[ResultT: BaseModel] = Callable[[ResultT], None]
 TRUNCATION_MARKER = "\n[TRUNCATED]"
@@ -248,6 +250,10 @@ class OpenAISupplyChainAgent:
                 schema=GraphLocalization,
                 stage="localize_graph",
                 messages=messages,
+                validator=lambda result: validate_localization(
+                    graph=graph,
+                    localization=result,
+                ),
             )
 
     @asynccontextmanager
@@ -343,9 +349,32 @@ class OpenAISupplyChainAgent:
         except SupplyChainAgentError:
             raise
         except Exception as error:
+            error_code = _safe_error_code(getattr(error, "code", None))
+            retryable = bool(getattr(error, "retryable", False))
+            logger.warning(
+                "Supply chain Agent source tool failed: "
+                "tool={} error_type={} error_code={} retryable={}",
+                name,
+                type(error).__name__,
+                error_code,
+                retryable,
+            )
+            if (
+                name == "FetchOfficialSource"
+                and isinstance(request, FetchOfficialSource)
+                and error_code is not None
+                and not retryable
+            ):
+                return {
+                    "source_error": {
+                        "source_id": request.source_id,
+                        "code": error_code,
+                        "retryable": False,
+                    }
+                }
             raise SupplyChainAgentError(
                 "SOURCE_TOOL_FAILED",
-                retryable=bool(getattr(error, "retryable", False)),
+                retryable=retryable,
             ) from None
 
     async def _invoke_structured[ResultT: BaseModel](
@@ -359,18 +388,23 @@ class OpenAISupplyChainAgent:
     ) -> ResultT:
         provider_schema = _strict_output_schema(schema)
         try:
+            structured_options: dict[str, Any] = {
+                "method": self._structured_output_method,
+                "include_raw": True,
+            }
+            if self._structured_output_method != "json_mode":
+                structured_options["strict"] = True
             runnable = self._model.with_structured_output(
                 provider_schema,
-                method=self._structured_output_method,
-                strict=True,
-                include_raw=True,
+                **structured_options,
             )
         except Exception as error:
             raise SupplyChainAgentError.from_provider(error) from None
-        attempt_messages = list(messages)
+        attempt_messages = self._structured_messages(messages, provider_schema)
         provider_error: SupplyChainAgentError | None = None
         started = time.monotonic()
         for attempt in range(2):
+            raw_result: Any = None
             try:
                 raw_result = await runnable.ainvoke(attempt_messages)
                 result, metadata = _parse_structured_result(schema, raw_result)
@@ -383,7 +417,13 @@ class OpenAISupplyChainAgent:
                     metadata=metadata,
                 )
                 return result
-            except (ValidationError, ValueError):
+            except (ValidationError, ValueError) as error:
+                self._log_output_failure(
+                    stage=stage,
+                    attempt=attempt + 1,
+                    error=error,
+                    raw_result=raw_result,
+                )
                 provider_error = None
             except SupplyChainAgentError as error:
                 if error.code != "AGENT_OUTPUT_INVALID":
@@ -406,6 +446,48 @@ class OpenAISupplyChainAgent:
         if provider_error is not None:
             raise provider_error
         raise SupplyChainAgentError("AGENT_OUTPUT_INVALID")
+
+    def _structured_messages(
+        self,
+        messages: list[BaseMessage],
+        provider_schema: dict[str, Any],
+    ) -> list[BaseMessage]:
+        if self._structured_output_method != "json_mode":
+            return list(messages)
+        instruction = SystemMessage(
+            content=(
+                "Return only valid JSON matching this JSON Schema. "
+                "Include every required property and no additional properties.\n"
+                f"JSON Schema: {_json(provider_schema)}"
+            )
+        )
+        if messages and isinstance(messages[0], SystemMessage):
+            return [messages[0], instruction, *messages[1:]]
+        return [instruction, *messages]
+
+    def _log_output_failure(
+        self,
+        *,
+        stage: str,
+        attempt: int,
+        error: ValidationError | ValueError,
+        raw_result: Any,
+    ) -> None:
+        raw_message = (
+            raw_result.get("raw")
+            if isinstance(raw_result, dict)
+            else None
+        )
+        metadata = _message_metadata(raw_message)
+        logger.warning(
+            "Supply chain Agent structured output rejected: "
+            "stage={} attempt={} issues={} finish_reason={} output_tokens={}",
+            stage,
+            attempt,
+            _validation_issue_summary(error),
+            metadata.get("finish_reason"),
+            metadata.get("output_tokens"),
+        )
 
     def _bounded_sources(
         self,
@@ -445,6 +527,7 @@ class OpenAISupplyChainAgent:
             request_id=metadata.get("request_id"),
             input_tokens=metadata.get("input_tokens"),
             output_tokens=metadata.get("output_tokens"),
+            finish_reason=metadata.get("finish_reason"),
         ).info("Supply chain Agent stage completed")
 
     def _log_provider_call(
@@ -459,6 +542,7 @@ class OpenAISupplyChainAgent:
             request_id=metadata.get("request_id"),
             input_tokens=metadata.get("input_tokens"),
             output_tokens=metadata.get("output_tokens"),
+            finish_reason=metadata.get("finish_reason"),
         ).info("Supply chain Agent provider call completed")
 
 
@@ -474,6 +558,7 @@ def _parse_structured_result[ResultT: BaseModel](
         result = raw_result.get("parsed")
         raw_message = raw_result.get("raw")
         metadata = _message_metadata(raw_message)
+    result = _normalize_provider_result(schema, result)
     return schema.model_validate(result), metadata
 
 
@@ -484,7 +569,73 @@ def _message_metadata(message: Any) -> dict[str, object]:
         "request_id": response_metadata.get("id"),
         "input_tokens": usage_metadata.get("input_tokens"),
         "output_tokens": usage_metadata.get("output_tokens"),
+        "finish_reason": response_metadata.get("finish_reason"),
     }
+
+
+def _normalize_provider_result(
+    schema: type[BaseModel],
+    result: Any,
+) -> Any:
+    if schema is not GraphDraft or not isinstance(result, dict):
+        return result
+    normalized = deepcopy(result)
+    for node in normalized.get("nodes", []):
+        if not isinstance(node, dict):
+            continue
+        label = node.get("label_en")
+        seen = {label.casefold()} if isinstance(label, str) else set()
+        aliases: list[str] = []
+        for alias in node.get("aliases", []):
+            if not isinstance(alias, str) or alias.casefold() in seen:
+                continue
+            seen.add(alias.casefold())
+            aliases.append(alias)
+        node["aliases"] = aliases
+        node["resolution_status"] = None
+        node["resolution_basis"] = None
+    for edge in normalized.get("edges", []):
+        if not isinstance(edge, dict):
+            continue
+        references: list[dict[str, Any]] = []
+        seen_references: set[tuple[object, ...]] = set()
+        for reference in edge.get("evidence_refs", []):
+            if not isinstance(reference, dict):
+                continue
+            identity = tuple(
+                reference.get(field)
+                for field in (
+                    "source_key",
+                    "excerpt",
+                    "locator",
+                    "support_role",
+                )
+            )
+            if identity in seen_references:
+                continue
+            seen_references.add(identity)
+            references.append(reference)
+        edge["evidence_refs"] = references
+    return normalized
+
+
+def _validation_issue_summary(error: ValidationError | ValueError) -> str:
+    if not isinstance(error, ValidationError):
+        return "semantic_or_parse_error"
+    issues = [
+        str(issue.get("type", "validation_error"))
+        for issue in error.errors(include_input=False)[:8]
+    ]
+    return ",".join(issues) or "validation_error"
+
+
+def _safe_error_code(value: Any) -> str | None:
+    if not isinstance(value, str) or not 1 <= len(value) <= 64:
+        return None
+    allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+    if any(character not in allowed for character in value):
+        return None
+    return value
 
 
 def _strict_output_schema(model: type[BaseModel]) -> dict[str, Any]:

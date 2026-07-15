@@ -97,6 +97,18 @@ def test_custom_llm_endpoint_is_independent_from_openai_services() -> None:
     assert settings.LLM_ORGANIZATION is None
 
 
+def test_json_mode_is_available_for_thinking_model_providers() -> None:
+    settings = Settings(
+        **BASE,
+        **DOCKER_PROVIDERS,
+        LLM_API_KEY="deepseek-key",
+        LLM_BASE_URL="https://api.deepseek.com",
+        LLM_STRUCTURED_OUTPUT_METHOD="json_mode",
+    )
+
+    assert settings.LLM_STRUCTURED_OUTPUT_METHOD == "json_mode"
+
+
 def test_blank_llm_overrides_fall_back_to_openai() -> None:
     settings = Settings(
         **BASE,
@@ -135,7 +147,10 @@ def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_NODES == 40
     assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 25
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD == 0.75
+    assert settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES == 32_000_000
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET == 100_000
+    assert settings.SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS == 180
+    assert settings.SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS == 16_000
 
 
 def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None:

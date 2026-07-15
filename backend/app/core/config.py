@@ -37,6 +37,7 @@ class MarketDataProviderName(StrEnum):
 class StructuredOutputMethod(StrEnum):
     JSON_SCHEMA = "json_schema"
     FUNCTION_CALLING = "function_calling"
+    JSON_MODE = "json_mode"
 
 
 def parse_cors(value: Any) -> list[str]:
@@ -105,8 +106,10 @@ class Settings(BaseSettings):
     SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD: float = 0.75
     SUPPLY_CHAIN_GRAPH_CACHE_TTL_HOURS: int = 24
     SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT: int = 24
-    SUPPLY_CHAIN_GRAPH_SOURCE_BYTES: int = 8_000_000
+    SUPPLY_CHAIN_GRAPH_SOURCE_BYTES: int = 32_000_000
     SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET: int = 100_000
+    SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS: int = 180
+    SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS: int = 16_000
     GRAPH_ARTIFACT_PREFIX: str = "supply-chain"
     CHAT_GUEST_DAILY_LIMIT: int = 2
     CHAT_USER_DAILY_LIMIT: int = 10
@@ -243,6 +246,14 @@ class Settings(BaseSettings):
         if self.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET < 1:
             raise ValueError(
                 "SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET must be at least 1"
+            )
+        if not 1 <= self.SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS <= 600:
+            raise ValueError(
+                "SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS must be between 1 and 600"
+            )
+        if not 256 <= self.SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS <= 65_536:
+            raise ValueError(
+                "SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS must be between 256 and 65536"
             )
 
         expected = {

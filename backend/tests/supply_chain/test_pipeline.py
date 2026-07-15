@@ -436,6 +436,42 @@ async def test_localization_failure_resumes_from_accepted_stage(
 
 
 @pytest.mark.asyncio
+async def test_invalid_stored_localization_is_regenerated(
+    session: Session,
+    company: Company,
+    pipeline_harness: PipelineHarness,
+    graph_localization: GraphLocalization,
+) -> None:
+    job = make_job(session, company, pipeline_harness.quota)
+    snapshot = await pipeline_harness.pipeline.collect(job.id)
+    await pipeline_harness.pipeline.extract(job.id)
+    await pipeline_harness.pipeline.resolve(job.id)
+    await pipeline_harness.pipeline.verify(job.id)
+    invalid_payload = graph_localization.model_dump(mode="json")
+    for group in ("public_edges", "potential_edges", "internal_edges"):
+        if invalid_payload[group]:
+            invalid_payload[group].pop()
+            break
+    else:
+        raise AssertionError("localization fixture must contain an edge")
+    pipeline_harness.repository.save_stage(
+        snapshot.id,
+        stage="localization",
+        payload=invalid_payload,
+    )
+
+    result = await pipeline_harness.pipeline.localize(job.id)
+
+    assert result == graph_localization
+    assert pipeline_harness.calls.count("localize_graph") == 1
+    stored = pipeline_harness.repository.load_stage(
+        snapshot.id,
+        stage="localization",
+    )
+    assert GraphLocalization.model_validate(stored) == graph_localization
+
+
+@pytest.mark.asyncio
 async def test_insufficient_evidence_is_published_and_consumed(
     session: Session,
     company: Company,

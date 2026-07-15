@@ -89,7 +89,8 @@ def test_dockerfiles_use_pinned_runtimes_and_reproducible_installs() -> None:
     assert "COPY alembic.ini ./" in backend
     assert 'CMD ["uvicorn", "app.app:app"' in backend
     assert (
-        'CMD ["rq", "worker", "--url", "redis://redis:6379/0", '
+        'CMD ["rq", "worker", "--with-scheduler", "--url", '
+        '"redis://redis:6379/0", '
         '"company-intelligence"]' in backend
     )
     assert "FROM node:22-alpine" in frontend

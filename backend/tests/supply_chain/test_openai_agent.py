@@ -402,10 +402,110 @@ async def test_invalid_structured_output_gets_one_repair_attempt(
 
 
 @pytest.mark.anyio
+async def test_invalid_localization_membership_gets_one_repair_attempt(
+    accepted_graph: AcceptedGraph,
+) -> None:
+    invalid_payload = localization_payload(accepted_graph)
+    for group in ("public_edges", "potential_edges", "internal_edges"):
+        if invalid_payload[group]:
+            invalid_payload[group].pop()
+            break
+    else:
+        raise AssertionError("accepted graph fixture must contain an edge")
+    valid_payload = localization_payload(accepted_graph)
+    model = RecordingModel(
+        structured_outputs={
+            GraphLocalization: [invalid_payload, valid_payload],
+        }
+    )
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    result = await agent.localize_graph(graph=accepted_graph)
+
+    assert result == GraphLocalization.model_validate(valid_payload)
+    calls = [
+        call for call in model.structured_calls if call[0] is GraphLocalization
+    ]
+    assert len(calls) == 2
+    assert "failed validation" in calls[1][2][-1].content.casefold()
+
+
+@pytest.mark.anyio
+async def test_json_mode_supplies_schema_without_forced_tool_choice(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+    draft: GraphDraft,
+) -> None:
+    model = RecordingModel(
+        structured_outputs={GraphDraft: [draft.model_dump()]}
+    )
+    agent = OpenAISupplyChainAgent(
+        model=model,
+        model_id="deepseek-fixture",
+        structured_output_method="json_mode",
+    )
+
+    result = await agent.extract_graph(company=company, sources=sources)
+
+    assert result == draft
+    call = next(call for call in model.structured_calls if call[0] is GraphDraft)
+    assert call[1] == {"method": "json_mode", "include_raw": True}
+    schema_messages = [
+        message.content
+        for message in call[2]
+        if isinstance(message, SystemMessage) and "JSON Schema" in message.content
+    ]
+    assert len(schema_messages) == 1
+    assert '"focus_node_key"' in schema_messages[0]
+
+
+@pytest.mark.anyio
+async def test_graph_draft_normalizes_provider_owned_and_duplicate_fields(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+    draft: GraphDraft,
+) -> None:
+    provider_output = draft.model_dump()
+    first_node = provider_output["nodes"][0]
+    first_node["aliases"] = [
+        first_node["label_en"],
+        "Focus Alias",
+        "focus alias",
+    ]
+    first_node["resolution_status"] = "resolved"
+    first_node["resolution_basis"] = "ticker"
+    first_edge = provider_output["edges"][0]
+    first_edge["evidence_refs"].append(
+        deepcopy(first_edge["evidence_refs"][0])
+    )
+    model = RecordingModel(
+        structured_outputs={GraphDraft: [provider_output]}
+    )
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    result = await agent.extract_graph(company=company, sources=sources)
+
+    assert result.nodes[0].aliases == ["Focus Alias"]
+    assert result.nodes[0].resolution_status is None
+    assert result.nodes[0].resolution_basis is None
+    assert len(result.edges[0].evidence_refs) == 1
+
+
+@pytest.mark.anyio
 async def test_structured_output_retry_exhaustion_is_safe(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    class RecordingLogger:
+        def __init__(self) -> None:
+            self.warnings: list[tuple[object, ...]] = []
+
+        def warning(self, message: str, *values: object) -> None:
+            self.warnings.append((message, *values))
+
+    recording_logger = RecordingLogger()
+    monkeypatch.setattr(openai_agent_module, "logger", recording_logger)
     model = RecordingModel(
         structured_outputs={GraphDraft: [{"invalid": 1}, {"invalid": 2}]}
     )
@@ -417,6 +517,8 @@ async def test_structured_output_retry_exhaustion_is_safe(
     assert error.value.code == "AGENT_OUTPUT_INVALID"
     assert error.value.retryable is False
     assert "invalid" not in str(error.value)
+    assert len(recording_logger.warnings) == 2
+    assert "invalid" not in str(recording_logger.warnings)
 
 
 @pytest.mark.anyio
@@ -652,6 +754,84 @@ async def test_source_result_validation_failure_maps_to_tool_failure(
 
 
 @pytest.mark.anyio
+async def test_agent_recovers_from_a_nonretryable_source_fetch_failure(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+) -> None:
+    class SourceFetchError(RuntimeError):
+        code = "SOURCE_PDF_PARSE_FAILED"
+        retryable = False
+
+    class RecoveringTools(RecordingOfficialSourceTools):
+        async def fetch_official_source(
+            self,
+            *,
+            source_id: str,
+        ) -> OfficialSourceDocument:
+            self.calls.append(("fetch_official_source", source_id))
+            if source_id == self.sources[0].source_id:
+                raise SourceFetchError
+            source = next(
+                source for source in self.sources if source.source_id == source_id
+            )
+            self.fetched_ids.add(source_id)
+            return source
+
+    selected_id = sources[1].source_id
+    model = RecordingModel(
+        tool_outputs=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "ListOfficialSources",
+                        {"query": "suppliers", "source_types": ["sec_filing"]},
+                        "list-1",
+                    )
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "FetchOfficialSource",
+                        {"source_id": sources[0].source_id},
+                        "fetch-bad",
+                    )
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "FetchOfficialSource",
+                        {"source_id": selected_id},
+                        "fetch-good",
+                    )
+                ],
+            ),
+            AIMessage(content="Source selection complete."),
+        ],
+        structured_outputs={
+            SourcePlan: [
+                {
+                    "selected_source_ids": [selected_id],
+                    "rationale_en": "The accessible filing supports the graph.",
+                    "relevant_sections": ["Business"],
+                }
+            ]
+        },
+    )
+    tools = RecoveringTools(sources)
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    plan = await agent.plan_sources(company=company, tools=tools)
+
+    assert plan.selected_source_ids == [selected_id]
+    assert tools.fetched_ids == {selected_id}
+
+
+@pytest.mark.anyio
 async def test_tool_loop_logs_safe_provider_usage(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],
@@ -679,7 +859,10 @@ async def test_tool_loop_logs_safe_provider_usage(
                     "list-1",
                 )
             ],
-            response_metadata={"id": "request-tool-1"},
+            response_metadata={
+                "id": "request-tool-1",
+                "finish_reason": "tool_calls",
+            },
             usage_metadata={"input_tokens": 10, "output_tokens": 4, "total_tokens": 14},
         ),
         AIMessage(
@@ -732,6 +915,7 @@ async def test_tool_loop_logs_safe_provider_usage(
         "request-tool-3",
     ]
     assert sum(int(record["input_tokens"]) for record in tool_records) == 60
+    assert tool_records[0]["finish_reason"] == "tool_calls"
     assert all("content" not in record for record in tool_records)
 
 
@@ -853,6 +1037,16 @@ def test_dependency_wires_deterministic_graph_agent(
         "SUPPLY_CHAIN_GRAPH_PROMPT_VERSION",
         "prompt-test",
     )
+    monkeypatch.setattr(
+        deps.settings,
+        "SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS",
+        123,
+    )
+    monkeypatch.setattr(
+        deps.settings,
+        "SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS",
+        4_321,
+    )
 
     agent = deps.get_supply_chain_agent()
 
@@ -860,9 +1054,11 @@ def test_dependency_wires_deterministic_graph_agent(
     assert agent.model_id == "gpt-test"
     assert agent.schema_version == "schema-test"
     assert agent.prompt_version == "prompt-test"
+    assert agent._stage_timeout_seconds == 123
     assert recorded == {
         "model": "gpt-test",
         "temperature": 0,
-        "timeout": 60,
+        "timeout": 123,
+        "max_tokens": 4_321,
         "max_retries": 0,
     }

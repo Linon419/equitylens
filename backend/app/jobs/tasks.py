@@ -184,12 +184,16 @@ async def graph_pipeline_context(
                 model=create_chat_model(
                     model=model_id,
                     temperature=0,
-                    timeout=60,
+                    timeout=settings.SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS,
+                    max_tokens=settings.SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS,
                     max_retries=0,
                 ),
                 model_id=model_id,
                 schema_version=settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION,
                 prompt_version=settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION,
+                stage_timeout_seconds=(
+                    settings.SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS
+                ),
                 max_source_tokens=(
                     settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET
                 ),

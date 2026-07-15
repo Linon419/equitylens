@@ -1,5 +1,6 @@
 import re
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.companies.schemas import CompanySearchItem
@@ -67,6 +68,15 @@ async def get_or_create_company(
         exchange=reference.exchange,
     )
     session.add(company)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = session.exec(
+            select(Company).where(Company.symbol == symbol)
+        ).first()
+        if existing is None:
+            raise
+        return existing
     session.refresh(company)
     return company

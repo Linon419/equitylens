@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.companies.service import (
     get_or_create_company,
@@ -13,6 +13,7 @@ from app.companies.service import (
 )
 from app.core.errors import DomainError
 from app.filings.sec_client import SecClient
+from app.models.company_model import Company
 from app.providers.market import SymbolMatch
 from app.providers.sec import CompanyReference
 
@@ -39,6 +40,26 @@ class FakeSecProvider:
             name="Apple Inc.",
             exchange="Nasdaq",
         )
+
+
+class RacingSecProvider(FakeSecProvider):
+    def __init__(self, engine) -> None:
+        super().__init__()
+        self.engine = engine
+
+    async def resolve_company(self, symbol: str) -> CompanyReference:
+        reference = await super().resolve_company(symbol)
+        with Session(self.engine) as competing_session:
+            competing_session.add(
+                Company(
+                    symbol=reference.symbol,
+                    cik=reference.cik,
+                    name=reference.name,
+                    exchange=reference.exchange,
+                )
+            )
+            competing_session.commit()
+        return reference
 
 
 def build_session() -> Session:
@@ -86,6 +107,23 @@ async def test_get_or_create_company_reuses_the_persisted_identity() -> None:
     assert first.id == second.id
     assert first.cik == "0000320193"
     assert provider.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_company_recovers_from_a_concurrent_insert(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'companies.db'}")
+    SQLModel.metadata.create_all(engine)
+    provider = RacingSecProvider(engine)
+
+    with Session(engine) as session:
+        company = await get_or_create_company(session, provider, "AAPL")
+
+    assert company.symbol == "AAPL"
+    assert provider.calls == 1
+    with Session(engine) as session:
+        assert len(session.exec(select(Company)).all()) == 1
 
 
 @pytest.mark.asyncio

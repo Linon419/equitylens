@@ -21,7 +21,10 @@ def source_planning_system_prompt(
             "FetchOfficialSource. Select only fetched source IDs. Prioritize SEC "
             "filings, annual reports, investor relations, and official releases "
             "that support products, suppliers, manufacturing, distribution, "
-            "customers, and end markets."
+            "customers, and end markets. Fetch at most six of the strongest "
+            "sources. When FetchOfficialSource returns a "
+            "source_error, select a different catalog source and never include "
+            "the failed source in the final plan."
         ),
     )
 

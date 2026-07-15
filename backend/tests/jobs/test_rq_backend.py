@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 import pytest
@@ -55,11 +56,12 @@ async def test_rq_backend_enqueues_stable_task_and_job_id() -> None:
     function, payload, job_id, options = queue.calls[0]
     assert function == "app.jobs.tasks.run_company_intelligence"
     assert payload == {"job_id": "job-123"}
-    assert job_id == "company-intelligence:job-123"
+    assert job_id == "company-intelligence-job-123"
+    assert re.fullmatch(r"[A-Za-z0-9_-]+", job_id)
     assert options["job_timeout"] == 600
     assert options["result_ttl"] == 86400
     assert options["failure_ttl"] == 604800
-    assert submission.job_id == "company-intelligence:job-123"
+    assert submission.job_id == "company-intelligence-job-123"
 
 
 @pytest.mark.asyncio
@@ -75,7 +77,7 @@ async def test_rq_backend_routes_supply_chain_graph_task() -> None:
     function, payload, job_id, _ = queue.calls[0]
     assert function == "app.jobs.tasks.run_supply_chain_graph"
     assert payload == {"job_id": "graph-123"}
-    assert job_id == "supply-chain-graph:graph-123"
+    assert job_id == "supply-chain-graph-graph-123"
     assert submission.job_id == job_id
 
 
@@ -92,7 +94,7 @@ async def test_rq_backend_routes_filing_index_task() -> None:
     function, payload, job_id, _ = queue.calls[0]
     assert function == "app.jobs.tasks.run_filing_index"
     assert payload == {"job_id": "index-123"}
-    assert job_id == "filing-index:index-123"
+    assert job_id == "filing-index-index-123"
     assert submission.job_id == job_id
 
 

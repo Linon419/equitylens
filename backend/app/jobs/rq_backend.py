@@ -24,7 +24,7 @@ class RQJobBackend:
         task_name = RQ_TASKS.get(job_type)
         if task_name is None or set(payload) != {"job_id"}:
             raise JobDispatchError("unsupported RQ job payload", retryable=False)
-        provider_job_id = f"{job_type.replace('_', '-')}:{payload['job_id']}"
+        provider_job_id = f"{job_type.replace('_', '-')}-{payload['job_id']}"
         try:
             existing = await asyncio.to_thread(
                 self._queue.fetch_job,

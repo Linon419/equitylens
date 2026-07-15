@@ -177,8 +177,12 @@ Run the RQ worker in another terminal:
 
 ```bash
 cd backend
-uv run rq worker --url redis://localhost:6379/0 company-intelligence
+uv run rq worker --with-scheduler --worker-class rq.worker.SimpleWorker \
+  --url redis://localhost:6379/0 company-intelligence
 ```
+
+`SimpleWorker` keeps native development compatible with macOS process-safety
+rules. The Docker worker continues to use RQ's fork-based worker.
 
 Start the web application in a second terminal:
 
@@ -210,6 +214,8 @@ Research Agent deployment variables:
 | Variable | Purpose |
 |---|---|
 | `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` | Optional graph-specific model; `RESEARCH_MODEL` remains the default |
+| `SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS` | Per-stage model timeout; default `180` |
+| `SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS` | Graph model output ceiling; default `16000` |
 | `WORKFLOW_TRIGGER_URL` | Company-intelligence Workflow trigger |
 | `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Supply-chain graph Workflow trigger |
 | `CHAT_INDEX_WORKFLOW_TRIGGER_URL` | Zero-quota latest-10-K index Workflow trigger |

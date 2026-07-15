@@ -26,4 +26,4 @@ FROM python:3.12-slim AS worker
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY --from=worker-build /app /app
-CMD ["rq", "worker", "--url", "redis://redis:6379/0", "company-intelligence"]
+CMD ["rq", "worker", "--with-scheduler", "--url", "redis://redis:6379/0", "company-intelligence"]

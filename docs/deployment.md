@@ -38,7 +38,7 @@ reports completion.
 | `OPENAI_BASE_URL` | Optional base URL for OpenAI Responses and embedding clients |
 | `LLM_API_KEY` | Optional Chat Completions provider key; defaults to `OPENAI_API_KEY` |
 | `LLM_BASE_URL` | Optional Chat Completions provider URL; defaults to `OPENAI_BASE_URL` |
-| `LLM_STRUCTURED_OUTPUT_METHOD` | `json_schema` for OpenAI or `function_calling` for strict tool providers |
+| `LLM_STRUCTURED_OUTPUT_METHOD` | `json_schema` for OpenAI, `json_mode` for DeepSeek thinking models, or `function_calling` for strict tool providers |
 | `SEC_USER_AGENT` | Application name plus monitored contact email |
 | `GUEST_SIGNING_SECRET` | Shared BFF/backend guest assertion secret |
 | `QUOTA_HASH_SECRET` | Backend principal hashing secret |
@@ -48,8 +48,10 @@ reports completion.
 | `SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION` | Persisted graph contract version |
 | `SUPPLY_CHAIN_GRAPH_PROMPT_VERSION` | Agent prompt/evaluation version |
 | `SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT` | Maximum official sources per graph run |
-| `SUPPLY_CHAIN_GRAPH_SOURCE_BYTES` | Total compressed-source input ceiling |
+| `SUPPLY_CHAIN_GRAPH_SOURCE_BYTES` | Total compressed-source input ceiling; default `32000000` |
 | `SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET` | Agent evidence context ceiling |
+| `SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS` | Per-stage model timeout in seconds; default `180` |
+| `SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS` | Graph model output ceiling; default `16000` |
 | `GRAPH_ARTIFACT_PREFIX` | Private object-storage key namespace |
 | `CHAT_GUEST_DAILY_LIMIT` | Independent guest messages per UTC day; default `2` |
 | `CHAT_USER_DAILY_LIMIT` | Independent authenticated messages per UTC day; default `10` |
@@ -132,7 +134,8 @@ worker listens on the `company-intelligence` queue and routes company
 intelligence, supply-chain graph, and `filing_index` jobs:
 
 ```bash
-uv run rq worker --url redis://redis:6379/0 company-intelligence
+uv run rq worker --with-scheduler \
+  --url redis://redis:6379/0 company-intelligence
 ```
 
 ### Vercel profile
@@ -247,7 +250,8 @@ Native RQ worker:
 
 ```bash
 cd backend
-uv run rq worker --url redis://localhost:6379/0 company-intelligence
+uv run rq worker --with-scheduler --worker-class rq.worker.SimpleWorker \
+  --url redis://localhost:6379/0 company-intelligence
 ```
 
 Native applications:
