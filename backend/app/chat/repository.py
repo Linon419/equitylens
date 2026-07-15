@@ -3,13 +3,17 @@ import json
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, false, or_
+from sqlalchemy import and_, delete, false, or_
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import Session, select
 
+from app.chat.schemas import CitationSnapshot
+from app.chat.web_trace import WebSearchTraceRecord
 from app.models.chat_model import (
+    ChatQuotaLedger,
     CompanyConversation,
     ConversationMessage,
+    MessageCitation,
     WebSearchTrace,
 )
 from app.quota.identity import RequestPrincipal
@@ -35,8 +39,7 @@ class ConversationRepository:
             select(CompanyConversation)
             .where(
                 CompanyConversation.company_id == company_id,
-                CompanyConversation.guest_principal_hash
-                == principal.principal_hash,
+                CompanyConversation.guest_principal_hash == principal.principal_hash,
                 CompanyConversation.archived_at.is_(None),
             )
             .with_for_update()
@@ -209,6 +212,234 @@ class ConversationRepository:
             )
         ).first()
 
+    def add_assistant_message(
+        self,
+        *,
+        conversation_id: UUID,
+        user_message_id: UUID,
+        locale: str,
+        created_at: datetime,
+    ) -> ConversationMessage:
+        message = ConversationMessage(
+            conversation_id=conversation_id,
+            reply_to_message_id=user_message_id,
+            role="assistant",
+            state="pending",
+            content="",
+            locale=locale,
+            created_at=created_at,
+        )
+        self._session.add(message)
+        self._session.flush()
+        return message
+
+    def assistant_for_user(
+        self,
+        user_message_id: UUID,
+    ) -> ConversationMessage | None:
+        return self._session.exec(
+            select(ConversationMessage)
+            .where(
+                ConversationMessage.reply_to_message_id == user_message_id,
+                ConversationMessage.role == "assistant",
+            )
+            .order_by(ConversationMessage.created_at.desc())
+        ).first()
+
+    def get_message(
+        self,
+        message_id: UUID,
+        *,
+        lock: bool = False,
+    ) -> ConversationMessage | None:
+        statement = select(ConversationMessage).where(
+            ConversationMessage.id == message_id
+        )
+        if lock:
+            statement = statement.with_for_update()
+        return self._session.exec(statement).first()
+
+    def attempt_by_quota_request(
+        self,
+        conversation_id: UUID,
+        request_id: UUID,
+    ) -> tuple[ConversationMessage, ConversationMessage] | None:
+        ledger = self._session.exec(
+            select(ChatQuotaLedger).where(
+                ChatQuotaLedger.request_id == request_id,
+                ChatQuotaLedger.conversation_id == conversation_id,
+            )
+        ).first()
+        if (
+            ledger is None
+            or ledger.user_message_id is None
+            or ledger.assistant_message_id is None
+        ):
+            return None
+        user_message = self.get_message(ledger.user_message_id)
+        assistant_message = self.get_message(ledger.assistant_message_id)
+        if user_message is None or assistant_message is None:
+            return None
+        return user_message, assistant_message
+
+    def set_planning(self, message_id: UUID) -> ConversationMessage:
+        message = self._required_message(message_id, lock=True)
+        message.state = "planning"
+        message.error_code = None
+        self._session.add(message)
+        self._session.flush()
+        return message
+
+    def complete_assistant(
+        self,
+        message_id: UUID,
+        *,
+        content: str,
+        answer_plan: dict,
+        model_id: str,
+        evidence_coverage: str,
+        citations: tuple[CitationSnapshot, ...],
+        web_traces: list[WebSearchTraceRecord],
+        completed_at: datetime,
+    ) -> ConversationMessage:
+        message = self._required_message(message_id, lock=True)
+        self._clear_attempt_evidence(message_id)
+        message.state = "completed"
+        message.content = content
+        message.answer_plan = answer_plan
+        message.model_id = model_id
+        message.evidence_coverage = evidence_coverage
+        message.error_code = None
+        message.completed_at = completed_at
+        self._session.add(message)
+        for citation in citations:
+            values = citation.model_dump(exclude={"evidence_id"})
+            self._session.add(MessageCitation(message_id=message_id, **values))
+        for trace in web_traces:
+            self._session.add(
+                WebSearchTrace(
+                    assistant_message_id=message_id,
+                    normalized_query=trace.normalized_query,
+                    search_decision=trace.search_decision,
+                    search_reason=trace.search_reason,
+                    candidate_results=trace.candidate_results,
+                    selected_result_ids=trace.selected_result_ids,
+                    artifact_key=trace.artifact_key,
+                    artifact_sha256=trace.artifact_sha256,
+                    provider_request_id=trace.provider_request_id,
+                    duration_ms=trace.duration_ms,
+                    tool_ordinal=trace.tool_ordinal,
+                    created_at=completed_at,
+                )
+            )
+        self._session.flush()
+        return message
+
+    def fail_assistant(
+        self,
+        message_id: UUID,
+        *,
+        error_code: str,
+        completed_at: datetime,
+    ) -> ConversationMessage:
+        message = self._required_message(message_id, lock=True)
+        if message.state == "completed":
+            return message
+        message.state = "failed"
+        message.error_code = error_code
+        message.completed_at = completed_at
+        self._session.add(message)
+        self._session.flush()
+        return message
+
+    def prepare_retry(
+        self,
+        message_id: UUID,
+    ) -> ConversationMessage:
+        message = self._required_message(message_id, lock=True)
+        if message.role != "assistant" or message.state != "failed":
+            raise ValueError("CHAT_MESSAGE_RETRY_INVALID")
+        message.state = "pending"
+        message.content = ""
+        message.answer_plan = None
+        message.model_id = None
+        message.evidence_coverage = None
+        message.error_code = None
+        message.completed_at = None
+        message.attempt_count += 1
+        self._session.add(message)
+        self._session.flush()
+        return message
+
+    def list_citations(self, message_id: UUID) -> list[MessageCitation]:
+        return list(
+            self._session.exec(
+                select(MessageCitation)
+                .where(MessageCitation.message_id == message_id)
+                .order_by(MessageCitation.ordinal)
+            ).all()
+        )
+
+    def completed_unsummarized(
+        self,
+        conversation: CompanyConversation,
+    ) -> list[ConversationMessage]:
+        messages = list(
+            self._session.exec(
+                select(ConversationMessage)
+                .where(
+                    ConversationMessage.conversation_id == conversation.id,
+                    ConversationMessage.state == "completed",
+                )
+                .order_by(
+                    ConversationMessage.created_at,
+                    ConversationMessage.id,
+                )
+            ).all()
+        )
+        checkpoint = conversation.summary_through_message_id
+        if checkpoint is None:
+            return messages
+        for index, message in enumerate(messages):
+            if message.id == checkpoint:
+                return messages[index + 1 :]
+        return messages
+
+    def update_summary(
+        self,
+        conversation: CompanyConversation,
+        *,
+        summary: str,
+        through_message_id: UUID,
+        updated_at: datetime,
+    ) -> None:
+        conversation.summary = summary
+        conversation.summary_through_message_id = through_message_id
+        conversation.updated_at = updated_at
+        self._session.add(conversation)
+        self._session.flush()
+
+    def _required_message(
+        self,
+        message_id: UUID,
+        *,
+        lock: bool,
+    ) -> ConversationMessage:
+        message = self.get_message(message_id, lock=lock)
+        if message is None:
+            raise LookupError("CHAT_MESSAGE_NOT_FOUND")
+        return message
+
+    def _clear_attempt_evidence(self, message_id: UUID) -> None:
+        self._session.exec(
+            delete(MessageCitation).where(MessageCitation.message_id == message_id)
+        )
+        self._session.exec(
+            delete(WebSearchTrace).where(
+                WebSearchTrace.assistant_message_id == message_id
+            )
+        )
+
     def list_messages(
         self,
         conversation_id: UUID,
@@ -264,8 +495,7 @@ class ConversationRepository:
                 select(WebSearchTrace.artifact_key)
                 .join(
                     ConversationMessage,
-                    ConversationMessage.id
-                    == WebSearchTrace.assistant_message_id,
+                    ConversationMessage.id == WebSearchTrace.assistant_message_id,
                 )
                 .where(
                     ConversationMessage.conversation_id.in_(conversation_ids),
@@ -294,10 +524,7 @@ class ConversationRepository:
         principal: RequestPrincipal,
     ) -> ColumnElement[bool]:
         if principal.principal_type == "guest":
-            return (
-                CompanyConversation.guest_principal_hash
-                == principal.principal_hash
-            )
+            return CompanyConversation.guest_principal_hash == principal.principal_hash
         if principal.user_id is None:
             return false()
         return CompanyConversation.user_id == principal.user_id

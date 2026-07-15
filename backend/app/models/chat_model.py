@@ -172,6 +172,10 @@ class ConversationMessage(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSON, nullable=False),
     )
+    answer_plan: dict[str, Any] | None = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
     model_id: str | None = Field(default=None, max_length=128)
     evidence_coverage: str | None = Field(default=None, max_length=16)
     error_code: str | None = Field(default=None, max_length=64)

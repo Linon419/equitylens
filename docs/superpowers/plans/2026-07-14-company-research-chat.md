@@ -975,7 +975,7 @@ git commit -m "feat(chat): validate citation bound answers"
 - Modify: `backend/app/chat/repository.py`
 - Modify: `backend/app/chat/schemas.py`
 
-- [ ] **Step 1: Write SSE encoding tests**
+- [x] **Step 1: Write SSE encoding tests**
 
 Test monotonic event IDs, JSON encoding, accepted/stage/section/citation/complete/error closed union, 15-second heartbeat comments, cache headers, and newline-safe data:
 
@@ -987,7 +987,7 @@ def test_sse_encoder_emits_monotonic_closed_events():
     assert stream.heartbeat() == ": heartbeat\n\n"
 ```
 
-- [ ] **Step 2: Write service transaction tests**
+- [x] **Step 2: Write service transaction tests**
 
 Cover authorization before quota, idempotency before quota, accepted event IDs, retrieval stages, web stages, durable answer before first section, citation order, consume for complete/partial/insufficient, refund for every pre-persistence error, cancellation, reconnect through history, retry eligibility, retry request replay, and one net consumed unit after a refunded attempt.
 
@@ -1003,7 +1003,7 @@ async for event in service.stream_message(command):
         break
 ```
 
-- [ ] **Step 3: Confirm the red state**
+- [x] **Step 3: Confirm the red state**
 
 ```bash
 cd backend
@@ -1012,7 +1012,7 @@ uv run pytest tests/chat/test_sse.py tests/chat/test_service.py -q
 
 Expected: imports fail because streaming orchestration is absent.
 
-- [ ] **Step 4: Implement the message state machine**
+- [x] **Step 4: Implement the message state machine**
 
 Execute in this order:
 
@@ -1031,11 +1031,11 @@ Execute in this order:
 
 Map public failures to the design error table. Catch `asyncio.CancelledError`; before durable completion mark failed and refund with `CHAT_STREAM_CANCELLED`, then re-raise. After durability, leave the completed record reloadable.
 
-- [ ] **Step 5: Implement retry and summary checkpoints**
+- [x] **Step 5: Implement retry and summary checkpoints**
 
 Retry requires a failed retryable assistant, a fresh request UUID, and the same owned conversation. Atomically increment `attempt_count`, reserve from the refunded prior attempt, and reuse the original user message. After more than eight unsummarized messages, create/update `conversation.summary` and `summary_through_message_id` through a deterministic summarizer contract; tests inject a fake summarizer.
 
-- [ ] **Step 6: Validate service semantics**
+- [x] **Step 6: Validate service semantics**
 
 ```bash
 cd backend
@@ -1044,7 +1044,7 @@ uv run pytest tests/chat/test_sse.py tests/chat/test_service.py tests/chat/test_
 
 Expected: all lifecycle, retry, idempotency, and durability assertions pass.
 
-- [ ] **Step 7: Commit orchestration**
+- [x] **Step 7: Commit orchestration**
 
 ```bash
 git add backend/app/chat/sse.py backend/app/chat/service.py backend/app/chat/repository.py backend/app/chat/schemas.py backend/tests/chat/test_sse.py backend/tests/chat/test_service.py

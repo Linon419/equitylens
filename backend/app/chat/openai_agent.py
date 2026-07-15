@@ -53,6 +53,7 @@ class OpenAIResponsesPlanningModel:
 class CitationBoundAnswerAgent:
     def __init__(self, model: AnswerPlanningModel) -> None:
         self._model = model
+        self.model_id = getattr(model, "model_id", "unknown")
 
     async def create_plan(
         self,

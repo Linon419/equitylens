@@ -95,6 +95,7 @@ def _create_message_table() -> None:
         sa.Column("locale", sa.String(length=5), nullable=False),
         sa.Column("client_request_id", sa.Uuid(), nullable=True),
         sa.Column("context_selection", sa.JSON(), nullable=False),
+        sa.Column("answer_plan", sa.JSON(), nullable=True),
         sa.Column("model_id", sa.String(length=128), nullable=True),
         sa.Column("evidence_coverage", sa.String(length=16), nullable=True),
         sa.Column("error_code", sa.String(length=64), nullable=True),
