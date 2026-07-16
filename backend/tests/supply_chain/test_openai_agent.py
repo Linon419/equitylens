@@ -402,6 +402,28 @@ async def test_invalid_structured_output_gets_one_repair_attempt(
 
 
 @pytest.mark.anyio
+async def test_structured_output_repair_names_invalid_field_constraints(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+    draft: GraphDraft,
+) -> None:
+    invalid = draft.model_dump()
+    invalid["edges"][0]["evidence_refs"][0]["excerpt"] = "too short"
+    model = RecordingModel(
+        structured_outputs={GraphDraft: [invalid, draft.model_dump()]}
+    )
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    result = await agent.extract_graph(company=company, sources=sources)
+
+    assert result == draft
+    repair = model.structured_calls[1][2][-1].content
+    assert "edges.0.evidence_refs.0.excerpt" in repair
+    assert "string_too_short" in repair
+    assert "at least 20 characters" in repair
+
+
+@pytest.mark.anyio
 async def test_invalid_localization_membership_gets_one_repair_attempt(
     accepted_graph: AcceptedGraph,
 ) -> None:

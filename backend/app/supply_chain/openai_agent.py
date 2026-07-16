@@ -437,6 +437,7 @@ class OpenAISupplyChainAgent:
             raise SupplyChainAgentError.from_provider(error) from None
         attempt_messages = self._structured_messages(messages, provider_schema)
         provider_error: SupplyChainAgentError | None = None
+        repair_instruction = _structured_repair_instruction()
         started = time.monotonic()
         for attempt in range(2):
             raw_result: Any = None
@@ -459,6 +460,7 @@ class OpenAISupplyChainAgent:
                     error=error,
                     raw_result=raw_result,
                 )
+                repair_instruction = _structured_repair_instruction(error)
                 provider_error = None
             except SupplyChainAgentError as error:
                 if error.code != "AGENT_OUTPUT_INVALID":
@@ -471,12 +473,7 @@ class OpenAISupplyChainAgent:
             if attempt == 0:
                 attempt_messages = [
                     *attempt_messages,
-                    HumanMessage(
-                        content=(
-                            "The previous structured output failed validation. "
-                            "Return a complete value matching the required schema."
-                        )
-                    ),
+                    HumanMessage(content=repair_instruction),
                 ]
         if provider_error is not None:
             raise provider_error
@@ -662,6 +659,24 @@ def _validation_issue_summary(error: ValidationError | ValueError) -> str:
         for issue in error.errors(include_input=False)[:8]
     ]
     return ",".join(issues) or "validation_error"
+
+
+def _structured_repair_instruction(
+    error: ValidationError | ValueError | None = None,
+) -> str:
+    lines = [
+        "The previous structured output failed validation.",
+        "Return the complete JSON value again and satisfy every schema constraint.",
+    ]
+    if not isinstance(error, ValidationError):
+        return " ".join(lines)
+    lines.append("Correct these validation issues:")
+    for issue in error.errors(include_input=False)[:8]:
+        location = ".".join(str(part) for part in issue.get("loc", ())) or "$"
+        issue_type = str(issue.get("type", "validation_error"))
+        message = str(issue.get("msg", "invalid value"))
+        lines.append(f"- {location}: {issue_type} ({message})")
+    return "\n".join(lines)
 
 
 def _safe_error_code(value: Any) -> str | None:
