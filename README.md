@@ -389,6 +389,9 @@ EquityLens uses a hybrid production profile:
    serverless cold starts from ordinary company-page traffic.
 6. Run Alembic through the VPS migration container before health checks.
 
+The backend uses `DEPLOYMENT_TARGET=vps`, which combines private Vercel Blob
+storage, Redis/RQ jobs, and the managed document parser.
+
 The Deploy Button requests only the web runtime values: `BACKEND_URL`, the
 Google browser client ID, shared request-signing secrets, and secure-cookie
 mode. Database, model-provider, SEC, Blob, quota, and superuser values stay on

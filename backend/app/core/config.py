@@ -13,6 +13,7 @@ from sqlalchemy.engine import make_url
 class DeploymentTarget(StrEnum):
     VERCEL = "vercel"
     DOCKER = "docker"
+    VPS = "vps"
 
 
 class ObjectStorageProviderName(StrEnum):
@@ -331,6 +332,11 @@ class Settings(BaseSettings):
                 JobBackendName.VERCEL_WORKFLOW,
                 DocumentParserName.MANAGED,
             ),
+            DeploymentTarget.VPS: (
+                ObjectStorageProviderName.VERCEL_BLOB,
+                JobBackendName.RQ,
+                DocumentParserName.MANAGED,
+            ),
         }
         actual = (
             self.OBJECT_STORAGE_PROVIDER,
@@ -338,7 +344,11 @@ class Settings(BaseSettings):
             self.DOCUMENT_PARSER,
         )
         if actual != expected[self.DEPLOYMENT_TARGET]:
-            label = "Docker" if self.DEPLOYMENT_TARGET == "docker" else "Vercel"
+            label = {
+                DeploymentTarget.DOCKER: "Docker",
+                DeploymentTarget.VERCEL: "Vercel",
+                DeploymentTarget.VPS: "VPS",
+            }[self.DEPLOYMENT_TARGET]
             raise ValueError(f"{label} profile requires its matching providers")
 
         required_credentials = {
@@ -350,6 +360,10 @@ class Settings(BaseSettings):
                 "S3_SECRET_ACCESS_KEY",
             ),
             DeploymentTarget.VERCEL: (
+                "BLOB_READ_WRITE_TOKEN",
+            ),
+            DeploymentTarget.VPS: (
+                "REDIS_URL",
                 "BLOB_READ_WRITE_TOKEN",
             ),
         }

@@ -85,6 +85,24 @@ def test_docker_profile_accepts_docker_providers() -> None:
     assert settings.LLM_ORGANIZATION == "test"
 
 
+def test_vps_profile_accepts_managed_storage_and_rq() -> None:
+    settings = Settings(
+        _env_file=None,
+        **BASE,
+        REDIS_URL="redis://redis:6379/0",
+        BLOB_READ_WRITE_TOKEN="test-blob-token",
+        DEPLOYMENT_TARGET="vps",
+        OBJECT_STORAGE_PROVIDER="vercel_blob",
+        JOB_BACKEND="rq",
+        DOCUMENT_PARSER="managed",
+    )
+
+    assert settings.DEPLOYMENT_TARGET == "vps"
+    assert settings.OBJECT_STORAGE_PROVIDER == "vercel_blob"
+    assert settings.JOB_BACKEND == "rq"
+    assert settings.DOCUMENT_PARSER == "managed"
+
+
 def test_cors_origins_accepts_single_origin_environment_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

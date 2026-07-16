@@ -168,7 +168,7 @@ another HTTPS proxy. FastAPI is then published only on
 the Compose Caddy profile when the project owns ports 80 and 443.
 
 ```dotenv
-DEPLOYMENT_TARGET=docker
+DEPLOYMENT_TARGET=vps
 OBJECT_STORAGE_PROVIDER=vercel_blob
 JOB_BACKEND=rq
 REDIS_URL=redis://redis:6379/0
