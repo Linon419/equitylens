@@ -14,10 +14,10 @@ financial performance, market price, and valuation in one research workspace.
 ![GPT-5.6](https://img.shields.io/badge/GPT--5.6-ready-111827?logo=openai&logoColor=white)
 ![Languages](https://img.shields.io/badge/UI-English%20%7C%20简体中文-2563EB)
 
-[![Deploy EquityLens with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&project-name=equitylens&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2COPENAI_BASE_URL%2CLLM_API_KEY%2CLLM_BASE_URL%2CLLM_STRUCTURED_OUTPUT_METHOD%2CTAVILY_API_KEY%2CCHAT_WEB_SEARCH_PROVIDER%2CCHAT_TAVILY_SEARCH_DEPTH%2CCHAT_TAVILY_MAX_RESULTS%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CCOOKIE_SECURE%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%2C%22COOKIE_SECURE%22%3A%22true%22%2C%22MARKET_DATA_PROVIDER%22%3A%22yahoo%22%2C%22LLM_STRUCTURED_OUTPUT_METHOD%22%3A%22json_schema%22%2C%22CHAT_WEB_SEARCH_PROVIDER%22%3A%22tavily%22%2C%22CHAT_TAVILY_SEARCH_DEPTH%22%3A%22basic%22%2C%22CHAT_TAVILY_MAX_RESULTS%22%3A%225%22%2C%22RESEARCH_MODEL%22%3A%22gpt-5.6%22%7D&envDescription=Configure%20the%20shared%20EquityLens%20web%20and%20API%20deployment.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md)
+[![Deploy EquityLens Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&project-name=equitylens&env=BACKEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET%2CCOOKIE_SECURE&envDefaults=%7B%22COOKIE_SECURE%22%3A%22true%22%7D&envDescription=Deploy%20the%20Next.js%20web%20app%20after%20the%20VPS%20API%20is%20ready.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md)
 
-One Vercel Project deploys the Next.js web app and FastAPI API together through
-[Vercel Services](https://vercel.com/docs/services).
+Vercel hosts the Next.js web app. A long-lived Sydney VPS hosts FastAPI, Redis,
+and the RQ Agent worker.
 
 [Judge's path](#judges-quick-path) · [GPT-5.6](#gpt-56-integration) · [Setup](#quick-start) · [Sample data](#sample-data-and-reproducible-evaluation) · [Testing](#quality-gates) · [Codex](#how-codex-accelerated-development)
 
@@ -96,15 +96,14 @@ and [`company research chat plan`](docs/superpowers/plans/2026-07-14-company-res
 flowchart LR
     investor["Investor browser"] --> web["Next.js web app"]
     web --> bff["Same-origin research BFF"]
-    bff --> api["FastAPI API"]
-    api --> db[("PostgreSQL + pgvector")]
+    bff --> api["Sydney VPS FastAPI API"]
+    api --> db
+    db[("PostgreSQL + pgvector")]
     api --> storage["Document storage"]
     api --> jobs["Durable job record"]
     jobs --> graphAgent["Supply-chain graph Agent"]
     api --> chat["Company research chat Agent"]
-    jobs --> workflow["Vercel Workflow"]
     jobs --> worker["RQ worker"]
-    workflow --> api
     api --> sec["SEC EDGAR"]
     api --> market["Yahoo adapter"]
     api --> search["Tavily Search"]
@@ -125,7 +124,7 @@ The provider contracts keep deployment-specific infrastructure at the edges:
 
 | Profile | Web / API | Storage | Jobs | Document parsing |
 |---|---|---|---|---|
-| Vercel | One Services Project | PostgreSQL + private Vercel Blob evidence | Vercel Workflow | Managed profile |
+| Vercel + VPS | Next.js on Vercel; API on Sydney VPS | Neon PostgreSQL + private Vercel Blob | Redis + RQ on VPS | Managed profile |
 | Docker | Next.js + FastAPI containers | PostgreSQL + private MinIO evidence bucket | Redis + RQ | Local parser |
 
 Graph generation uses AI for source planning, relationship extraction,
@@ -348,10 +347,8 @@ Research Agent deployment variables:
 | `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` | Optional graph-specific model; `RESEARCH_MODEL` remains the default |
 | `SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS` | Per-stage model timeout; default `180` |
 | `SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS` | Graph model output ceiling; default `16000` |
-| `VERCEL_URL` | Vercel-generated deployment hostname used to derive all Workflow triggers |
-| `WORKFLOW_TRIGGER_URL` | Optional legacy company-intelligence trigger override |
-| `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Optional legacy supply-chain graph trigger override |
-| `CHAT_INDEX_WORKFLOW_TRIGGER_URL` | Optional legacy filing-index trigger override |
+| `BACKEND_URL` | Server-only VPS API origin used by the Vercel BFF |
+| `REDIS_URL` | VPS Redis connection used by the API and RQ worker |
 | `BLOB_READ_WRITE_TOKEN` | Private Vercel Blob access for official-source artifacts |
 | `S3_ENDPOINT_URL`, `S3_BUCKET` | MinIO or S3-compatible graph artifact storage |
 | `CHAT_WEB_ARTIFACT_PREFIX` | Private bounded web-evidence namespace; default `chat-web` |
@@ -380,24 +377,25 @@ environment so same-origin mutation checks remain valid behind a proxy.
 
 ## Deployment
 
-### Vercel
+### Vercel + VPS
 
-EquityLens uses one Vercel Project with two independently built Services:
+EquityLens uses a hybrid production profile:
 
-1. The `web` Service builds `frontend/` with Next.js.
-2. The `api` Service builds `backend/` with FastAPI.
-3. A Service Binding injects `WORKFLOW_SERVICE_URL` into the API runtime.
-4. The web runtime uses Vercel's automatic `VERCEL_URL` for `/api/v1/*`.
-5. Public `/api/v1/*` requests route to FastAPI; all other requests route to
-   Next.js.
-6. Run the PostgreSQL migration and production smoke check after deployment.
+1. Vercel builds only the `web` Service from `frontend/`.
+2. A Sydney VPS runs FastAPI, the RQ worker, Redis, and Caddy HTTPS.
+3. The Vercel BFF calls the VPS through the server-only `BACKEND_URL`.
+4. Neon PostgreSQL and private Vercel Blob remain managed services.
+5. API and Agent containers remain warm between visits, removing Python
+   serverless cold starts from ordinary company-page traffic.
+6. Run Alembic through the VPS migration container before health checks.
 
-The Deploy Button requests the shared database, authentication, OpenAI, Blob,
-and application secrets. Vercel injects the private Workflow binding and
-deployment hostname, so Preview and Production require no manually copied
-project origins.
+The Deploy Button requests only the web runtime values: `BACKEND_URL`, the
+Google browser client ID, shared request-signing secrets, and secure-cookie
+mode. Database, model-provider, SEC, Blob, quota, and superuser values stay on
+the VPS.
 
-Full environment reference: [`deploy/vercel/README.md`](deploy/vercel/README.md).
+VPS guide: [`deploy/vps/README.md`](deploy/vps/README.md). Vercel web guide:
+[`deploy/vercel/README.md`](deploy/vercel/README.md).
 The shared profile comparison and verification commands live in
 [`docs/deployment.md`](docs/deployment.md).
 

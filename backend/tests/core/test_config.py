@@ -40,6 +40,9 @@ def isolate_local_model_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
         "LLM_BASE_URL",
         "LLM_STRUCTURED_OUTPUT_METHOD",
         "RESEARCH_MODEL",
+        "SUPPLY_CHAIN_GRAPH_MIN_NODES",
+        "SUPPLY_CHAIN_GRAPH_SOURCE_BYTES",
+        "SUPPLY_CHAIN_GRAPH_PROMPT_VERSION",
         "SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS",
         "CHAT_EMBEDDING_MODEL",
         "CHAT_PROMPT_VERSION",
@@ -168,11 +171,14 @@ def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
     assert settings.SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE is None
     assert research_model == settings.SUPPLY_CHAIN_GRAPH_MODEL
     assert settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION == "supply-chain-graph.v1"
-    assert settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION == "supply-chain-graph.2026-07-14"
+    assert (
+        settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION
+        == "supply-chain-graph.2026-07-16-source-coverage-v3"
+    )
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_NODES == 40
-    assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 25
+    assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 12
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD == 0.75
-    assert settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES == 32_000_000
+    assert settings.SUPPLY_CHAIN_GRAPH_SOURCE_BYTES == 64_000_000
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET == 100_000
     assert settings.SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS == 180
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS == 16_000

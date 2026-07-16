@@ -1,8 +1,8 @@
 # Deployment and operations
 
-EquityLens supports Docker/RQ and Vercel Workflow with one FastAPI domain
-pipeline. A deterministic SQLite harness provides the shortest local validation
-path.
+EquityLens uses Docker/RQ for the FastAPI domain pipeline and Vercel for the
+Next.js frontend. A deterministic SQLite harness provides the shortest local
+validation path.
 
 ## Execution modes
 
@@ -10,7 +10,7 @@ path.
 |---|---|---|---|
 | Deterministic local validation | TestClient + Next.js dev server | In-process fixture runner | Temporary SQLite |
 | Docker | FastAPI + Next.js containers | Redis queue and RQ worker | PostgreSQL |
-| Vercel | One Next.js + FastAPI Services Project | Vercel Workflow calling idempotent API steps | Managed PostgreSQL |
+| Vercel + VPS | Next.js on Vercel; FastAPI on a long-lived VPS | Redis and RQ worker on the VPS | Managed PostgreSQL |
 
 Company intelligence uses `download`, `parse`, `analyze`, `verify`, and
 `localize`. Supply-chain research uses `collect`, `extract`, `resolve`,
@@ -49,7 +49,7 @@ reports completion.
 | `SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION` | Persisted graph contract version |
 | `SUPPLY_CHAIN_GRAPH_PROMPT_VERSION` | Agent prompt/evaluation version |
 | `SUPPLY_CHAIN_GRAPH_SOURCE_LIMIT` | Maximum official sources per graph run |
-| `SUPPLY_CHAIN_GRAPH_SOURCE_BYTES` | Total compressed-source input ceiling; default `32000000` |
+| `SUPPLY_CHAIN_GRAPH_SOURCE_BYTES` | Total compressed-source input ceiling; default `64000000` |
 | `SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET` | Agent evidence context ceiling |
 | `SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS` | Per-stage model timeout in seconds; default `180` |
 | `SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS` | Graph model output ceiling; default `16000` |
@@ -150,24 +150,30 @@ uv run rq worker --with-scheduler \
   --url redis://redis:6379/0 company-intelligence
 ```
 
-### Vercel profile
+### Vercel web + VPS API profile
+
+Vercel builds only `frontend/`. Set `BACKEND_URL` to the public HTTPS origin of
+the VPS API. The BFF preserves same-origin browser traffic, guest assertions,
+authentication cookies, and SSE streaming while making server-to-server calls
+to the VPS.
+
+The VPS profile in `deploy/vps/` runs FastAPI, an RQ worker, Redis, and Caddy.
+Neon supplies PostgreSQL and Vercel Blob stores private research artifacts.
+This removes Python serverless dependency installation from page requests and
+keeps Agent dependencies loaded in long-lived containers.
 
 ```dotenv
-DEPLOYMENT_TARGET=vercel
+DEPLOYMENT_TARGET=docker
 OBJECT_STORAGE_PROVIDER=vercel_blob
-JOB_BACKEND=vercel_workflow
+JOB_BACKEND=rq
+REDIS_URL=redis://redis:6379/0
 DOCUMENT_PARSER=managed
 BLOB_READ_WRITE_TOKEN=replace-with-private-store-token
 ```
 
-The root `vercel.json` defines `web` and `api` Services. Vercel injects
-`BACKEND_URL` into the web Service through a deployment-aware binding. The API
-derives Workflow routes from Vercel's automatic `VERCEL_URL`. Public
-`/api/v1/*` traffic reaches FastAPI, while all remaining routes reach Next.js
-through the same origin.
-Existing deployments may continue to set `WORKFLOW_TRIGGER_URL`,
-`SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`, and `CHAT_INDEX_WORKFLOW_TRIGGER_URL` as
-explicit overrides for the three Workflow routes.
+The root `vercel.json` defines only the `web` Service. Configure
+`BACKEND_URL=https://api.example.com` in Vercel. Configure the VPS with the
+matching `FRONTEND_URL`, `CORS_ORIGINS`, and `GUEST_SIGNING_SECRET` values.
 
 Create the Vercel Blob store with private access and connect it to the Services
 Project. `BLOB_READ_WRITE_TOKEN` stays server-side. The graph artifact adapter
@@ -205,7 +211,7 @@ Commercial or public distribution requires a data-license review against the
 [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
 and [Yahoo Developer Network Guidelines](https://legal.yahoo.com/us/en/yahoo/guidelines/ydn/index.html).
 
-The default graph collector accepts up to 24 official sources and 8 MB total.
+The default graph collector accepts up to 24 official sources and 64 MB total.
 It applies allowlists, DNS pinning, redirect checks, MIME validation,
 decompression bounds, and host pacing. Evidence publication requires an exact
 capped excerpt and the originating official URL.
