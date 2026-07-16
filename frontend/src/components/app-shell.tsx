@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
+import { BrandMark } from "@/components/brand-mark";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useSession } from "@/components/session-provider";
 import type { Locale } from "@/lib/i18n";
@@ -47,13 +48,14 @@ export function AppShell({
     <div className={`app-frame app-frame--${variant}`}>
       <header className="app-header">
         <a className="wordmark" href={`/${locale}/dashboard`}>
-          <span className="wordmark__seal">E</span>
+          <BrandMark />
           <span>EquityLens</span>
         </a>
-        <nav aria-label={copy.dashboard}>
-          <a href={`/${locale}/dashboard`}>{copy.dashboard}</a>
-          {user ? <a href={`/${locale}/settings`}>{copy.settings}</a> : null}
-        </nav>
+        {user ? (
+          <nav aria-label={copy.settings}>
+            <a href={`/${locale}/settings`}>{copy.settings}</a>
+          </nav>
+        ) : null}
         <div className="app-header__account">
           {user?.avatar_url ? (
             <Image

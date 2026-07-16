@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { BrandMark } from "@/components/brand-mark";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { getDictionary } from "@/dictionaries";
@@ -29,7 +30,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
       <div className="ambient-grid" aria-hidden="true" />
       <header className="auth-masthead">
         <a className="wordmark" href={`/${lang}`}>
-          <span className="wordmark__seal">E</span>
+          <BrandMark />
           <span>EquityLens</span>
         </a>
         <LanguageSwitcher locale={lang} label={copy.language} />

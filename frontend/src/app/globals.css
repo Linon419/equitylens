@@ -70,16 +70,16 @@ a {
   width: fit-content;
 }
 
-.wordmark__seal {
-  align-items: center;
-  background: var(--ink);
-  color: var(--paper);
-  display: inline-flex;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.85rem;
+.wordmark__mark {
+  display: block;
+  flex: 0 0 auto;
   height: 2rem;
-  justify-content: center;
+  transition: transform 160ms ease;
   width: 2rem;
+}
+
+.wordmark:hover .wordmark__mark {
+  transform: rotate(-3deg) scale(1.04);
 }
 
 .desktop-nav {
@@ -584,6 +584,8 @@ a {
   align-items: center;
   display: flex;
   gap: 1rem;
+  grid-column: -2 / -1;
+  justify-self: end;
 }
 
 .app-header__avatar {
@@ -1190,11 +1192,6 @@ a {
   border-color: rgba(244, 241, 231, 0.24);
   position: relative;
   z-index: 20;
-}
-
-.app-frame--research .wordmark__seal {
-  background: var(--research-blue);
-  color: var(--research-navy);
 }
 
 .app-frame--research .app-header nav a:hover {

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { BrandMark } from "@/components/brand-mark";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { getDictionary } from "@/dictionaries";
 import { isLocale } from "@/lib/i18n";
@@ -20,7 +21,7 @@ export default async function Home({ params }: HomeProps) {
       <div className="ambient-grid" aria-hidden="true" />
       <header className="masthead">
         <a className="wordmark" href={`/${lang}`}>
-          <span className="wordmark__seal">E</span>
+          <BrandMark />
           <span>EquityLens</span>
         </a>
         <nav aria-label="Primary navigation" className="desktop-nav">

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 72" role="img" aria-labelledby="title description">
+  <title id="title">EquityLens</title>
+  <desc id="description">Evidence-backed US equity research</desc>
+  <g transform="translate(4 4)">
+    <rect width="64" height="64" fill="#5f9dff"/>
+    <circle cx="26.5" cy="26.5" r="16" fill="#f4f1e7" stroke="#071b2d" stroke-width="3"/>
+    <path d="M38.5 38.5 53 53" fill="none" stroke="#071b2d" stroke-linecap="square" stroke-width="6"/>
+    <path d="M19 18.5v16M19 19h14M19 26.5h11M19 34h14" fill="none" stroke="#071b2d" stroke-linecap="square" stroke-width="3"/>
+    <circle cx="33" cy="19" r="2.25" fill="#5f9dff"/>
+  </g>
+  <text x="84" y="38" fill="#071b2d" font-family="Newsreader, Georgia, serif" font-size="38" font-weight="600" letter-spacing="-1.2">EquityLens</text>
+  <text x="86" y="57" fill="#52636f" font-family="IBM Plex Mono, Menlo, monospace" font-size="7.5" font-weight="600" letter-spacing="1.55">EVIDENCE-BACKED EQUITY RESEARCH</text>
+</svg>

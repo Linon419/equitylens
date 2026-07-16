@@ -28,7 +28,9 @@ const session = vi.hoisted(() => ({
     created_at: string;
   } | null,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace }),
+}));
 vi.mock("@/components/session-provider", () => ({
   useSession: () => session,
 }));
@@ -76,6 +78,8 @@ describe("AppShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/en-US"));
+    expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeVisible();
   });
 
   it("renders guest navigation, sign-in, and language controls", () => {
@@ -98,6 +102,8 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByText("public research")).toBeVisible();
+    expect(document.querySelector(".wordmark__mark")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull();
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/en-US/login?returnTo=%2Fen-US%2Fdashboard",

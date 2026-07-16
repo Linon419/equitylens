@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">EquityLens brand mark</title>
+  <rect width="64" height="64" fill="#5f9dff"/>
+  <circle cx="26.5" cy="26.5" r="16" fill="#f4f1e7" stroke="#071b2d" stroke-width="3"/>
+  <path d="M38.5 38.5 53 53" fill="none" stroke="#071b2d" stroke-linecap="square" stroke-width="6"/>
+  <path d="M19 18.5v16M19 19h14M19 26.5h11M19 34h14" fill="none" stroke="#071b2d" stroke-linecap="square" stroke-width="3"/>
+  <circle cx="33" cy="19" r="2.25" fill="#5f9dff"/>
+</svg>
