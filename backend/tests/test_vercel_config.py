@@ -42,14 +42,7 @@ def test_vercel_services_bind_web_and_api_in_one_project() -> None:
     assert api["root"] == "backend/"
     assert api["framework"] == "fastapi"
     assert api["entrypoint"] == "app.app:app"
-    assert api["bindings"] == [
-        {
-            "type": "service",
-            "service": "web",
-            "format": "url",
-            "env": "WORKFLOW_SERVICE_URL",
-        }
-    ]
+    assert "bindings" not in api
     assert config["rewrites"] == [
         {"source": "/api/v1/(.*)", "destination": {"service": "api"}},
         {"source": "/(.*)", "destination": {"service": "web"}},
@@ -61,7 +54,7 @@ def test_vercel_docs_include_workflow_wiring() -> None:
     guide = (root / "deploy" / "vercel" / "README.md").read_text()
 
     assert "INTERNAL_JOB_SECRET" in guide
-    assert "WORKFLOW_SERVICE_URL" in guide
+    assert "VERCEL_URL" in guide
     assert "Service Binding" in guide
     assert "/api/internal/workflows/company-intelligence" in guide
     assert "/api/internal/workflows/supply-chain-graph" in guide

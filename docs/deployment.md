@@ -161,9 +161,10 @@ BLOB_READ_WRITE_TOKEN=replace-with-private-store-token
 ```
 
 The root `vercel.json` defines `web` and `api` Services. Vercel injects
-`BACKEND_URL` into the web Service and `WORKFLOW_SERVICE_URL` into the API
-Service through deployment-aware bindings. Public `/api/v1/*` traffic reaches
-FastAPI, while all remaining routes reach Next.js through the same origin.
+`BACKEND_URL` into the web Service through a deployment-aware binding. The API
+derives Workflow routes from Vercel's automatic `VERCEL_URL`. Public
+`/api/v1/*` traffic reaches FastAPI, while all remaining routes reach Next.js
+through the same origin.
 Existing deployments may continue to set `WORKFLOW_TRIGGER_URL`,
 `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`, and `CHAT_INDEX_WORKFLOW_TRIGGER_URL` as
 explicit overrides for the three Workflow routes.

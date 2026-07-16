@@ -17,14 +17,6 @@
       "root": "backend/",
       "framework": "fastapi",
       "entrypoint": "app.app:app",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "web",
-          "format": "url",
-          "env": "WORKFLOW_SERVICE_URL"
-        }
-      ],
       "functions": {
         "app/app.py": {
           "excludeFiles": "{tests/**,app/ingestion/**,data/**,**/__pycache__/**}",

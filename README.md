@@ -348,7 +348,7 @@ Research Agent deployment variables:
 | `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` | Optional graph-specific model; `RESEARCH_MODEL` remains the default |
 | `SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS` | Per-stage model timeout; default `180` |
 | `SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS` | Graph model output ceiling; default `16000` |
-| `WORKFLOW_SERVICE_URL` | Vercel-generated web Service Binding used to derive all Workflow triggers |
+| `VERCEL_URL` | Vercel-generated deployment hostname used to derive all Workflow triggers |
 | `WORKFLOW_TRIGGER_URL` | Optional legacy company-intelligence trigger override |
 | `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Optional legacy supply-chain graph trigger override |
 | `CHAT_INDEX_WORKFLOW_TRIGGER_URL` | Optional legacy filing-index trigger override |
@@ -387,14 +387,14 @@ EquityLens uses one Vercel Project with two independently built Services:
 1. The `web` Service builds `frontend/` with Next.js.
 2. The `api` Service builds `backend/` with FastAPI.
 3. A Service Binding injects `BACKEND_URL` into the web runtime.
-4. A reverse binding injects `WORKFLOW_SERVICE_URL` into the API runtime.
+4. The API derives Workflow routes from Vercel's automatic `VERCEL_URL`.
 5. Public `/api/v1/*` requests route to FastAPI; all other requests route to
    Next.js.
 6. Run the PostgreSQL migration and production smoke check after deployment.
 
 The Deploy Button requests the shared database, authentication, OpenAI, Blob,
-and application secrets. Vercel injects both internal service URLs, so Preview
-and Production deployments require no manually copied project origins.
+and application secrets. Vercel injects the private API binding and deployment
+hostname, so Preview and Production require no manually copied project origins.
 
 Full environment reference: [`deploy/vercel/README.md`](deploy/vercel/README.md).
 The shared profile comparison and verification commands live in

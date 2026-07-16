@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     BLOB_READ_WRITE_TOKEN: str | None = None
     MANAGED_PARSER_API_KEY: str | None = None
     WORKFLOW_SERVICE_URL: str | None = None
+    VERCEL_URL: str | None = None
+    VERCEL_PROJECT_PRODUCTION_URL: str | None = None
     WORKFLOW_TRIGGER_URL: str | None = None
     SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL: str | None = None
 
@@ -200,10 +202,25 @@ class Settings(BaseSettings):
         )
 
     def _workflow_service_endpoint(self, workflow: str) -> str | None:
-        if not self.WORKFLOW_SERVICE_URL:
+        origin = self._workflow_origin()
+        if not origin:
             return None
-        origin = self.WORKFLOW_SERVICE_URL.rstrip("/")
         return f"{origin}/api/internal/workflows/{workflow}"
+
+    def _workflow_origin(self) -> str | None:
+        for candidate in (
+            self.WORKFLOW_SERVICE_URL,
+            self.VERCEL_URL,
+            self.VERCEL_PROJECT_PRODUCTION_URL,
+        ):
+            if candidate:
+                normalized = candidate.rstrip("/")
+                return (
+                    normalized
+                    if "://" in normalized
+                    else f"https://{normalized}"
+                )
+        return None
 
     @property
     def LLM_API_KEY_VALUE(self) -> str:
@@ -344,19 +361,6 @@ class Settings(BaseSettings):
                 f"{self.DEPLOYMENT_TARGET.value} profile is missing: "
                 f"{', '.join(missing)}"
             )
-        if self.DEPLOYMENT_TARGET == DeploymentTarget.VERCEL and any(
-            url is None
-            for url in (
-                self.COMPANY_WORKFLOW_TRIGGER_URL,
-                self.GRAPH_WORKFLOW_TRIGGER_URL,
-                self.FILING_INDEX_WORKFLOW_TRIGGER_URL,
-            )
-        ):
-            raise ValueError(
-                "vercel profile requires WORKFLOW_SERVICE_URL or explicit "
-                "workflow trigger URLs"
-            )
-
         short_secrets = [
             field
             for field in (
