@@ -759,6 +759,60 @@ async def test_agent_finalizes_with_fetched_sources_at_tool_limit(
 
 
 @pytest.mark.anyio
+async def test_agent_keeps_fetched_sources_the_model_underselects(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+) -> None:
+    selected_ids = [source.source_id for source in sources[:2]]
+    model = RecordingModel(
+        tool_outputs=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "ListOfficialSources",
+                        {
+                            "query": "suppliers products customers",
+                            "source_types": ["sec_filing"],
+                        },
+                        "list-1",
+                    )
+                ],
+            ),
+            *[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        tool_call(
+                            "FetchOfficialSource",
+                            {"source_id": source_id},
+                            f"fetch-{index}",
+                        )
+                    ],
+                )
+                for index, source_id in enumerate(selected_ids)
+            ],
+            AIMessage(content="Source selection complete."),
+        ],
+        structured_outputs={
+            SourcePlan: [
+                {
+                    "selected_source_ids": [selected_ids[0]],
+                    "rationale_en": "The strongest filing supports the graph.",
+                    "relevant_sections": ["Business"],
+                }
+            ]
+        },
+    )
+    tools = RecordingOfficialSourceTools(sources)
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    plan = await agent.plan_sources(company=company, tools=tools)
+
+    assert plan.selected_source_ids == selected_ids
+
+
+@pytest.mark.anyio
 async def test_fetch_requires_a_source_from_the_listed_catalog(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],

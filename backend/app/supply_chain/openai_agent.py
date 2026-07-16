@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from typing import Any, Literal
@@ -150,6 +150,7 @@ class OpenAISupplyChainAgent:
             )
             catalog: dict[str, OfficialSourceMetadata] = {}
             fetched_ids: set[str] = set()
+            fetched_source_order: list[str] = []
             fetched_sources: dict[str, dict[str, object]] = {}
             tool_call_count = 0
             source_budget_exhausted = False
@@ -185,6 +186,8 @@ class OpenAISupplyChainAgent:
                         source_id = source.get("source_id")
                         if isinstance(source_id, str):
                             fetched_sources[source_id] = source
+                            if source_id not in fetched_source_order:
+                                fetched_source_order.append(source_id)
                     source_error = result.get("source_error")
                     if (
                         isinstance(source_error, dict)
@@ -220,6 +223,10 @@ class OpenAISupplyChainAgent:
                 schema=SourcePlan,
                 stage="plan_sources",
                 messages=final_messages,
+                transformer=lambda result: _ensure_source_plan_coverage(
+                    result,
+                    fetched_source_order,
+                ),
                 validator=lambda result: _validate_source_plan(result, fetched_ids),
                 tool_count=tool_call_count,
             )
@@ -726,6 +733,22 @@ def _require_all_schema_properties(value: Any) -> None:
 def _validate_source_plan(plan: SourcePlan, fetched_ids: set[str]) -> None:
     if not set(plan.selected_source_ids) <= fetched_ids:
         raise ValueError("source plan selected an unfetched source")
+
+
+def _ensure_source_plan_coverage(
+    plan: SourcePlan,
+    fetched_source_order: Sequence[str],
+) -> SourcePlan:
+    selected = list(plan.selected_source_ids)
+    for source_id in fetched_source_order:
+        if source_id in selected:
+            continue
+        if len(selected) >= 6:
+            break
+        selected.append(source_id)
+    if selected == plan.selected_source_ids:
+        return plan
+    return plan.model_copy(update={"selected_source_ids": selected})
 
 
 def _validate_draft(draft: GraphDraft, source_keys: set[str]) -> None:
