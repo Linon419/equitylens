@@ -116,7 +116,9 @@ class Settings(BaseSettings):
     RESEARCH_PROMPT_VERSION: str = "company-intelligence-2026-07-13"
     SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE: str | None = None
     SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION: str = "supply-chain-graph.v1"
-    SUPPLY_CHAIN_GRAPH_PROMPT_VERSION: str = "supply-chain-graph.2026-07-14"
+    SUPPLY_CHAIN_GRAPH_PROMPT_VERSION: str = (
+        "supply-chain-graph.2026-07-16-source-coverage"
+    )
     SUPPLY_CHAIN_GRAPH_MIN_NODES: int = 25
     SUPPLY_CHAIN_GRAPH_MAX_NODES: int = 40
     SUPPLY_CHAIN_GRAPH_EVIDENCE_THRESHOLD: float = 0.75
