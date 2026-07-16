@@ -832,6 +832,84 @@ async def test_agent_recovers_from_a_nonretryable_source_fetch_failure(
 
 
 @pytest.mark.anyio
+async def test_agent_finalizes_with_fetched_sources_when_run_budget_is_exhausted(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+) -> None:
+    class RunBudgetError(RuntimeError):
+        code = "SOURCE_RUN_BYTE_BUDGET_EXCEEDED"
+        retryable = False
+
+    class BudgetTools(RecordingOfficialSourceTools):
+        async def fetch_official_source(
+            self,
+            *,
+            source_id: str,
+        ) -> OfficialSourceDocument:
+            self.calls.append(("fetch_official_source", source_id))
+            if source_id == sources[1].source_id:
+                raise RunBudgetError
+            source = next(
+                source for source in self.sources if source.source_id == source_id
+            )
+            self.fetched_ids.add(source_id)
+            return source
+
+    selected_id = sources[0].source_id
+    model = RecordingModel(
+        tool_outputs=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "ListOfficialSources",
+                        {"query": "suppliers", "source_types": ["sec_filing"]},
+                        "list-1",
+                    )
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "FetchOfficialSource",
+                        {"source_id": selected_id},
+                        "fetch-good",
+                    )
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "FetchOfficialSource",
+                        {"source_id": sources[1].source_id},
+                        "fetch-over-budget",
+                    )
+                ],
+            ),
+        ],
+        structured_outputs={
+            SourcePlan: [
+                {
+                    "selected_source_ids": [selected_id],
+                    "rationale_en": "The fetched filing supports the graph.",
+                    "relevant_sections": ["Business"],
+                }
+            ]
+        },
+    )
+    tools = BudgetTools(sources)
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    plan = await agent.plan_sources(company=company, tools=tools)
+
+    assert plan.selected_source_ids == [selected_id]
+    assert tools.fetched_ids == {selected_id}
+    assert len(model.tool_calls) == 3
+
+
+@pytest.mark.anyio
 async def test_tool_loop_logs_safe_provider_usage(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],

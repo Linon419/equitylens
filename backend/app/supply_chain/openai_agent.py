@@ -150,6 +150,7 @@ class OpenAISupplyChainAgent:
             catalog: dict[str, OfficialSourceMetadata] = {}
             fetched_ids: set[str] = set()
             tool_call_count = 0
+            source_budget_exhausted = False
             while True:
                 response = await self._invoke_tool_model(bound, messages)
                 messages.append(response)
@@ -173,6 +174,16 @@ class OpenAISupplyChainAgent:
                             tool_call_id=str(call.get("id", "")),
                         )
                     )
+                    source_error = result.get("source_error")
+                    if (
+                        isinstance(source_error, dict)
+                        and source_error.get("code")
+                        == "SOURCE_RUN_BYTE_BUDGET_EXCEEDED"
+                    ):
+                        source_budget_exhausted = True
+                        break
+                if source_budget_exhausted:
+                    break
             if not fetched_ids:
                 raise SupplyChainAgentError("SOURCE_PLAN_EMPTY")
             return await self._invoke_structured(
