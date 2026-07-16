@@ -1,3 +1,5 @@
+import { authConfig } from "@/lib/auth/config";
+
 export async function filingIndexWorkflow(jobId: string) {
   "use workflow";
 
@@ -7,7 +9,7 @@ export async function filingIndexWorkflow(jobId: string) {
 export async function runFilingIndexStep(jobId: string) {
   "use step";
 
-  const backendUrl = requiredEnv("BACKEND_URL").replace(/\/$/, "");
+  const backendUrl = authConfig().backendUrl;
   const secret = requiredEnv("INTERNAL_JOB_SECRET");
   const response = await fetch(
     `${backendUrl}/api/v1/internal/jobs/${encodeURIComponent(jobId)}/filing-index`,
@@ -24,7 +26,7 @@ export async function runFilingIndexStep(jobId: string) {
   }
 }
 
-function requiredEnv(name: "BACKEND_URL" | "INTERNAL_JOB_SECRET") {
+function requiredEnv(name: "INTERNAL_JOB_SECRET") {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;

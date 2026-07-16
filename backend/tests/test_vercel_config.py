@@ -31,18 +31,18 @@ def test_vercel_services_bind_web_and_api_in_one_project() -> None:
     api = config["services"]["api"]
     assert web["root"] == "frontend/"
     assert web["framework"] == "nextjs"
-    assert web["bindings"] == [
+    assert "bindings" not in web
+    assert api["bindings"] == [
         {
             "type": "service",
-            "service": "api",
+            "service": "web",
             "format": "url",
-            "env": "BACKEND_URL",
+            "env": "WORKFLOW_SERVICE_URL",
         }
     ]
     assert api["root"] == "backend/"
     assert api["framework"] == "fastapi"
     assert api["entrypoint"] == "app.app:app"
-    assert "bindings" not in api
     assert config["rewrites"] == [
         {"source": "/api/v1/(.*)", "destination": {"service": "api"}},
         {"source": "/(.*)", "destination": {"service": "web"}},

@@ -22,10 +22,26 @@ describe("authConfig", () => {
     });
   });
 
-  it("requires the backend URL", () => {
+  it("uses the deployment URL when a private backend binding is absent", () => {
+    process.env = {
+      ...original,
+      BACKEND_URL: "",
+      VERCEL_URL: "equitylens-preview.vercel.app",
+    };
+
+    expect(authConfig().backendUrl).toBe(
+      "https://equitylens-preview.vercel.app",
+    );
+  });
+
+  it("requires one backend origin", () => {
     process.env = { ...original };
     delete process.env.BACKEND_URL;
+    delete process.env.VERCEL_URL;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
 
-    expect(() => authConfig()).toThrow("BACKEND_URL is required");
+    expect(() => authConfig()).toThrow(
+      "BACKEND_URL, VERCEL_URL, or VERCEL_PROJECT_PRODUCTION_URL is required",
+    );
   });
 });

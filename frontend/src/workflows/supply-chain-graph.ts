@@ -1,3 +1,5 @@
+import { authConfig } from "@/lib/auth/config";
+
 const STEPS = [
   "collect",
   "extract",
@@ -23,7 +25,7 @@ export async function runSupplyChainGraphStep(
 ) {
   "use step";
 
-  const backendUrl = requiredEnv("BACKEND_URL").replace(/\/$/, "");
+  const backendUrl = authConfig().backendUrl;
   const secret = requiredEnv("INTERNAL_JOB_SECRET");
   const response = await fetch(
     `${backendUrl}/api/v1/internal/jobs/${encodeURIComponent(jobId)}/supply-chain-graph/${step}`,
@@ -40,7 +42,7 @@ export async function runSupplyChainGraphStep(
   }
 }
 
-function requiredEnv(name: "BACKEND_URL" | "INTERNAL_JOB_SECRET") {
+function requiredEnv(name: "INTERNAL_JOB_SECRET") {
   const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(`${name} is required`);

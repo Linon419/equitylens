@@ -386,15 +386,16 @@ EquityLens uses one Vercel Project with two independently built Services:
 
 1. The `web` Service builds `frontend/` with Next.js.
 2. The `api` Service builds `backend/` with FastAPI.
-3. A Service Binding injects `BACKEND_URL` into the web runtime.
-4. The API derives Workflow routes from Vercel's automatic `VERCEL_URL`.
+3. A Service Binding injects `WORKFLOW_SERVICE_URL` into the API runtime.
+4. The web runtime uses Vercel's automatic `VERCEL_URL` for `/api/v1/*`.
 5. Public `/api/v1/*` requests route to FastAPI; all other requests route to
    Next.js.
 6. Run the PostgreSQL migration and production smoke check after deployment.
 
 The Deploy Button requests the shared database, authentication, OpenAI, Blob,
-and application secrets. Vercel injects the private API binding and deployment
-hostname, so Preview and Production require no manually copied project origins.
+and application secrets. Vercel injects the private Workflow binding and
+deployment hostname, so Preview and Production require no manually copied
+project origins.
 
 Full environment reference: [`deploy/vercel/README.md`](deploy/vercel/README.md).
 The shared profile comparison and verification commands live in
