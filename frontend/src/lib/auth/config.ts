@@ -16,9 +16,12 @@ function resolveBackendUrl(): string | undefined {
   const configured = process.env.BACKEND_URL?.trim();
   if (configured) return configured;
 
+  const previewHost = process.env.VERCEL_URL?.trim();
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
   const deploymentHost =
-    process.env.VERCEL_URL?.trim() ||
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+    process.env.VERCEL_ENV === "production"
+      ? productionHost || previewHost
+      : previewHost || productionHost;
   if (!deploymentHost) return undefined;
   return deploymentHost.includes("://")
     ? deploymentHost
