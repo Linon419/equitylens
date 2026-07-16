@@ -155,6 +155,18 @@ class OpenAISupplyChainAgent:
             tool_call_count = 0
             source_budget_exhausted = False
             source_tool_limit_reached = False
+
+            def remember_source(result: dict[str, object]) -> None:
+                source = result.get("source")
+                if not isinstance(source, dict):
+                    return
+                source_id = source.get("source_id")
+                if not isinstance(source_id, str):
+                    return
+                fetched_sources[source_id] = source
+                if source_id not in fetched_source_order:
+                    fetched_source_order.append(source_id)
+
             while True:
                 response = await self._invoke_tool_model(bound, messages)
                 messages.append(response)
@@ -162,10 +174,9 @@ class OpenAISupplyChainAgent:
                 if not calls:
                     break
                 if tool_call_count + len(calls) > self._max_tool_calls:
-                    if fetched_ids:
-                        source_tool_limit_reached = True
-                        break
-                    raise SupplyChainAgentError("SOURCE_TOOL_LIMIT_REACHED")
+                    source_tool_limit_reached = True
+                    remaining_calls = self._max_tool_calls - tool_call_count
+                    calls = calls[: max(remaining_calls, 0)]
                 for call in calls:
                     result = await self._execute_tool(
                         call,
@@ -181,13 +192,7 @@ class OpenAISupplyChainAgent:
                             tool_call_id=str(call.get("id", "")),
                         )
                     )
-                    source = result.get("source")
-                    if isinstance(source, dict):
-                        source_id = source.get("source_id")
-                        if isinstance(source_id, str):
-                            fetched_sources[source_id] = source
-                            if source_id not in fetched_source_order:
-                                fetched_source_order.append(source_id)
+                    remember_source(result)
                     source_error = result.get("source_error")
                     if (
                         isinstance(source_error, dict)
@@ -198,6 +203,27 @@ class OpenAISupplyChainAgent:
                         break
                 if source_budget_exhausted:
                     break
+                if source_tool_limit_reached:
+                    break
+            if source_tool_limit_reached and not fetched_ids:
+                if not catalog:
+                    fallback_sources = await tools.list_official_sources(
+                        company=company,
+                        query="suppliers products customers",
+                        source_types=("sec_filing", "annual_report", "ir_page"),
+                    )
+                    catalog.update(
+                        {source.source_id: source for source in fallback_sources}
+                    )
+                for metadata in list(catalog.values())[:3]:
+                    try:
+                        document = await tools.fetch_official_source(
+                            source_id=metadata.source_id,
+                        )
+                    except Exception:
+                        continue
+                    fetched_ids.add(document.source_id)
+                    remember_source({"source": document.model_dump(mode="json")})
             if not fetched_ids:
                 raise SupplyChainAgentError("SOURCE_PLAN_EMPTY")
             final_messages: list[BaseMessage] = [

@@ -676,7 +676,7 @@ async def test_unknown_tool_and_invalid_arguments_are_rejected(
 
 
 @pytest.mark.anyio
-async def test_more_than_eight_tool_calls_are_rejected_before_execution(
+async def test_more_than_eight_tool_calls_use_fallback_sources(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],
 ) -> None:
@@ -688,15 +688,28 @@ async def test_more_than_eight_tool_calls_are_rejected_before_execution(
         )
         for index in range(9)
     ]
-    model = RecordingModel(tool_outputs=[AIMessage(content="", tool_calls=calls)])
+    model = RecordingModel(
+        tool_outputs=[AIMessage(content="", tool_calls=calls)],
+        structured_outputs={
+            SourcePlan: [
+                {
+                    "selected_source_ids": [sources[0].source_id],
+                    "rationale_en": "The fallback filing supports the graph.",
+                    "relevant_sections": ["Business"],
+                }
+            ]
+        },
+    )
     tools = RecordingOfficialSourceTools(sources)
     agent = OpenAISupplyChainAgent(model=model, model_id="gpt-fixture")
 
-    with pytest.raises(SupplyChainAgentError) as error:
-        await agent.plan_sources(company=company, tools=tools)
+    plan = await agent.plan_sources(company=company, tools=tools)
 
-    assert error.value.code == "SOURCE_TOOL_LIMIT_REACHED"
-    assert tools.calls == []
+    assert plan.selected_source_ids == [source.source_id for source in sources[:3]]
+    assert (
+        len([call for call in tools.calls if call[0] == "fetch_official_source"])
+        == 3
+    )
 
 
 @pytest.mark.anyio
@@ -755,7 +768,10 @@ async def test_agent_finalizes_with_fetched_sources_at_tool_limit(
     assert plan.selected_source_ids == [selected_id]
     payload = json.loads(model.structured_calls[0][2][1].content)
     assert payload["source_tool_limit_reached"] is True
-    assert len(tools.calls) == 2
+    assert (
+        len([call for call in tools.calls if call[0] == "fetch_official_source"])
+        == 1
+    )
 
 
 @pytest.mark.anyio
