@@ -625,7 +625,7 @@ async def test_evidence_budget_can_be_smaller_than_source_count(
 
 
 @pytest.mark.anyio
-async def test_unknown_draft_citation_exhausts_repair(
+async def test_unknown_draft_citation_is_safely_downgraded(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],
     draft: GraphDraft,
@@ -633,14 +633,15 @@ async def test_unknown_draft_citation_exhausts_repair(
     invalid = draft.model_dump()
     invalid["edges"][0]["evidence_refs"][0]["source_key"] = "unknown:source"
     model = RecordingModel(
-        structured_outputs={GraphDraft: [deepcopy(invalid), deepcopy(invalid)]}
+        structured_outputs={GraphDraft: [invalid]}
     )
     agent = OpenAISupplyChainAgent(model=model, model_id="gpt-fixture")
 
-    with pytest.raises(SupplyChainAgentError) as error:
-        await agent.extract_graph(company=company, sources=sources)
+    result = await agent.extract_graph(company=company, sources=sources)
 
-    assert error.value.code == "AGENT_OUTPUT_INVALID"
+    assert result.edges[0].evidence_status == "internal"
+    assert result.edges[0].evidence_refs == []
+    assert len(model.structured_calls) == 1
 
 
 @pytest.mark.anyio

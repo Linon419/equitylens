@@ -39,6 +39,7 @@ from app.supply_chain.schemas import (
 from app.supply_chain.validator import validate_localization
 
 type OutputValidator[ResultT: BaseModel] = Callable[[ResultT], None]
+type OutputTransformer[ResultT: BaseModel] = Callable[[ResultT], ResultT]
 TRUNCATION_MARKER = "\n[TRUNCATED]"
 
 
@@ -238,6 +239,10 @@ class OpenAISupplyChainAgent:
                 schema=GraphDraft,
                 stage="extract_graph",
                 messages=messages,
+                transformer=lambda result: _sanitize_draft_source_refs(
+                    result,
+                    source_keys,
+                ),
                 validator=lambda result: _validate_draft(result, source_keys),
             )
 
@@ -418,6 +423,7 @@ class OpenAISupplyChainAgent:
         schema: type[ResultT],
         stage: str,
         messages: list[BaseMessage],
+        transformer: OutputTransformer[ResultT] | None = None,
         validator: OutputValidator[ResultT] | None = None,
         tool_count: int = 0,
     ) -> ResultT:
@@ -444,6 +450,8 @@ class OpenAISupplyChainAgent:
             try:
                 raw_result = await runnable.ainvoke(attempt_messages)
                 result, metadata = _parse_structured_result(schema, raw_result)
+                if transformer is not None:
+                    result = transformer(result)
                 if validator is not None:
                     validator(result)
                 self._log_stage(
@@ -726,6 +734,24 @@ def _validate_draft(draft: GraphDraft, source_keys: set[str]) -> None:
     }
     if not cited <= source_keys:
         raise ValueError("draft cited an unknown source")
+
+
+def _sanitize_draft_source_refs(
+    draft: GraphDraft,
+    source_keys: set[str],
+) -> GraphDraft:
+    payload = draft.model_dump(mode="json")
+    for edge in payload["edges"]:
+        edge["evidence_refs"] = [
+            reference
+            for reference in edge["evidence_refs"]
+            if reference["source_key"] in source_keys
+        ]
+        if edge["evidence_status"] in {"verified", "potential"} and not edge[
+            "evidence_refs"
+        ]:
+            edge["evidence_status"] = "internal"
+    return GraphDraft.model_validate(payload)
 
 
 def _validate_verification(
