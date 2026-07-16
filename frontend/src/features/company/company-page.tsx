@@ -84,11 +84,15 @@ export function CompanyPage({
         company.status === "rejected" &&
         company.reason instanceof ResearchResponseError &&
         company.reason.status === 404;
+      const intelligenceMissing = rejectedWithCode(intelligence, "INTELLIGENCE_NOT_FOUND");
       const graphMissing = rejectedWithStatus(supplyChainGraph, 404);
       const unavailable = [market, financials, intelligence, supplyChainGraph, quota]
         .map((result, index) => {
           const resource = ["market", "financials", "intelligence", "supplyChainGraph", "quota"][index];
-          return result.status === "rejected" && !(resource === "supplyChainGraph" && graphMissing)
+          const expectedEmptyState =
+            (resource === "intelligence" && intelligenceMissing)
+            || (resource === "supplyChainGraph" && graphMissing);
+          return result.status === "rejected" && !expectedEmptyState
             ? resource
             : null;
         })
@@ -330,7 +334,7 @@ function UnavailableSection({ title, message }: { title: string; message: string
 }
 
 class ResearchResponseError extends Error {
-  constructor(public status: number) {
+  constructor(public status: number, public code?: string) {
     super(`Research response failed: ${status}`);
   }
 }
@@ -347,7 +351,11 @@ async function loadResource<T>(
     await abortableDelay(retryDelay(response), signal);
     response = await fetch(url, { cache: "no-store", signal });
   }
-  if (!response.ok) throw new ResearchResponseError(response.status);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { code?: unknown } | null;
+    const code = typeof payload?.code === "string" ? payload.code : undefined;
+    throw new ResearchResponseError(response.status, code);
+  }
   return parseResearchResponse(kind, await response.json()) as T;
 }
 
@@ -374,6 +382,12 @@ function rejectedWithStatus<T>(result: PromiseSettledResult<T>, status: number) 
   return result.status === "rejected"
     && result.reason instanceof ResearchResponseError
     && result.reason.status === status;
+}
+
+function rejectedWithCode<T>(result: PromiseSettledResult<T>, code: string) {
+  return result.status === "rejected"
+    && result.reason instanceof ResearchResponseError
+    && result.reason.code === code;
 }
 
 function formatTimestamp(value: string, locale: Locale) {

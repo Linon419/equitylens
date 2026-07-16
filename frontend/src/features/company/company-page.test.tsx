@@ -111,6 +111,30 @@ describe("CompanyPage", () => {
     expect(screen.getByRole("button", { name: "Generate graph" })).toBeVisible();
     expect(screen.queryByText(companyPageCopy.en.partialLoad)).toBeNull();
   });
+
+  it("treats missing intelligence as an Agent-ready empty state", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.endsWith("/companies/AAPL")) return Response.json(companyFixture);
+      if (path.endsWith("/market")) return Response.json(marketFixture);
+      if (path.endsWith("/financials")) return Response.json(financialsFixture);
+      if (path.includes("/intelligence")) {
+        return Response.json({ code: "INTELLIGENCE_NOT_FOUND" }, { status: 404 });
+      }
+      if (path.includes("/supply-chain-graph")) {
+        return Response.json(supplyChainGraphCachedFixture);
+      }
+      if (path.endsWith("/agent-quota")) return Response.json(quotaFixture);
+      return new Response(null, { status: 500 });
+    });
+
+    render(<CompanyPage copy={companyPageCopy.en} locale="en-US" symbol="AAPL" />);
+
+    expect(
+      await screen.findByText("Run the research agent to build cited intelligence."),
+    ).toBeVisible();
+    expect(screen.queryByText(companyPageCopy.en.partialLoad)).toBeNull();
+  });
 });
 
 describe("FinancialTable", () => {
