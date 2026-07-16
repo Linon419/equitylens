@@ -109,6 +109,19 @@ def test_custom_llm_endpoint_is_independent_from_openai_services() -> None:
     assert settings.LLM_ORGANIZATION is None
 
 
+def test_openai_organization_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_ORGANIZATION", raising=False)
+    values = {key: value for key, value in BASE.items() if key != "OPENAI_ORGANIZATION"}
+
+    settings = Settings(
+        _env_file=None,
+        **values,
+        **DOCKER_PROVIDERS,
+    )
+
+    assert settings.OPENAI_ORGANIZATION is None
+
+
 def test_json_mode_is_available_for_thinking_model_providers() -> None:
     settings = Settings(
         **BASE,

@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     SECRET_KEY_ACCESS_API: str
     DATABASE_URL: str
     OPENAI_API_KEY: str
-    OPENAI_ORGANIZATION: str
+    OPENAI_ORGANIZATION: str | None = None
     OPENAI_BASE_URL: str | None = None
     LLM_API_KEY: str | None = None
     LLM_BASE_URL: str | None = None
