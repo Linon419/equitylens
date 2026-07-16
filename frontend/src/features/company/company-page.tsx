@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import { useSession } from "@/components/session-provider";
 import { AnalysisControl } from "./analysis-control";
@@ -165,7 +165,7 @@ export function CompanyPage({
   );
 
   if (resources.loading) {
-    return <main className="company-page-state">{copy.loading}</main>;
+    return <CompanyLoadingShell copy={copy} locale={locale} symbol={symbol} />;
   }
   if (resources.notFound) {
     return (
@@ -289,6 +289,51 @@ export function CompanyPage({
         pendingContext={pendingChatContext}
         symbol={symbol}
       />
+    </main>
+  );
+}
+
+function CompanyLoadingShell({
+  copy,
+  locale,
+  symbol,
+}: {
+  copy: CompanyPageCopy;
+  locale: Locale;
+  symbol: string;
+}) {
+  return (
+    <main aria-busy="true" className="company-page company-page--loading">
+      <div className="company-dossier">
+        <a className="company-page__back" href={`/${locale}/dashboard`}>← {copy.back}</a>
+        <header className="company-header company-header--loading">
+          <div className="company-header__identity">
+            <p>{copy.header.companyRecord} / DATA LINK</p>
+            <div className="company-header__ticker">
+              <span>{symbol}</span>
+              <span>SEC / MARKET / EVIDENCE</span>
+            </div>
+            <h1>{symbol}</h1>
+            <div className="company-loading-status" role="status">
+              <span aria-hidden="true" />
+              <p>{copy.loading}</p>
+            </div>
+          </div>
+          <dl aria-hidden="true">
+            <div><dt>{copy.header.sector}</dt><dd><span className="company-loading-line" /></dd></div>
+            <div><dt>{copy.header.industry}</dt><dd><span className="company-loading-line company-loading-line--short" /></dd></div>
+          </dl>
+        </header>
+        <section aria-hidden="true" className="company-loading-sections">
+          {[copy.market.title, copy.financials.title, copy.graph.title].map((title, index) => (
+            <article key={title} style={{ "--loading-index": index } as CSSProperties}>
+              <p>0{index + 1}</p>
+              <h2>{title}</h2>
+              <span /><span /><span />
+            </article>
+          ))}
+        </section>
+      </div>
     </main>
   );
 }

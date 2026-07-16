@@ -23,6 +23,18 @@ describe("CompanyPage", () => {
     vi.restoreAllMocks();
   });
 
+  it("renders the company dossier shell while primary data is pending", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    render(<CompanyPage copy={companyPageCopy.en} locale="en-US" symbol="AAPL" />);
+
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("heading", { name: "AAPL" })).toBeVisible();
+    expect(screen.getByText(companyPageCopy.en.loading)).toBeVisible();
+  });
+
   it("loads independent company resources and marks stale market data", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(fetchFixture);
