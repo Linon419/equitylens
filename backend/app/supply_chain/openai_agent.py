@@ -149,6 +149,7 @@ class OpenAISupplyChainAgent:
             )
             catalog: dict[str, OfficialSourceMetadata] = {}
             fetched_ids: set[str] = set()
+            fetched_sources: dict[str, dict[str, object]] = {}
             tool_call_count = 0
             source_budget_exhausted = False
             while True:
@@ -174,6 +175,11 @@ class OpenAISupplyChainAgent:
                             tool_call_id=str(call.get("id", "")),
                         )
                     )
+                    source = result.get("source")
+                    if isinstance(source, dict):
+                        source_id = source.get("source_id")
+                        if isinstance(source_id, str):
+                            fetched_sources[source_id] = source
                     source_error = result.get("source_error")
                     if (
                         isinstance(source_error, dict)
@@ -186,10 +192,28 @@ class OpenAISupplyChainAgent:
                     break
             if not fetched_ids:
                 raise SupplyChainAgentError("SOURCE_PLAN_EMPTY")
+            final_messages: list[BaseMessage] = [
+                SystemMessage(
+                    content=(
+                        f"{system_prompt}\n"
+                        "Tool collection is complete. Return the final source plan "
+                        "using only the fetched source IDs supplied below."
+                    )
+                ),
+                HumanMessage(
+                    content=_json(
+                        {
+                            "company": company_payload(company),
+                            "fetched_sources": list(fetched_sources.values()),
+                            "source_budget_exhausted": source_budget_exhausted,
+                        }
+                    )
+                ),
+            ]
             return await self._invoke_structured(
                 schema=SourcePlan,
                 stage="plan_sources",
-                messages=messages,
+                messages=final_messages,
                 validator=lambda result: _validate_source_plan(result, fetched_ids),
                 tool_count=tool_call_count,
             )

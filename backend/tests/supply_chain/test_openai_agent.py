@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.api import deps
 from app.supply_chain import openai_agent as openai_agent_module
@@ -907,6 +907,13 @@ async def test_agent_finalizes_with_fetched_sources_when_run_budget_is_exhausted
     assert plan.selected_source_ids == [selected_id]
     assert tools.fetched_ids == {selected_id}
     assert len(model.tool_calls) == 3
+    structured_messages = model.structured_calls[0][2]
+    assert all(not isinstance(message, ToolMessage) for message in structured_messages)
+    structured_payload = json.loads(structured_messages[1].content)
+    assert [
+        source["source_id"] for source in structured_payload["fetched_sources"]
+    ] == [selected_id]
+    assert structured_payload["source_budget_exhausted"] is True
 
 
 @pytest.mark.anyio
