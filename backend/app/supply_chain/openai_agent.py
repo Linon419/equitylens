@@ -780,6 +780,10 @@ def _ensure_source_plan_coverage(
 
 
 def _validate_draft(draft: GraphDraft, source_keys: set[str]) -> None:
+    if len(draft.nodes) < 12:
+        raise ValueError("draft must include at least 12 nodes")
+    if len(draft.edges) < 11:
+        raise ValueError("draft must include at least 11 edges")
     if any(
         node.resolution_status is not None or node.resolution_basis is not None
         for node in draft.nodes

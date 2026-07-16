@@ -424,6 +424,31 @@ async def test_structured_output_repair_names_invalid_field_constraints(
 
 
 @pytest.mark.anyio
+async def test_graph_extraction_repairs_sparse_drafts(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+    draft: GraphDraft,
+) -> None:
+    focus = next(node for node in draft.nodes if node.node_key == draft.focus_node_key)
+    sparse = GraphDraft(
+        focus_node_key=focus.node_key,
+        thesis_en="The supplied evidence supports a minimal company graph.",
+        nodes=[focus],
+        edges=[],
+    )
+    model = RecordingModel(
+        structured_outputs={GraphDraft: [sparse.model_dump(), draft.model_dump()]}
+    )
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    result = await agent.extract_graph(company=company, sources=sources)
+
+    assert result == draft
+    repair = model.structured_calls[1][2][-1].content
+    assert "at least 12 nodes" in repair
+
+
+@pytest.mark.anyio
 async def test_invalid_localization_membership_gets_one_repair_attempt(
     accepted_graph: AcceptedGraph,
 ) -> None:
