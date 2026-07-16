@@ -700,6 +700,65 @@ async def test_more_than_eight_tool_calls_are_rejected_before_execution(
 
 
 @pytest.mark.anyio
+async def test_agent_finalizes_with_fetched_sources_at_tool_limit(
+    company: CompanyIdentity,
+    sources: list[OfficialSourceDocument],
+) -> None:
+    selected_id = sources[0].source_id
+    extra_calls = [
+        tool_call(
+            "ListOfficialSources",
+            {"query": "more sources", "source_types": ["sec_filing"]},
+            f"extra-{index}",
+        )
+        for index in range(7)
+    ]
+    model = RecordingModel(
+        tool_outputs=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "ListOfficialSources",
+                        {"query": "suppliers", "source_types": ["sec_filing"]},
+                        "list-1",
+                    )
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    tool_call(
+                        "FetchOfficialSource",
+                        {"source_id": selected_id},
+                        "fetch-1",
+                    )
+                ],
+            ),
+            AIMessage(content="", tool_calls=extra_calls),
+        ],
+        structured_outputs={
+            SourcePlan: [
+                {
+                    "selected_source_ids": [selected_id],
+                    "rationale_en": "The fetched filing supports the graph.",
+                    "relevant_sections": ["Business"],
+                }
+            ]
+        },
+    )
+    tools = RecordingOfficialSourceTools(sources)
+    agent = OpenAISupplyChainAgent(model=model, model_id="deepseek-fixture")
+
+    plan = await agent.plan_sources(company=company, tools=tools)
+
+    assert plan.selected_source_ids == [selected_id]
+    payload = json.loads(model.structured_calls[0][2][1].content)
+    assert payload["source_tool_limit_reached"] is True
+    assert len(tools.calls) == 2
+
+
+@pytest.mark.anyio
 async def test_fetch_requires_a_source_from_the_listed_catalog(
     company: CompanyIdentity,
     sources: list[OfficialSourceDocument],

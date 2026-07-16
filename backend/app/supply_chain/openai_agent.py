@@ -153,6 +153,7 @@ class OpenAISupplyChainAgent:
             fetched_sources: dict[str, dict[str, object]] = {}
             tool_call_count = 0
             source_budget_exhausted = False
+            source_tool_limit_reached = False
             while True:
                 response = await self._invoke_tool_model(bound, messages)
                 messages.append(response)
@@ -160,6 +161,9 @@ class OpenAISupplyChainAgent:
                 if not calls:
                     break
                 if tool_call_count + len(calls) > self._max_tool_calls:
+                    if fetched_ids:
+                        source_tool_limit_reached = True
+                        break
                     raise SupplyChainAgentError("SOURCE_TOOL_LIMIT_REACHED")
                 for call in calls:
                     result = await self._execute_tool(
@@ -207,6 +211,7 @@ class OpenAISupplyChainAgent:
                             "company": company_payload(company),
                             "fetched_sources": list(fetched_sources.values()),
                             "source_budget_exhausted": source_budget_exhausted,
+                            "source_tool_limit_reached": source_tool_limit_reached,
                         }
                     )
                 ),
