@@ -172,3 +172,16 @@ def test_readme_documents_the_research_chat_release_surface() -> None:
     assert "company-research-chat-design.md" in status
     assert "company-research-chat.md" in status
     assert "Research chat" in status and "Available" in status
+
+
+def test_readme_documents_hackathon_evaluation_requirements() -> None:
+    content = readme_text()
+
+    assert "## Judge's quick path" in content
+    assert "## GPT-5.6 integration" in content
+    assert "RESEARCH_MODEL=gpt-5.6" in content
+    assert "https://developers.openai.com/api/docs/guides/latest-model.md" in content
+    assert "## Sample data and reproducible evaluation" in content
+    assert "backend/tests/fixtures/chat" in content
+    assert "## How Codex accelerated development" in content
+    assert "## Key technical decisions" in content

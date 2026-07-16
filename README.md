@@ -11,13 +11,14 @@ financial performance, market price, and valuation in one research workspace.
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)
+![GPT-5.6](https://img.shields.io/badge/GPT--5.6-ready-111827?logo=openai&logoColor=white)
 ![Languages](https://img.shields.io/badge/UI-English%20%7C%20简体中文-2563EB)
 
 | Deploy the API | Deploy the Web app |
 |---|---|
 | [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2COPENAI_BASE_URL%2CLLM_API_KEY%2CLLM_BASE_URL%2CLLM_STRUCTURED_OUTPUT_METHOD%2CTAVILY_API_KEY%2CCHAT_WEB_SEARCH_PROVIDER%2CCHAT_TAVILY_SEARCH_DEPTH%2CCHAT_TAVILY_MAX_RESULTS%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CWORKFLOW_TRIGGER_URL%2CSUPPLY_CHAIN_WORKFLOW_TRIGGER_URL%2CCHAT_INDEX_WORKFLOW_TRIGGER_URL%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+shared+signing+secrets%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
 
-[Quick start](#quick-start) · [Architecture](#architecture) · [Deployment](#deployment) · [Roadmap](#roadmap) · [Contributing](#contributing)
+[Judge's path](#judges-quick-path) · [GPT-5.6](#gpt-56-integration) · [Setup](#quick-start) · [Sample data](#sample-data-and-reproducible-evaluation) · [Testing](#quality-gates) · [Codex](#how-codex-accelerated-development)
 
 </div>
 
@@ -41,6 +42,19 @@ and six connected questions:
 5. How does the current price compare with earnings and peer valuations?
 6. Which primary source supports each conclusion?
 
+## Judge's quick path
+
+| Goal | Fastest path | Evidence produced |
+|---|---|---|
+| See the product | Start the Docker profile and open `/en-US/dashboard` | Bilingual company search, financials, valuation, graph, and research chat |
+| Exercise the full research flow | Search `AAPL`, run company analysis, generate the graph, then ask a filing question | Durable jobs, official-source excerpts, citations, and persisted conversation state |
+| Evaluate without provider credentials | Run the deterministic integration journey below | Real routes and persistence with checked-in SEC, Yahoo, graph, and chat fixtures |
+| Review engineering quality | Run the backend and frontend quality gates | Lint, unit, integration, coverage, type, build, and browser-test results |
+
+The live path fetches company and market data on demand. The deterministic path
+uses the same application contracts with local fixtures, making the core system
+reviewable without spending model or search credits.
+
 ## Project status
 
 | Capability | Status |
@@ -59,8 +73,8 @@ and six connected questions:
 | Guest two/day and authenticated ten/day Agent quotas | Available |
 | Google sign-in, rotating sessions, and persistent watchlists | Available |
 | Citation-backed company research chat with durable citations | Available |
-| DeepSeek-directed conversation, clarification, and research routing | Available |
-| DeepSeek-directed Tavily web discovery | Available |
+| Configurable GPT-5.6 conversation, clarification, and research routing | Available |
+| Agent-directed Tavily or OpenAI web discovery | Available |
 | Agent-selected market-analysis playbooks with Yahoo evidence | Available |
 | Manual filing upload and editable valuation workbench | Planned |
 
@@ -130,14 +144,14 @@ and guest conversations are retained for seven days. This message
 quota is independent from the Agent job quota; filing-index preparation costs
 zero units.
 
-DeepSeek first reads the current message, company context, and conversation
+The configured reasoning model first reads the current message, company context, and conversation
 history. It can answer conversational messages directly, ask one focused
 clarification question, or resolve a follow-up into a standalone research
 question. Only the research route enters filing retrieval, Tavily discovery,
 and citation-source binding. Deterministic controls remain responsible for
 quota, source policy, timeouts, persistence, and replay.
 
-With `CHAT_WEB_SEARCH_PROVIDER=tavily`, DeepSeek decides whether external
+With `CHAT_WEB_SEARCH_PROVIDER=tavily`, the model decides whether external
 evidence is material and generates up to three focused queries. Tavily discovers
 candidate sources; the API independently validates, fetches, archives, and cites
 approved pages. The default `basic` search depth uses one Tavily credit per query.
@@ -149,6 +163,69 @@ SEPA, and direct Yahoo-data questions, the router selects up to three specialize
 market-analysis playbooks. The API fetches skill-scoped data through `yfinance`,
 computes deterministic market metrics where practical, and supplies those results
 as citable evidence before the model writes the investor-facing explanation.
+
+## GPT-5.6 integration
+
+EquityLens uses GPT-5.6 as a configurable research-reasoning and structured-
+generation layer. OpenAI's current model guide states that the `gpt-5.6` alias
+routes to `gpt-5.6-sol`, the flagship GPT-5.6 model. The Responses API is used
+for agentic routing and answer planning, while LangChain's `ChatOpenAI` adapter
+handles schema-constrained generation and tool-bound research stages.
+
+| Workflow | GPT-5.6 responsibility | Deterministic application responsibility |
+|---|---|---|
+| Company intelligence | Draft business analysis, verify claims, and localize verified findings | Fetch SEC filings, preserve excerpts, validate schemas, and publish snapshots |
+| Supply-chain graph | Plan source use, interpret entities, extract relationships, and assess claims | Enforce source allowlists, evidence thresholds, graph limits, and artifact storage |
+| Research chat | Classify intent, resolve follow-ups, choose research tools, and plan the final answer | Apply quotas, retrieve filing chunks, bind citations, persist streams, and recover partial answers |
+| Market analysis | Select up to three specialized playbooks and explain computed evidence | Fetch Yahoo payloads and calculate valuation, liquidity, earnings, options, and financial metrics |
+
+Use this judging profile to run every reasoning stage through GPT-5.6:
+
+```dotenv
+OPENAI_API_KEY=replace-with-openai-key
+OPENAI_BASE_URL=
+LLM_API_KEY=
+LLM_BASE_URL=
+LLM_STRUCTURED_OUTPUT_METHOD=json_schema
+RESEARCH_MODEL=gpt-5.6
+CHAT_MODEL_OVERRIDE=gpt-5.6
+SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE=gpt-5.6
+CHAT_WEB_SEARCH_PROVIDER=openai
+```
+
+Model selection remains explicit through environment variables. The checked-in
+templates use `gpt-5-mini` as a cost-aware local fallback, while the GPT-5.6
+profile above activates the hackathon configuration without changing provider
+contracts or business logic.
+
+Implementation entry points:
+
+- [`backend/app/core/ai_clients.py`](backend/app/core/ai_clients.py) creates the
+  OpenAI-compatible chat, embedding, and Responses clients.
+- [`backend/app/research/openai_generator.py`](backend/app/research/openai_generator.py)
+  runs structured company-intelligence generation.
+- [`backend/app/supply_chain/openai_agent.py`](backend/app/supply_chain/openai_agent.py)
+  drives graph research with bounded tools and schemas.
+- [`backend/app/chat/openai_agent.py`](backend/app/chat/openai_agent.py) handles
+  conversation routing and answer planning.
+- [`backend/app/chat/citation_binding.py`](backend/app/chat/citation_binding.py)
+  keeps final claims attached to durable evidence.
+
+Official reference: [OpenAI, GPT-5.6 model guide](https://developers.openai.com/api/docs/guides/latest-model.md).
+
+## Key technical decisions
+
+| Decision | Why it matters | Decision record |
+|---|---|---|
+| AI proposes; deterministic services publish | Model judgment remains useful while source, quota, schema, and persistence guarantees stay testable | [Platform design](docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md) |
+| Every important claim carries a durable excerpt | Investors and judges can inspect the evidence behind an answer | [Research chat design](docs/superpowers/specs/2026-07-14-company-research-chat-design.md) |
+| Graph edges separate verified relationships from potential leads | Sparse corporate disclosures can be represented without overstating confidence | [Agentic graph design](docs/superpowers/specs/2026-07-14-agentic-supply-chain-graph-design.md) |
+| Market analysis uses bounded specialist playbooks | Tool selection stays interpretable and computed metrics remain reproducible | [`market_analysis_skills.py`](backend/app/chat/market_analysis_skills.py) |
+| Deployment providers sit behind contracts | Docker and Vercel share domain logic while using different storage and job backends | [Deployment guide](docs/deployment.md) |
+
+The detailed specs and plans under [`docs/superpowers`](docs/superpowers) show
+how product questions became implementation tasks, validation gates, and shipped
+behavior.
 
 ## Repository layout
 
@@ -221,7 +298,22 @@ corepack pnpm dev
 Browser language detection selects `/en-US` or `/zh-CN`. The language selector
 stores the user's choice in a cookie.
 
-The deterministic local journey uses SQLite and synchronous fake providers:
+## Sample data and reproducible evaluation
+
+Live mode retrieves companies, filings, and market data on demand. Reproducible
+evaluation uses checked-in AAPL fixtures and synchronous providers, so reviewers
+can exercise the real application routes and persistence model without external
+API calls.
+
+| Fixture group | Included evidence | Location |
+|---|---|---|
+| SEC | Company ticker universe, submissions, and Company Facts | [`backend/tests/fixtures/sec`](backend/tests/fixtures/sec) |
+| Yahoo | Company search and quote payloads | [`backend/tests/fixtures/yahoo`](backend/tests/fixtures/yahoo) |
+| Company research | Draft intelligence and verification verdicts | [`backend/tests/fixtures/research`](backend/tests/fixtures/research) |
+| Supply chain | Official-source records, draft graph, and verification results | [`backend/tests/fixtures/supply_chain`](backend/tests/fixtures/supply_chain) |
+| Research chat | Filing evidence, expected answers, and RAG evaluation cases | [`backend/tests/fixtures/chat`](backend/tests/fixtures/chat) |
+
+Run the credential-free integration journey:
 
 ```bash
 cd backend
@@ -233,6 +325,20 @@ uv run pytest tests/integration/test_company_research_journey.py \
 This test mode exercises the real routes, database models, quotas, pipeline,
 citations, chat retrieval, Agent web decisions, streaming persistence, and
 serializers with deterministic provider responses.
+
+For a focused market-analysis check:
+
+```bash
+cd backend
+uv run pytest \
+  tests/chat/test_market_analysis_skills.py \
+  tests/chat/test_yahoo_market_analysis.py -q
+```
+
+For the live product tour, start the full stack, open the dashboard, search
+`AAPL` or `SNDK`, and use the company page to run analysis, inspect the graph,
+and ask a research question. Live Agent stages require the configured OpenAI,
+search, database, and storage credentials.
 
 Research Agent deployment variables:
 
@@ -339,6 +445,28 @@ cd ..
 git diff --check
 ```
 
+## How Codex accelerated development
+
+Codex served as a repository-aware engineering collaborator across design,
+implementation, validation, and delivery.
+
+| Stage | Codex contribution | Developer-owned decision |
+|---|---|---|
+| Architecture discovery | Traced FastAPI dependencies, background jobs, Next.js BFF routes, persistence, and provider boundaries | Product scope and acceptable infrastructure complexity |
+| Planning | Converted feature goals into scoped implementation plans, tests, and completion gates | Evidence policy, quota model, and release priorities |
+| Implementation | Applied focused backend, frontend, test, and documentation patches across the monorepo | Final behavior, UX direction, and business rules |
+| Debugging | Inspected processes, ports, logs, CSS output, browser DOM, and provider failures | Risk tolerance and operational tradeoffs |
+| Verification | Ran pytest, Ruff, Vitest, TypeScript, production builds, health checks, and responsive browser checks | Acceptance criteria and release approval |
+| Delivery | Reviewed staged scope, preserved local-only artifacts, and prepared intentional Git commits | Commit boundaries and publication timing |
+
+This workflow shortened the loop from observation to verified change. Codex
+handled repetitive repository navigation and cross-stack validation, while the
+developer retained ownership of source trust, investment-domain semantics,
+model/provider selection, and final product judgment.
+
+The design and execution records under [`docs/superpowers`](docs/superpowers)
+preserve key assumptions and implementation sequences for later review.
+
 ## Data-source boundaries
 
 - SEC EDGAR supplies company identity, 10-K source documents, and XBRL Company
@@ -350,6 +478,16 @@ git diff --check
   and [Yahoo Developer Network Guidelines](https://legal.yahoo.com/us/en/yahoo/guidelines/ydn/index.html).
 - Company conclusions come from automated model output and retain citations to
   the underlying SEC filing excerpt.
+
+## Engineering challenges and lessons
+
+| Challenge | Engineering response | Lesson |
+|---|---|---|
+| Fluent answers can outrun their evidence | Citation binding, durable excerpts, answer recovery, and publication-time validation | Trust depends on the retrieval and validation system surrounding the model |
+| Financial concepts vary across filings and providers | SEC-first definitions, provider adapters, deterministic calculations, and explicit provenance | Reviewable calculations create a stronger foundation for model explanations |
+| Corporate relationships are sparse and ambiguously described | Verified and potential edge classes, confidence thresholds, and official-source artifacts | Uncertainty belongs in the product data model and interface |
+| Long-running research crosses HTTP, queues, storage, and model providers | Durable job records, idempotent stages, retry eligibility, and replayable streams | Agent workflows require lifecycle engineering as much as prompt engineering |
+| Docker and serverless deployments use different infrastructure | Provider contracts isolate jobs, storage, and document parsing from domain logic | Deployment portability starts with explicit boundaries |
 
 ## Roadmap
 
