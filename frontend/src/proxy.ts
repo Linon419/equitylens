@@ -23,7 +23,8 @@ export async function proxy(request: NextRequest) {
     acceptLanguage: request.headers.get("accept-language"),
   });
   const url = request.nextUrl.clone();
-  url.pathname = pathname === "/" ? `/${locale}` : `/${locale}${pathname}`;
+  url.pathname =
+    pathname === "/" ? `/${locale}/dashboard` : `/${locale}${pathname}`;
 
   const response = NextResponse.redirect(url);
   response.cookies.set(localeCookieName, locale, {

@@ -13,7 +13,9 @@ describe("locale proxy", () => {
     const response = await proxy(request);
 
     expect(response?.status).toBe(307);
-    expect(response?.headers.get("location")).toBe("https://example.com/zh-CN");
+    expect(response?.headers.get("location")).toBe(
+      "https://example.com/zh-CN/dashboard",
+    );
   });
 
   it("keeps a localized route in place", async () => {
