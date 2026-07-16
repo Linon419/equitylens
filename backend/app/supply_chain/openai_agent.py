@@ -714,6 +714,8 @@ def _structured_repair_instruction(
         "The previous structured output failed validation.",
         "Return the complete JSON value again and satisfy every schema constraint.",
     ]
+    if isinstance(error, ValueError):
+        lines.append(f"Validation issue: {str(error)[:240]}")
     if not isinstance(error, ValidationError):
         return " ".join(lines)
     lines.append("Correct these validation issues:")

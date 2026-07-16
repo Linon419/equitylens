@@ -450,6 +450,7 @@ async def test_invalid_localization_membership_gets_one_repair_attempt(
     ]
     assert len(calls) == 2
     assert "failed validation" in calls[1][2][-1].content.casefold()
+    assert "LOCALIZATION_EDGE_KEYS_CHANGED" in calls[1][2][-1].content
 
 
 @pytest.mark.anyio
