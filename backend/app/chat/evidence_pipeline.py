@@ -1,3 +1,4 @@
+import asyncio
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -5,6 +6,10 @@ from datetime import UTC, datetime, time
 from urllib.parse import urlsplit
 from uuid import UUID
 
+from loguru import logger
+
+from app.chat.contracts import MarketAnalysisProvider
+from app.chat.market_analysis_skills import MarketAnalysisSkill
 from app.chat.retrieval import HybridFilingRetriever, RewriteRequest
 from app.chat.schemas import (
     AnswerEvidencePack,
@@ -38,12 +43,14 @@ class CompanyResearchEvidencePipeline:
         repository: SqlStructuredContextRepository,
         retriever: HybridFilingRetriever,
         web_search: BoundedWebSearchService,
+        market_analysis: MarketAnalysisProvider | None = None,
         *,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
         self._retriever = retriever
         self._web_search = web_search
+        self._market_analysis = market_analysis
         self._now = now or (lambda: datetime.now(UTC))
 
     async def prepare_internal(
@@ -56,6 +63,7 @@ class CompanyResearchEvidencePipeline:
         history: list[str],
         summary: str | None,
         locale: str,
+        analysis_skills: list[MarketAnalysisSkill] | None = None,
     ) -> InternalEvidence:
         if company.id is None:
             raise ValueError("persisted company required")
@@ -67,6 +75,27 @@ class CompanyResearchEvidencePipeline:
             )
             for candidate in structured_context.evidence
         ]
+        market_gaps: list[str] = []
+        selected_skills = analysis_skills or []
+        if selected_skills and self._market_analysis is not None:
+            try:
+                async with asyncio.timeout(20):
+                    market_records = await self._market_analysis.collect(
+                        company=company,
+                        question=question,
+                        skills=selected_skills,
+                    )
+                records.extend(market_records)
+                if len(market_records) < len(selected_skills):
+                    market_gaps.append("MARKET_ANALYSIS_DATA_PARTIAL")
+            except Exception:
+                logger.warning(
+                    "Market-analysis evidence unavailable for {}",
+                    company.symbol,
+                )
+                market_gaps.append("MARKET_ANALYSIS_DATA_UNAVAILABLE")
+        elif selected_skills:
+            market_gaps.append("MARKET_ANALYSIS_DATA_UNAVAILABLE")
         filing = self._repository.latest_filing(company.id)
         if filing is not None and self._repository.filing_is_indexed(filing.id):
             retrieval = await self._retriever.retrieve(
@@ -91,6 +120,7 @@ class CompanyResearchEvidencePipeline:
             for gap in structured_context.gaps
             if _gap_is_relevant(gap.resource, question)
         ]
+        gaps.extend(market_gaps)
         if _filing_question(question) and filing is None:
             gaps.append("FILING_TEXT_MISSING")
         elif (

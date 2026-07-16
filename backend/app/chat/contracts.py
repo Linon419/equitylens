@@ -6,9 +6,11 @@ from uuid import UUID
 if TYPE_CHECKING:
     from app.chat.artifacts import StoredWebArtifact, WebArtifactPage
     from app.chat.intents import AgentRouteDecision, IntentRoutingRequest
+    from app.chat.market_analysis_skills import MarketAnalysisSkill
     from app.chat.prompts import AnswerPlanningRequest
     from app.chat.retrieval import ChunkCandidate, QueryRewrite, RewriteRequest
     from app.chat.schemas import (
+        ApprovedEvidenceRecord,
         ContextSelection,
         ResearchAnswerPlan,
         StructuredContextPack,
@@ -76,6 +78,16 @@ class WebSearchProvider(Protocol):
 
 class WebPageFetcher(Protocol):
     async def fetch(self, url: str) -> "FetchedWebPage": ...
+
+
+class MarketAnalysisProvider(Protocol):
+    async def collect(
+        self,
+        *,
+        company: "Company",
+        question: str,
+        skills: list["MarketAnalysisSkill"],
+    ) -> list["ApprovedEvidenceRecord"]: ...
 
 
 class WebArtifactWriter(Protocol):

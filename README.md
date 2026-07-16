@@ -61,7 +61,8 @@ and six connected questions:
 | Citation-backed company research chat with durable citations | Available |
 | DeepSeek-directed conversation, clarification, and research routing | Available |
 | DeepSeek-directed Tavily web discovery | Available |
-| Manual filing upload, DCF, and peer valuation | Planned |
+| Agent-selected market-analysis playbooks with Yahoo evidence | Available |
+| Manual filing upload and editable valuation workbench | Planned |
 
 The detailed product design lives in
 [`docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md`](docs/superpowers/specs/2026-07-13-us-equity-research-platform-design.md).
@@ -133,7 +134,7 @@ DeepSeek first reads the current message, company context, and conversation
 history. It can answer conversational messages directly, ask one focused
 clarification question, or resolve a follow-up into a standalone research
 question. Only the research route enters filing retrieval, Tavily discovery,
-and strict citation validation. Deterministic controls remain responsible for
+and citation-source binding. Deterministic controls remain responsible for
 quota, source policy, timeouts, persistence, and replay.
 
 With `CHAT_WEB_SEARCH_PROVIDER=tavily`, DeepSeek decides whether external
@@ -142,6 +143,12 @@ candidate sources; the API independently validates, fetches, archives, and cites
 approved pages. The default `basic` search depth uses one Tavily credit per query.
 With a blank `TAVILY_API_KEY`, Tavily's rate-limited keyless mode keeps local
 search available without an additional paid account.
+
+For valuation, earnings, estimates, ETF, options, correlation, liquidity, SaaS,
+SEPA, and direct Yahoo-data questions, the router selects up to three specialized
+market-analysis playbooks. The API fetches skill-scoped data through `yfinance`,
+computes deterministic market metrics where practical, and supplies those results
+as citable evidence before the model writes the investor-facing explanation.
 
 ## Repository layout
 
@@ -348,7 +355,7 @@ git diff --check
 
 - Manual filing upload and user-owned source libraries
 - Saved research notes and exports
-- DCF, peer multiples, and valuation scenario analysis
+- Editable DCF, peer-multiple, and valuation-scenario workbench
 - Licensed production market-data adapter
 - Additional filing types and refresh policies
 
@@ -377,6 +384,11 @@ EquityLens builds on the original FastAPI, LangChain, PostgreSQL / pgvector,
 ingestion, and infrastructure foundation from
 [mazzasaverio/fastapi-langchain-rag](https://github.com/mazzasaverio/fastapi-langchain-rag).
 Thank you to Saverio Mazza and the project's contributors for sharing that work.
+
+The research Agent's market-analysis playbooks are adapted from the MIT-licensed
+[himself65/finance-skills](https://github.com/himself65/finance-skills), including
+its valuation, earnings, estimates, ETF, options, SEPA, correlation, liquidity,
+and `yfinance` workflows. Thank you to Alex Yang and the project's contributors.
 
 This repository evolves the foundation into a product-specific US equity
 research platform with a localized React interface, reproducible engineering

@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
+from app.chat.citation_binding import bind_answer_citations
 from app.chat.schemas import (
     AnswerEvidencePack,
     AnswerPoint,
     ApprovedEvidenceRecord,
     ResearchAnswerPlan,
 )
-from app.chat.validator import validate_answer_plan
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "chat" / "rag-evaluation.json"
 
@@ -40,15 +40,15 @@ def test_rag_evaluation_case(case: dict) -> None:
     )
     plan = build_plan(case, selected, coverage)
 
-    validated = validate_answer_plan(plan, pack, locale=case["locale"])
+    bound = bind_answer_citations(plan, pack)
 
     assert pack.company_id == 1 and pack.symbol == "AAPL"
-    assert validated.plan.evidence_coverage in case["expected_coverage"]
-    assert validated.plan.web_search_used is case["expected_web_search"]
+    assert bound.plan.evidence_coverage in case["expected_coverage"]
+    assert bound.plan.web_search_used is case["expected_web_search"]
     assert {record.candidate.source_kind for record in selected} == set(
         case["required_source_kinds"]
     )
-    assert [citation.evidence_id for citation in validated.citations] == case[
+    assert [citation.evidence_id for citation in bound.citations] == case[
         "evidence_ids"
     ]
     assert_exact_support(case, selected, plan)
@@ -116,8 +116,7 @@ def assert_exact_support(
         for point in [plan.direct_conclusion, *plan.key_evidence]
     )
     assert all(
-        fact.casefold() in answer_text.casefold()
-        for fact in case["required_facts"]
+        fact.casefold() in answer_text.casefold() for fact in case["required_facts"]
     )
 
 

@@ -27,9 +27,9 @@ export default async function Dashboard({
           <span className="research-dashboard__folio">Company index / 001</span>
           <CompanySearch copy={copy.search} locale={lang} />
           <div className="research-dashboard__search-meta" aria-hidden="true">
-            <span>10-K</span>
-            <span>VALUE CHAIN</span>
-            <span>VALUATION</span>
+            <span><small>01</small>10-K / 10-Q</span>
+            <span><small>02</small>VALUE CHAIN</span>
+            <span><small>03</small>MARKET + VALUE</span>
           </div>
         </div>
       </section>

@@ -49,6 +49,7 @@ def isolate_local_model_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
         "RESEARCH_MODEL",
         "SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS",
         "CHAT_EMBEDDING_MODEL",
+        "CHAT_PROMPT_VERSION",
         "CHAT_WEB_SEARCH_PROVIDER",
         "CHAT_TAVILY_SEARCH_DEPTH",
         "CHAT_TAVILY_MAX_RESULTS",
@@ -213,7 +214,7 @@ def test_chat_defaults_follow_approved_contract() -> None:
     assert value.CHAT_TAVILY_MAX_RESULTS == 5
     assert value.CHAT_EMBEDDING_MODEL == "text-embedding-3-small"
     assert value.CHAT_EMBEDDING_DIMENSIONS == 1_536
-    assert value.CHAT_PROMPT_VERSION == "company-chat.2026-07-14"
+    assert value.CHAT_PROMPT_VERSION == "company-chat.2026-07-15-market-analysis"
     assert value.CHAT_ANSWER_SCHEMA_VERSION == "company-chat.v1"
     assert value.CHAT_INDEX_SCHEMA_VERSION == "filing-chunk.v1"
 

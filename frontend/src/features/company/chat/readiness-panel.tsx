@@ -83,13 +83,15 @@ export function ReadinessPanel({
     [copy.readiness.resources.graph, readiness.supply_chain_graph],
     [copy.readiness.resources.web, readiness.web_recency],
   ];
+  const readyCount = rows.filter(([, resource]) => resource.state === "ready").length;
 
   return (
-    <section className="chat-readiness" aria-label={copy.readiness.title}>
-      <header>
-        <h3>{copy.readiness.title}</h3>
-        <span>{rows.filter(([, resource]) => resource.state === "ready").length}/5</span>
-      </header>
+    <details className="chat-readiness" aria-label={copy.readiness.title}>
+      <summary>
+        <span>{copy.readiness.title}</span>
+        <strong>{readyCount}/5</strong>
+      </summary>
+      <div className="chat-readiness__body">
       <ul>
         {rows.map(([label, resource]) => (
           <li key={label}>
@@ -116,7 +118,8 @@ export function ReadinessPanel({
         ))}
       </ul>
       <p>{copy.readiness.zeroQuota}</p>
-    </section>
+      </div>
+    </details>
   );
 }
 

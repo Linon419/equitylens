@@ -52,7 +52,9 @@ const dictionaries = {
         coverage: "NYSE · NASDAQ · SEC EDGAR",
         search: {
           label: "Search companies",
-          placeholder: "Ticker or company name",
+          placeholder: "SNDK",
+          hint: "Search by ticker, legal company name, or SEC CIK.",
+          submit: "Search",
           loading: "Searching the US market…",
           empty: "No matching companies found.",
           error: "Company search is temporarily unavailable.",
@@ -172,7 +174,9 @@ const dictionaries = {
         coverage: "纽交所 · 纳斯达克 · SEC EDGAR",
         search: {
           label: "搜索公司",
-          placeholder: "输入股票代码或公司名称",
+          placeholder: "SNDK",
+          hint: "支持股票代码、公司法定名称或 SEC CIK。",
+          submit: "搜索",
           loading: "正在搜索美股公司…",
           empty: "没有找到匹配的公司。",
           error: "公司搜索暂时不可用。",

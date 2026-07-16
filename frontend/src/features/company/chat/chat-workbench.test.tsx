@@ -62,10 +62,19 @@ describe("ChatWorkbench", () => {
     expect(screen.getByRole("textbox")).toBeDisabled();
 
     finish();
-    expect(await screen.findByRole("link", { name: /Apple 2025 Form 10-K/ })).toHaveAttribute(
+    const sourceLink = await screen.findByRole("link", {
+      name: /Apple 2025 Form 10-K/,
+    });
+    expect(sourceLink).toHaveAttribute(
       "href",
       "https://www.sec.gov/Archives/aapl-10-k.htm",
     );
+    expect(screen.getByText("Evidence coverage: Complete source coverage")).toBeVisible();
+    const sourcesSummary = screen.getByText(companyPageCopy.en.chat.sources);
+    expect(sourcesSummary.closest("details")).not.toBeNull();
+    expect(screen.getByText("Primary source")).not.toBeVisible();
+    await user.click(sourcesSummary);
+    expect(screen.getByText("Primary source")).toBeVisible();
     await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
 
     await user.click(screen.getByRole("button", { name: companyPageCopy.en.chat.close }));
@@ -240,6 +249,56 @@ describe("ChatWorkbench", () => {
     expect(screen.queryByRole("button", { name: companyPageCopy.en.chat.loadMore })).toBeNull();
   });
 
+  it("keeps the active question beside its live answer after historical messages", async () => {
+    const user = userEvent.setup();
+    let finish!: () => void;
+    const completed = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      chatFetch({
+        messagePages: {
+          initial: {
+            items: [
+              historicalMessage(
+                "55555555-5555-4555-8555-555555555555",
+                "Existing research question",
+                "2099-07-15T00:00:00Z",
+              ),
+            ],
+            next_cursor: null,
+          },
+          next: { items: [], next_cursor: null },
+        },
+        stream: answerStream(completed),
+      }),
+    );
+
+    render(
+      <ChatWorkbench
+        authenticated
+        copy={companyPageCopy.en.chat}
+        locale="en-US"
+        onClose={vi.fn()}
+        open
+        symbol="AAPL"
+      />,
+    );
+
+    expect(await screen.findByText("Existing research question")).toBeVisible();
+    await user.type(screen.getByRole("textbox"), "What changed most recently?");
+    await user.click(screen.getByRole("button", { name: companyPageCopy.en.chat.send }));
+    expect(await screen.findByText(companyPageCopy.en.chat.stages.retrieval)).toBeVisible();
+
+    const messages = screen.getAllByRole("article").map((item) => item.textContent);
+    expect(messages[0]).toContain("Existing research question");
+    expect(messages[1]).toContain("What changed most recently?");
+    expect(messages[2]).toContain(companyPageCopy.en.chat.stages.retrieval);
+
+    finish();
+    await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
+  });
+
   it("keeps context labels outside the validated message payload", async () => {
     const user = userEvent.setup();
     let requestBody = "";
@@ -364,7 +423,11 @@ function chatFetch({
   };
 }
 
-function historicalMessage(id: string, content: string) {
+function historicalMessage(
+  id: string,
+  content: string,
+  createdAt?: string,
+) {
   return {
     id,
     conversation_id: UUIDS.conversation,
@@ -377,9 +440,9 @@ function historicalMessage(id: string, content: string) {
     evidence_coverage: null,
     error_code: null,
     attempt_count: 0,
-    created_at: id === UUIDS.user
+    created_at: createdAt ?? (id === UUIDS.user
       ? "2026-07-15T00:00:00Z"
-      : "2026-07-15T00:01:00Z",
+      : "2026-07-15T00:01:00Z"),
     completed_at: "2026-07-15T00:01:00Z",
     citations: [],
   };

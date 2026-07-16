@@ -3,7 +3,6 @@
 import {
   Background,
   Controls,
-  MiniMap,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -228,9 +227,8 @@ export function SupplyChainGraph({
                   nodeTypes={nodeTypes}
                   onEdgeClick={selectEdge}
                   onNodeClick={selectNode}
-                >
+                  >
                   <Background gap={24} size={1} />
-                  <MiniMap pannable zoomable />
                   <Controls showInteractive={false} />
                   <Panel position="top-right"><GraphViewportAction copy={copy} /></Panel>
                 </ReactFlow>

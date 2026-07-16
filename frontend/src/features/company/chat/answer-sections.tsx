@@ -37,11 +37,11 @@ export function AnswerSections({
     <div className="chat-answer">
       {coverage ? (
         <p className={`chat-answer__coverage chat-answer__coverage--${coverage}`}>
-          {copy.evidenceCoverage}: {coverage}
+          {copy.evidenceCoverage}: {copy.coverage[coverage]}
         </p>
       ) : null}
       {entries.map(([key, label]) =>
-        resolved[key] ? (
+        resolved[key] && (key !== "sources" || citations.length === 0) ? (
           <section className={`chat-answer__section chat-answer__section--${key}`} key={key}>
             <h3>{label}</h3>
             <PlainResearchText text={resolved[key]} />
@@ -49,8 +49,11 @@ export function AnswerSections({
         ) : null,
       )}
       {citations.length > 0 ? (
-        <section className="chat-citations" aria-label={copy.sources}>
-          <h3>{copy.sources}</h3>
+        <details className="chat-citations" aria-label={copy.sources}>
+          <summary>
+            <span>{copy.sources}</span>
+            <strong>{citations.length}</strong>
+          </summary>
           <ol>
             {citations.map((citation) => (
               <li key={citation.id}>
@@ -62,13 +65,19 @@ export function AnswerSections({
                   <span>[{citation.ordinal + 1}]</span> {citation.title} ↗
                 </a>
                 <dl>
-                  <div><dt>{copy.sourceTier}</dt><dd>{citation.source_tier}</dd></div>
+                  <div>
+                    <dt>{copy.sourceTier}</dt>
+                    <dd>{copy.sourceTiers[citation.source_tier]}</dd>
+                  </div>
                   {citation.published_at ? (
                     <div><dt>{copy.published}</dt><dd>{date(citation.published_at)}</dd></div>
                   ) : null}
                   <div><dt>{copy.retrieved}</dt><dd>{date(citation.retrieved_at)}</dd></div>
                   {citation.source_anchor ? (
-                    <div><dt>{copy.sourceLocation}</dt><dd>{citation.source_anchor}</dd></div>
+                    <div>
+                      <dt>{copy.sourceLocation}</dt>
+                      <dd>{friendlyAnchor(copy.sourceAnchors, citation.source_anchor)}</dd>
+                    </div>
                   ) : null}
                 </dl>
                 <blockquote>
@@ -78,7 +87,7 @@ export function AnswerSections({
               </li>
             ))}
           </ol>
-        </section>
+        </details>
       ) : null}
     </div>
   );
@@ -121,4 +130,11 @@ function parseStoredAnswer(content: string): ChatSections {
 
 function date(value: string): string {
   return value.slice(0, 10);
+}
+
+function friendlyAnchor(
+  labels: Record<string, string>,
+  value: string,
+): string {
+  return labels[value] ?? value.replaceAll("_", " ");
 }

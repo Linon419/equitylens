@@ -94,6 +94,13 @@ export function ChatWorkbench({
   const quotaEmpty = chat.quota?.remaining === 0;
   const composerDisabled =
     chat.loading || chat.streaming || !chat.selectedConversation || quotaEmpty;
+  const liveUserId = chat.live?.userMessageId;
+  const liveUser = liveUserId
+    ? chat.messages.find((message) => message.id === liveUserId) ?? null
+    : null;
+  const threadMessages = liveUserId
+    ? chat.messages.filter((message) => message.id !== liveUserId)
+    : chat.messages;
 
   function submit() {
     const question = draft.trim();
@@ -160,16 +167,18 @@ export function ChatWorkbench({
         />
       ) : null}
 
+      {chat.readiness ? (
+        <ReadinessPanel
+          copy={copy}
+          onNavigate={(action) => onReadinessNavigate?.(action)}
+          onRefresh={() => void chat.refreshReadiness()}
+          readiness={chat.readiness}
+          symbol={symbol}
+        />
+      ) : null}
+
       <div className="chat-workbench__messages">
-        {chat.readiness ? (
-          <ReadinessPanel
-            copy={copy}
-            onNavigate={(action) => onReadinessNavigate?.(action)}
-            onRefresh={() => void chat.refreshReadiness()}
-            readiness={chat.readiness}
-            symbol={symbol}
-          />
-        ) : null}
+        <div className="chat-thread" role="log">
         {chat.loading && chat.messages.length === 0 ? (
           <p className="chat-workbench__empty">{copy.sending}</p>
         ) : null}
@@ -181,7 +190,7 @@ export function ChatWorkbench({
         {chat.messages.length === 0 && !chat.loading ? (
           <EmptyPrompt copy={copy} onSelect={setDraft} />
         ) : null}
-        {chat.messages.map((message) => (
+        {threadMessages.map((message) => (
           <MessageBubble
             copy={copy}
             key={message.id}
@@ -189,8 +198,13 @@ export function ChatWorkbench({
             onRetry={() => void chat.retry(message.id)}
           />
         ))}
+        {liveUser ? (
+          <MessageBubble copy={copy} message={liveUser} onRetry={() => undefined} />
+        ) : null}
         {chat.live ? (
           <article className="chat-message chat-message--assistant chat-message--live">
+            <MessageIdentity label={copy.agent} role="assistant" />
+            <div className="chat-message__body">
             {chat.live.stage ? (
               <p aria-live="polite" className="chat-message__stage">
                 {copy.stages[chat.live.stage]}
@@ -203,6 +217,7 @@ export function ChatWorkbench({
               copy={copy}
               sections={chat.live.sections}
             />
+            </div>
           </article>
         ) : null}
         {chat.error && !chat.error.retryable ? (
@@ -211,6 +226,7 @@ export function ChatWorkbench({
           </p>
         ) : null}
         <div ref={messageEnd} />
+        </div>
       </div>
 
       <footer className="chat-composer">
@@ -220,14 +236,15 @@ export function ChatWorkbench({
           onClear={chat.clearContexts}
           onRemove={chat.removeContext}
         />
-        <p className="chat-composer__web"><span>WEB / AUTO</span>{copy.webAutomatic}</p>
         <form
           onSubmit={(event) => {
             event.preventDefault();
             submit();
           }}
         >
-          <label htmlFor="company-chat-question">{copy.question}</label>
+          <label className="chat-composer__label" htmlFor="company-chat-question">
+            {copy.question}
+          </label>
           <textarea
             aria-label={copy.question}
             disabled={composerDisabled}
@@ -241,12 +258,16 @@ export function ChatWorkbench({
           <button
             aria-label={copy.send}
             disabled={composerDisabled || !draft.trim()}
+            title={chat.streaming ? copy.sending : copy.send}
             type="submit"
           >
-            {chat.streaming ? copy.sending : copy.send} <span>↗</span>
+            <span aria-hidden="true">↑</span>
           </button>
         </form>
-        <QuotaLine copy={copy} quota={chat.quota} />
+        <div className="chat-composer__meta">
+          <span className="chat-composer__web" title={copy.webAutomatic}>WEB · AUTO</span>
+          <QuotaLine copy={copy} quota={chat.quota} />
+        </div>
         <p className="chat-composer__disclaimer">{copy.disclaimer}</p>
       </footer>
     </aside>
@@ -264,13 +285,21 @@ function MessageBubble({
   onRetry: () => void;
 }) {
   if (message.role === "user") {
-    return <article className="chat-message chat-message--user"><p>{message.content}</p></article>;
+    return (
+      <article className="chat-message chat-message--user">
+        <MessageIdentity label={copy.you} role="user" />
+        <div className="chat-message__body"><p>{message.content}</p></div>
+      </article>
+    );
   }
   if (message.state === "failed") {
     return (
       <article className="chat-message chat-message--assistant chat-message--failed">
-        <p>{errorCopy(message.error_code, copy)}</p>
-        <button type="button" onClick={onRetry}>{copy.retry}</button>
+        <MessageIdentity label={copy.agent} role="assistant" />
+        <div className="chat-message__body">
+          <p>{errorCopy(message.error_code, copy)}</p>
+          <button type="button" onClick={onRetry}>{copy.retry}</button>
+        </div>
       </article>
     );
   }
@@ -280,19 +309,38 @@ function MessageBubble({
   ) {
     return (
       <article className="chat-message chat-message--assistant chat-message--plain">
-        <p>{message.content}</p>
+        <MessageIdentity label={copy.agent} role="assistant" />
+        <div className="chat-message__body"><p>{message.content}</p></div>
       </article>
     );
   }
   return (
     <article className="chat-message chat-message--assistant">
-      <AnswerSections
-        citations={message.citations}
-        content={message.content}
-        copy={copy}
-        coverage={message.evidence_coverage}
-      />
+      <MessageIdentity label={copy.agent} role="assistant" />
+      <div className="chat-message__body">
+        <AnswerSections
+          citations={message.citations}
+          content={message.content}
+          copy={copy}
+          coverage={message.evidence_coverage}
+        />
+      </div>
     </article>
+  );
+}
+
+function MessageIdentity({
+  label,
+  role,
+}: {
+  label: string;
+  role: "assistant" | "user";
+}) {
+  return (
+    <header className="chat-message__identity">
+      <span aria-hidden="true">{role === "assistant" ? "E" : "Y"}</span>
+      <strong>{label}</strong>
+    </header>
   );
 }
 

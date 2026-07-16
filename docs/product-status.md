@@ -30,9 +30,9 @@ Release stage: Phase 2 beta
 12. Investors can open a company-scoped research panel, prepare the latest 10-K
     index at zero quota cost, and ask questions in English or Chinese.
 13. DeepSeek routes conversation, clarification, and research turns, resolves
-    follow-ups from history, and sends research questions through filing
-    full-text and vector retrieval before deciding whether Tavily evidence is
-    useful.
+    follow-ups from history, selects relevant market-analysis playbooks, and
+    sends research questions through filing full-text, vector retrieval, Yahoo
+    analysis, and Agent-directed Tavily discovery.
 14. Answers stream incrementally and persist with filing, market, financial,
     graph, and web citations that retain exact supporting excerpts.
 15. Guests receive two chat messages per UTC day in an independent quota pool;
@@ -51,7 +51,7 @@ Release stage: Phase 2 beta
 | Intelligence | Structured generation, verification, localization invariants, citations |
 | Supply-chain graph | AI source planning/extraction/verification/localization plus deterministic publication gates |
 | Graph evidence | Private S3/MinIO or Vercel Blob artifacts with public capped excerpts |
-| Research chat | Available: model-directed intent routing, durable conversations, hybrid filing retrieval, Agent-selected web evidence, SSE, and citation validation |
+| Research chat | Available: model-directed routing, 11 market-analysis playbooks, Yahoo-derived evidence, hybrid filing retrieval, Agent-selected web evidence, SSE, and citation-source binding |
 | Jobs | Database state machine with Vercel Workflow and Redis/RQ adapters |
 | Identity | Signed guest principal, rotating Google sessions, same-origin BFF |
 | Quality | Backend suite, 170 frontend tests, production build, and 19 Playwright journeys |
@@ -81,7 +81,7 @@ and [company research chat plan](superpowers/plans/2026-07-14-company-research-c
 ## Planned product work
 
 - Manual filing upload
-- DCF, peer multiples, and valuation scenarios
+- Editable DCF, peer-multiple, and valuation-scenario workbench
 - Saved notes and research history
 - 10-Q and additional source coverage
 - Company refresh policies and change detection

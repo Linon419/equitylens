@@ -78,6 +78,8 @@ export const companyPageCopy = {
     chat: {
       eyebrow: "Company research Agent",
       title: "Ask EquityLens",
+      you: "You",
+      agent: "EquityLens",
       question: "Research question",
       placeholder: "Ask about the business, valuation, filings, or supply chain…",
       send: "Send question",
@@ -115,6 +117,23 @@ export const companyPageCopy = {
       excerpt: "Evidence excerpt",
       openSource: "Open source",
       evidenceCoverage: "Evidence coverage",
+      coverage: {
+        complete: "Complete source coverage",
+        partial: "Some sources available",
+        insufficient: "Limited source coverage",
+      },
+      sourceTiers: {
+        primary: "Primary source",
+        trusted_secondary: "Trusted market source",
+        derived: "Calculated data",
+      },
+      sourceAnchors: {
+        price: "Share price",
+        market_cap: "Market capitalization",
+        trailing_eps: "Trailing earnings per share",
+        trailing_pe: "Trailing P/E",
+        forward_pe: "Forward P/E",
+      },
       errors: {
         load: "Research chat could not be loaded.",
         stream: "The answer stream was interrupted.",
@@ -126,7 +145,7 @@ export const companyPageCopy = {
         retrieval: "Retrieving company evidence",
         web: "Checking current web evidence",
         compose: "Composing cited answer",
-        verify: "Verifying claims and sources",
+        verify: "Preparing citations and sources",
       },
       sections: {
         directConclusion: "Direct conclusion",
@@ -302,6 +321,8 @@ export const companyPageCopy = {
     chat: {
       eyebrow: "公司投研 Agent",
       title: "询问 EquityLens",
+      you: "你",
+      agent: "EquityLens",
       question: "投研问题",
       placeholder: "询问业务、估值、财报或产业链问题…",
       send: "发送问题",
@@ -339,6 +360,23 @@ export const companyPageCopy = {
       excerpt: "证据摘录",
       openSource: "打开来源",
       evidenceCoverage: "证据覆盖",
+      coverage: {
+        complete: "资料较完整",
+        partial: "部分资料可用",
+        insufficient: "资料有限",
+      },
+      sourceTiers: {
+        primary: "官方一手来源",
+        trusted_secondary: "可信市场数据",
+        derived: "系统计算数据",
+      },
+      sourceAnchors: {
+        price: "当前股价",
+        market_cap: "总市值",
+        trailing_eps: "滚动每股收益",
+        trailing_pe: "滚动市盈率",
+        forward_pe: "预期市盈率",
+      },
       errors: {
         load: "投研对话加载失败。",
         stream: "回答流已中断。",
@@ -350,7 +388,7 @@ export const companyPageCopy = {
         retrieval: "正在检索公司证据",
         web: "正在核查最新网页证据",
         compose: "正在生成带引用回答",
-        verify: "正在核验结论与来源",
+        verify: "正在整理引用与来源",
       },
       sections: {
         directConclusion: "直接结论",

@@ -34,6 +34,7 @@ describe("ReadinessPanel", () => {
       />,
     );
 
+    await user.click(screen.getByText(companyPageCopy.en.chat.readiness.title));
     expect(screen.getByText(companyPageCopy.en.chat.readiness.resources.intelligence)).toBeVisible();
     expect(screen.getByText(companyPageCopy.en.chat.readiness.states.failed)).toBeVisible();
     await user.click(

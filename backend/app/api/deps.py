@@ -47,6 +47,7 @@ from app.chat.tavily_discovery import TavilyWebSearchProvider
 from app.chat.web_discovery import OpenAIWebSearchProvider, SourceClassifier
 from app.chat.web_fetcher import PinnedWebPageFetcher
 from app.chat.web_search import BoundedWebSearchService
+from app.chat.yahoo_market_analysis import YahooMarketAnalysisProvider
 from app.core.ai_clients import (
     create_chat_model,
     create_embedding_model,
@@ -780,6 +781,7 @@ def get_chat_evidence_pipeline(
         SqlStructuredContextRepository(session),
         retriever,
         web_search,
+        YahooMarketAnalysisProvider(),
     )
 
 

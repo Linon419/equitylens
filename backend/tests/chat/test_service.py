@@ -341,6 +341,7 @@ async def test_research_follow_up_uses_model_resolved_question(
         AgentRouteDecision(
             interaction_mode="research",
             is_follow_up=True,
+            analysis_skills=["company-valuation"],
             resolved_question=resolved,
         )
     )
@@ -352,8 +353,10 @@ async def test_research_follow_up_uses_model_resolved_question(
 
     assert events[-1].kind == "complete"
     assert value.evidence.internal_calls[0]["question"] == resolved
+    assert value.evidence.internal_calls[0]["analysis_skills"] == ["company-valuation"]
     assert value.evidence.web_calls[0]["question"] == resolved
     assert value.agent.calls[0]["question"] == resolved
+    assert value.agent.calls[0]["analysis_skills"] == ["company-valuation"]
     stored = chat_session.get(
         ConversationMessage,
         events[-1].payload.message.id,
@@ -459,7 +462,9 @@ async def test_pre_persistence_failures_refund_quota(
 
 
 @pytest.mark.asyncio
-async def test_verification_failure_refunds_quota(chat_session: Session) -> None:
+async def test_unknown_citation_is_filtered_and_answer_completes(
+    chat_session: Session,
+) -> None:
     value = harness(
         chat_session,
         outputs=[load_answers()["invalid_citation"]],
@@ -467,9 +472,11 @@ async def test_verification_failure_refunds_quota(chat_session: Session) -> None
 
     events = await collect(value.service.stream_message(command(value)))
 
-    assert events[-1].kind == "error"
-    assert events[-1].payload.code == "CHAT_ANSWER_VERIFICATION_FAILED"
-    assert chat_session.exec(select(ChatQuotaLedger)).one().state == "refunded"
+    assert events[-1].kind == "complete"
+    assert [citation.title for citation in events[-1].payload.citations] == [
+        "Apple Supplier Responsibility"
+    ]
+    assert chat_session.exec(select(ChatQuotaLedger)).one().state == "consumed"
 
 
 @pytest.mark.asyncio

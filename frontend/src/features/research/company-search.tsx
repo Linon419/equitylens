@@ -12,6 +12,8 @@ import type { Locale } from "@/lib/i18n";
 type SearchCopy = {
   label: string;
   placeholder: string;
+  hint: string;
+  submit: string;
   loading: string;
   empty: string;
   error: string;
@@ -88,13 +90,25 @@ export function CompanySearch({
     }
   }
 
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const exactSymbol = items.find(
+      (item) => item.symbol.toLowerCase() === query.trim().toLowerCase(),
+    );
+    const candidate = activeIndex >= 0
+      ? items[activeIndex]
+      : exactSymbol ?? items[0];
+    if (candidate) selectCompany(candidate);
+  }
+
   return (
     <div className="company-search">
       <div className="company-search__label">
         <span>US</span>
         <label htmlFor={`${listboxId}-input`}>{copy.label}</label>
       </div>
-      <div className="company-search__control">
+      <p className="company-search__hint">{copy.hint}</p>
+      <form className="company-search__control" onSubmit={handleSubmit}>
         <input
           id={`${listboxId}-input`}
           aria-activedescendant={
@@ -123,10 +137,15 @@ export function CompanySearch({
           }}
           onKeyDown={handleKeyDown}
         />
-        <span aria-hidden="true" className="company-search__key">
-          ↵
-        </span>
-      </div>
+        <button
+          className="company-search__submit"
+          disabled={status !== "ready" || items.length === 0}
+          type="submit"
+        >
+          <span>{copy.submit}</span>
+          <span aria-hidden="true">↗</span>
+        </button>
+      </form>
       {open ? (
         <div className="company-search__popover">
           {status === "loading" ? (

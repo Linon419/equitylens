@@ -5,20 +5,20 @@ from typing import Any
 from loguru import logger
 from pydantic import ValidationError
 
+from app.chat.answer_recovery import (
+    raw_message_content,
+    recover_research_answer_plan,
+)
 from app.chat.contracts import AnswerPlanningModel, IntentRoutingModel
 from app.chat.fallbacks import (
-    build_evidence_fallback,
+    fast_company_overview_route,
     fast_conversation_route,
     routing_fallback,
 )
 from app.chat.intents import AgentRouteDecision, IntentRoutingRequest
+from app.chat.market_analysis_skills import MarketAnalysisSkill
 from app.chat.prompts import AnswerPlanningRequest
 from app.chat.schemas import AnswerEvidencePack, ResearchAnswerPlan
-from app.chat.validator import (
-    AnswerValidationError,
-    normalize_answer_plan,
-    validate_answer_plan,
-)
 
 
 class AnswerProviderError(RuntimeError):
@@ -62,8 +62,26 @@ class ChatCompletionsPlanningModel:
             )
             result = await runnable.ainvoke(messages)
             if isinstance(result, dict) and "parsed" in result:
-                if result.get("parsing_error") is not None:
-                    raise AnswerModelOutputError()
+                parsing_error = result.get("parsing_error")
+                if parsing_error is not None:
+                    try:
+                        recovered = recover_research_answer_plan(
+                            raw_message_content(result.get("raw")),
+                            request.evidence,
+                        )
+                    except (TypeError, ValueError, ValidationError):
+                        logger.warning(
+                            "Chat answer recovery failed for model {} after {}",
+                            self.model_id,
+                            type(parsing_error).__name__,
+                        )
+                        raise AnswerModelOutputError() from None
+                    logger.warning(
+                        "Chat answer schema recovered for model {} after {}",
+                        self.model_id,
+                        type(parsing_error).__name__,
+                    )
+                    return recovered
                 result = result.get("parsed")
             return ResearchAnswerPlan.model_validate(result)
         except (AnswerModelOutputError, ValidationError):
@@ -201,6 +219,14 @@ class ModelDirectedIntentRouter:
         fast_route = fast_conversation_route(question, locale)
         if fast_route is not None:
             return fast_route
+        overview_route = fast_company_overview_route(
+            question,
+            company_name=company_name,
+            symbol=symbol,
+            locale=locale,
+        )
+        if overview_route is not None:
+            return overview_route
         request = IntentRoutingRequest(
             question=question,
             company_name=company_name,
@@ -245,6 +271,7 @@ class CitationBoundAnswerAgent:
         *,
         locale: str,
         history: list[str] | None = None,
+        analysis_skills: list[MarketAnalysisSkill] | None = None,
     ) -> ResearchAnswerPlan:
         try:
             async with asyncio.timeout(self._overall_timeout):
@@ -253,13 +280,14 @@ class CitationBoundAnswerAgent:
                     evidence,
                     locale=locale,
                     history=history,
+                    analysis_skills=analysis_skills,
                 )
         except TimeoutError:
             logger.warning(
                 "Chat answer stage timed out for model {}",
                 self.model_id,
             )
-            return build_evidence_fallback(evidence, locale)
+            raise AnswerProviderError() from None
 
     async def _create_model_plan(
         self,
@@ -268,57 +296,32 @@ class CitationBoundAnswerAgent:
         *,
         locale: str,
         history: list[str] | None,
+        analysis_skills: list[MarketAnalysisSkill] | None,
     ) -> ResearchAnswerPlan:
-        feedback: str | None = None
-        for attempt in range(2):
-            request = AnswerPlanningRequest(
-                question=question,
-                locale=locale,
-                evidence=evidence,
-                history=history or [],
-                repair_feedback=feedback,
+        request = AnswerPlanningRequest(
+            question=question,
+            locale=locale,
+            evidence=evidence,
+            history=history or [],
+            analysis_skills=analysis_skills or [],
+        )
+        try:
+            output = await self._model.plan(request)
+            return ResearchAnswerPlan.model_validate(output)
+        except (AnswerModelOutputError, ValidationError):
+            logger.warning(
+                "Chat answer schema failed for model {}",
+                self.model_id,
             )
-            try:
-                output = await self._model.plan(request)
-                plan = ResearchAnswerPlan.model_validate(output)
-                plan = normalize_answer_plan(plan, evidence, locale=locale)
-                validate_answer_plan(plan, evidence, locale=locale)
-                return plan
-            except AnswerValidationError as error:
-                logger.warning(
-                    "Chat answer validation failed for model {} on attempt {}: {}",
-                    self.model_id,
-                    attempt + 1,
-                    error.issues,
-                )
-                feedback = error.repair_feedback
-            except (AnswerModelOutputError, ValidationError) as error:
-                logger.warning(
-                    "Chat answer schema failed for model {} on attempt {}: {}",
-                    self.model_id,
-                    attempt + 1,
-                    type(error).__name__,
-                )
-                feedback = _schema_feedback(error)
-            except Exception:
-                logger.warning(
-                    "Chat answer provider failed for model {}",
-                    self.model_id,
-                )
-                return build_evidence_fallback(evidence, locale)
-            if attempt == 1:
-                break
-        return build_evidence_fallback(evidence, locale)
-
-
-def _schema_feedback(error: Exception) -> str:
-    if isinstance(error, ValidationError):
-        messages = [
-            f"{'.'.join(str(item) for item in detail['loc'])}: {detail['msg']}"
-            for detail in error.errors(include_input=False)[:6]
-        ]
-        return "; ".join(messages)
-    return "structured answer did not match the required schema"
+            raise AnswerModelOutputError() from None
+        except AnswerProviderError:
+            raise
+        except Exception:
+            logger.warning(
+                "Chat answer provider failed for model {}",
+                self.model_id,
+            )
+            raise AnswerProviderError() from None
 
 
 def _with_json_schema(

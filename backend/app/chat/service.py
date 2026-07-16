@@ -9,6 +9,7 @@ from pydantic import TypeAdapter, ValidationError
 from sqlmodel import Session
 
 from app.chat.answer_schemas import stored_response_kind
+from app.chat.citation_binding import bind_answer_citations
 from app.chat.intents import AgentRouteDecision
 from app.chat.quota import ChatQuotaLease, ChatQuotaService
 from app.chat.repository import ConversationRepository
@@ -30,7 +31,6 @@ from app.chat.schemas import (
     StructuredContextPack,
 )
 from app.chat.sse import ChatStreamEvent
-from app.chat.validator import validate_answer_plan
 from app.chat.web_trace import WebSearchTraceRecord
 from app.core.errors import DomainError
 from app.models.chat_model import (
@@ -426,6 +426,7 @@ class CompanyResearchChatService:
                 history=history,
                 summary=summary,
                 locale=user_message.locale,
+                analysis_skills=route.analysis_skills,
             )
 
             stage = "web"
@@ -447,18 +448,18 @@ class CompanyResearchChatService:
                 prepared.evidence,
                 locale=user_message.locale,
                 history=history,
+                analysis_skills=route.analysis_skills,
             )
 
             stage = "verify"
             yield self._stage_event("verify")
-            validated = validate_answer_plan(
+            bound = bind_answer_citations(
                 plan,
                 prepared.evidence,
-                locale=user_message.locale,
             )
             content = _render_content(
-                validated.plan,
-                validated.citations,
+                bound.plan,
+                bound.citations,
                 user_message.locale,
             )
             stored = self._repository.complete_assistant(
@@ -467,17 +468,17 @@ class CompanyResearchChatService:
                 answer_plan=StoredResearchAnswer(
                     is_follow_up=route.is_follow_up,
                     resolved_question=question,
-                    answer=validated.plan,
+                    answer=bound.plan,
                 ).model_dump(mode="json"),
                 model_id=self._answer_agent.model_id,
-                evidence_coverage=validated.plan.evidence_coverage,
-                citations=validated.citations,
+                evidence_coverage=bound.plan.evidence_coverage,
+                citations=bound.citations,
                 web_traces=prepared.web_traces,
                 completed_at=self._now(),
             )
             self._quota.consume(
                 lease.ledger_id,
-                validated.plan.evidence_coverage,
+                bound.plan.evidence_coverage,
                 now=self._now(),
             )
             self._session.commit()
@@ -501,7 +502,7 @@ class CompanyResearchChatService:
             return
 
         citations = self._public_citations(stored.id)
-        for event in _section_events(validated.plan, citations):
+        for event in _section_events(bound.plan, citations):
             yield event
         for citation in citations:
             yield ChatStreamEvent("citation", citation)
@@ -510,7 +511,7 @@ class CompanyResearchChatService:
             CompleteEvent(
                 message=_public_message(stored, citations),
                 citations=citations,
-                evidence_coverage=validated.plan.evidence_coverage,
+                evidence_coverage=bound.plan.evidence_coverage,
                 quota=self.quota_status(principal),
             ),
         )

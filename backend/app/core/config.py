@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     CHAT_EMBEDDING_MODEL: str = "text-embedding-3-small"
     CHAT_EMBEDDING_DIMENSIONS: int = 1_536
     CHAT_MODEL_OVERRIDE: str | None = None
-    CHAT_PROMPT_VERSION: str = "company-chat.2026-07-14"
+    CHAT_PROMPT_VERSION: str = "company-chat.2026-07-15-market-analysis"
     CHAT_ANSWER_SCHEMA_VERSION: str = "company-chat.v1"
     CHAT_INDEX_SCHEMA_VERSION: str = "filing-chunk.v1"
     CHAT_INDEX_WORKFLOW_TRIGGER_URL: str | None = None

@@ -9,7 +9,6 @@ vi.mock("@xyflow/react", () => ({
   Controls: () => null,
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
-  MiniMap: () => null,
   Panel: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Position: { Left: "left", Right: "right" },
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

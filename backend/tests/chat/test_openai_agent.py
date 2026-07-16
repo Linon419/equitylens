@@ -10,6 +10,8 @@ import pytest
 from app.api import deps
 from app.chat.intents import AgentRouteDecision, IntentRoutingRequest
 from app.chat.openai_agent import (
+    AnswerModelOutputError,
+    AnswerProviderError,
     ChatCompletionsPlanningModel,
     ChatCompletionsRoutingModel,
     CitationBoundAnswerAgent,
@@ -48,11 +50,11 @@ class FakePlanningModel:
 
 
 @pytest.mark.asyncio
-async def test_agent_repairs_invalid_citations_once(
+async def test_agent_returns_structured_plan_without_citation_repair(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
 ) -> None:
-    model = FakePlanningModel([answers["invalid_citation"], answers["valid_en"]])
+    model = FakePlanningModel([answers["invalid_citation"]])
     agent = CitationBoundAnswerAgent(model)
 
     plan = await agent.create_plan(
@@ -61,31 +63,26 @@ async def test_agent_repairs_invalid_citations_once(
         locale="en-US",
     )
 
-    assert plan == ResearchAnswerPlan.model_validate(answers["valid_en"])
-    assert len(model.requests) == 2
-    assert "unknown citation" in (model.requests[1].repair_feedback or "")
+    assert plan == ResearchAnswerPlan.model_validate(answers["invalid_citation"])
+    assert len(model.requests) == 1
 
 
 @pytest.mark.asyncio
-async def test_agent_returns_citation_safe_fallback_after_one_failed_repair(
+async def test_agent_preserves_model_answer_after_numeric_disagreement(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
 ) -> None:
-    model = FakePlanningModel(
-        [answers["invalid_citation"], answers["unsupported_number"]]
-    )
+    model = FakePlanningModel([answers["unsupported_number"]])
     agent = CitationBoundAnswerAgent(model)
 
     plan = await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
 
-    assert len(model.requests) == 2
-    assert plan.evidence_coverage == "complete"
-    assert plan.sources
-    assert "999" not in plan.direct_conclusion.text
+    assert len(model.requests) == 1
+    assert "999 billion USD" in plan.direct_conclusion.text
 
 
 @pytest.mark.asyncio
-async def test_agent_normalizes_unlabeled_inference_before_validation(
+async def test_agent_preserves_natural_inference_language(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
 ) -> None:
@@ -99,13 +96,13 @@ async def test_agent_normalizes_unlabeled_inference_before_validation(
     )
 
     risk = plan.risks_and_uncertainties[0]
-    assert risk.inference is True
-    assert risk.text.startswith("Inference:")
+    assert risk.inference is False
+    assert risk.text == "Regulatory scrutiny may increase compliance risk."
     assert len(model.requests) == 1
 
 
 @pytest.mark.asyncio
-async def test_agent_downgrades_complete_coverage_when_server_has_evidence_gap(
+async def test_agent_leaves_evidence_coverage_to_the_binding_stage(
     evidence_pack: AnswerEvidencePack,
     answers: dict[str, dict],
 ) -> None:
@@ -117,27 +114,24 @@ async def test_agent_downgrades_complete_coverage_when_server_has_evidence_gap(
 
     plan = await agent.create_plan("Analyze Apple", evidence, locale="en-US")
 
-    assert plan.evidence_coverage == "partial"
+    assert plan.evidence_coverage == "complete"
     assert len(model.requests) == 1
 
 
 @pytest.mark.asyncio
-async def test_provider_failure_returns_citation_safe_evidence_fallback(
+async def test_provider_failure_is_reported_to_the_service(
     evidence_pack: AnswerEvidencePack,
 ) -> None:
     agent = CitationBoundAnswerAgent(
         FakePlanningModel([RuntimeError("provider secret")])
     )
 
-    plan = await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
-
-    assert plan.evidence_coverage == "complete"
-    assert plan.sources
-    assert "provider secret" not in plan.direct_conclusion.text
+    with pytest.raises(AnswerProviderError):
+        await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
 
 
 @pytest.mark.asyncio
-async def test_answer_stage_timeout_returns_citation_safe_evidence_fallback(
+async def test_answer_stage_timeout_is_reported_to_the_service(
     evidence_pack: AnswerEvidencePack,
 ) -> None:
     class SlowPlanningModel:
@@ -149,10 +143,8 @@ async def test_answer_stage_timeout_returns_citation_safe_evidence_fallback(
 
     agent = CitationBoundAnswerAgent(SlowPlanningModel(), overall_timeout=0.01)
 
-    plan = await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
-
-    assert plan.evidence_coverage == "complete"
-    assert plan.sources
+    with pytest.raises(AnswerProviderError):
+        await agent.create_plan("Analyze Apple", evidence_pack, locale="en-US")
 
 
 def test_prompt_keeps_typed_and_untrusted_evidence_in_separate_blocks(
@@ -184,9 +176,9 @@ def test_prompt_keeps_typed_and_untrusted_evidence_in_separate_blocks(
     contents = [message["content"] for message in messages]
 
     assert messages[0]["role"] == "system"
-    assert "Every answer point" in messages[0]["content"]
-    assert "candidate.excerpt" in messages[0]["content"]
-    assert "first citation appearance" in messages[0]["content"]
+    assert "individual US-equity investors" in messages[0]["content"]
+    assert "plain-language answer" in messages[0]["content"]
+    assert "readable units" in messages[0]["content"]
     assert sum("<typed_internal_context>" in value for value in contents) == 1
     assert sum("<untrusted_filing_evidence>" in value for value in contents) == 1
     assert sum("<untrusted_web_evidence>" in value for value in contents) == 1
@@ -196,6 +188,26 @@ def test_prompt_keeps_typed_and_untrusted_evidence_in_separate_blocks(
     history = next(value for value in contents if "<conversation_history>" in value)
     assert "message-3" not in history
     assert "message-4" in history
+
+
+def test_prompt_includes_only_router_selected_market_playbooks(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    request = AnswerPlanningRequest(
+        question="Value Apple and explain its estimate revisions",
+        locale="en-US",
+        evidence=evidence_pack,
+        analysis_skills=["company-valuation", "estimate-analysis"],
+    )
+
+    contents = [message["content"] for message in request.messages()]
+    playbook = next(
+        value for value in contents if "<market_analysis_playbooks>" in value
+    )
+
+    assert "company-valuation" in playbook
+    assert "estimate-analysis" in playbook
+    assert "stock-liquidity" not in playbook
 
 
 class FakeResponses:
@@ -209,8 +221,16 @@ class FakeResponses:
 
 
 class FakeStructuredChatModel:
-    def __init__(self, parsed: Any) -> None:
+    def __init__(
+        self,
+        parsed: Any,
+        *,
+        raw_content: str | None = None,
+        parsing_error: Exception | None = None,
+    ) -> None:
         self.parsed = parsed
+        self.raw_content = raw_content
+        self.parsing_error = parsing_error
         self.calls: list[tuple[type, dict[str, Any], list[dict[str, str]]]] = []
 
     def with_structured_output(self, schema: type, **kwargs: Any):
@@ -220,9 +240,12 @@ class FakeStructuredChatModel:
             async def ainvoke(self, messages: list[dict[str, str]]) -> Any:
                 parent.calls.append((schema, kwargs, messages))
                 return {
-                    "raw": SimpleNamespace(response_metadata={}),
+                    "raw": SimpleNamespace(
+                        content=parent.raw_content,
+                        response_metadata={},
+                    ),
                     "parsed": parent.parsed,
-                    "parsing_error": None,
+                    "parsing_error": parent.parsing_error,
                 }
 
         return Runner()
@@ -233,6 +256,7 @@ async def test_deepseek_routes_chinese_greeting_with_structured_output() -> None
     parsed = AgentRouteDecision(
         interaction_mode="conversation",
         is_follow_up=False,
+        analysis_skills=[],
         response="你好，我可以帮你研究这家公司的业务、产业链、财报和估值。",
     )
     chat_model = FakeStructuredChatModel(parsed)
@@ -287,10 +311,33 @@ async def test_router_provider_failure_returns_localized_safe_clarification() ->
 
 
 @pytest.mark.asyncio
+async def test_router_fallback_selects_matching_market_analysis_skill() -> None:
+    class FailingRoutingModel:
+        model_id = "deepseek-chat"
+
+        async def route(self, request: IntentRoutingRequest) -> AgentRouteDecision:
+            raise RuntimeError("provider unavailable")
+
+    router = ModelDirectedIntentRouter(FailingRoutingModel())
+
+    result = await router.route(
+        question="帮我做 SNDK 的 DCF 估值",
+        company_name="SanDisk Corporation",
+        symbol="SNDK",
+        locale="zh-CN",
+        history=[],
+    )
+
+    assert result.interaction_mode == "research"
+    assert result.analysis_skills == ["company-valuation"]
+
+
+@pytest.mark.asyncio
 async def test_router_retries_one_transient_provider_failure() -> None:
     expected = AgentRouteDecision(
         interaction_mode="research",
         is_follow_up=True,
+        analysis_skills=["yfinance-data"],
         resolved_question="What is SNDK's current P/E ratio?",
     )
 
@@ -343,6 +390,44 @@ async def test_router_handles_exact_greeting_without_a_model_call() -> None:
     assert result.interaction_mode == "conversation"
     assert "财报" in (result.response or "")
     assert model.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_router_handles_generic_company_overview_without_model_call() -> None:
+    class UnusedRoutingModel:
+        model_id = "deepseek-chat"
+        calls = 0
+
+        async def route(self, request: IntentRoutingRequest) -> AgentRouteDecision:
+            self.calls += 1
+            raise AssertionError("generic company overviews should use the local route")
+
+    model = UnusedRoutingModel()
+    router = ModelDirectedIntentRouter(model)
+
+    result = await router.route(
+        question="这个公司怎么样",
+        company_name="Sandisk Corporation",
+        symbol="SNDK",
+        locale="zh-CN",
+        history=[],
+    )
+
+    assert result.interaction_mode == "research"
+    assert result.analysis_skills == []
+    assert result.is_follow_up is False
+    assert model.calls == 0
+    assert result.resolved_question is not None
+    for expected in (
+        "Sandisk Corporation",
+        "SNDK",
+        "核心业务",
+        "产业链",
+        "财务表现",
+        "估值",
+        "风险",
+    ):
+        assert expected in result.resolved_question
 
 
 @pytest.mark.asyncio
@@ -425,6 +510,83 @@ async def test_chat_completions_adapter_supplies_schema_for_json_mode(
     ]
     assert len(schema_messages) == 1
     assert '"direct_conclusion"' in schema_messages[0]
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_adapter_recovers_structurally_usable_json(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    raw_content = """```json
+    {
+      "direct_conclusion": "Apple generated 391 billion USD of FY2025 revenue.",
+      "key_evidence": [{
+        "text": "Its FY2025 gross margin was 46.2%.",
+        "citation_ids": "filing:gross-margin-fy2025",
+        "inference": "false"
+      }],
+      "risks_and_uncertainties": [{
+        "text": "Regulatory scrutiny may raise compliance costs.",
+        "citation_ids": ["web:ftc-update-2026"],
+        "inference": "true"
+      }],
+      "sources": "financial:revenue-fy2025",
+      "evidence_coverage": "unknown",
+      "web_search_used": false,
+      "unexpected_provider_field": "ignored"
+    }
+    ```"""
+    chat_model = FakeStructuredChatModel(
+        None,
+        raw_content=raw_content,
+        parsing_error=ValueError("provider response body must stay private"),
+    )
+    model = ChatCompletionsPlanningModel(
+        chat_model,
+        model_id="deepseek-chat",
+        structured_output_method="json_mode",
+    )
+    request = AnswerPlanningRequest(
+        question="Analyze Apple",
+        locale="en-US",
+        evidence=evidence_pack,
+    )
+
+    result = await model.plan(request)
+
+    assert result.direct_conclusion.text == (
+        "Apple generated 391 billion USD of FY2025 revenue."
+    )
+    assert result.direct_conclusion.citation_ids == []
+    assert result.key_evidence[0].citation_ids == ["filing:gross-margin-fy2025"]
+    assert result.key_evidence[0].inference is False
+    assert result.risks_and_uncertainties[0].inference is True
+    assert result.sources == ["financial:revenue-fy2025"]
+    assert result.evidence_coverage == "partial"
+    assert result.web_search_used is True
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_adapter_rejects_unrecoverable_json(
+    evidence_pack: AnswerEvidencePack,
+) -> None:
+    chat_model = FakeStructuredChatModel(
+        None,
+        raw_content="The company looks interesting, but this is not JSON.",
+        parsing_error=ValueError("provider response body must stay private"),
+    )
+    model = ChatCompletionsPlanningModel(
+        chat_model,
+        model_id="deepseek-chat",
+        structured_output_method="json_mode",
+    )
+    request = AnswerPlanningRequest(
+        question="Analyze Apple",
+        locale="en-US",
+        evidence=evidence_pack,
+    )
+
+    with pytest.raises(AnswerModelOutputError):
+        await model.plan(request)
 
 
 def test_chat_answer_dependency_routes_custom_llm_to_chat_completions(

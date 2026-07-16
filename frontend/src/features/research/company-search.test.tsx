@@ -8,7 +8,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 const copy = {
   label: "Search companies",
-  placeholder: "Ticker or company name",
+  placeholder: "SNDK",
+  hint: "Search by ticker, legal company name, or SEC CIK.",
+  submit: "Search",
   loading: "Searching…",
   empty: "No companies found",
   error: "Search unavailable",
@@ -48,6 +50,30 @@ describe("CompanySearch", () => {
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
     expect(push).toHaveBeenCalledWith("/en-US/companies/AAPL");
+  });
+
+  it("shows the default ticker prompt and submits the first matching company", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        items: [{ symbol: "SNDK", name: "Sandisk Corporation", exchange: "NASDAQ" }],
+        count: 1,
+      }),
+    );
+    render(<CompanySearch copy={copy} locale="en-US" />);
+
+    expect(screen.getByRole("combobox")).toHaveAttribute("placeholder", "SNDK");
+    expect(screen.getByText(/legal company name, or SEC CIK/i)).toBeVisible();
+    const submit = screen.getByRole("button", { name: "Search" });
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "sndk" },
+    });
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    expect(push).toHaveBeenCalledWith("/en-US/companies/SNDK");
   });
 
   it("requires two characters and exposes empty and error states", async () => {

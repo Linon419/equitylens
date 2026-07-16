@@ -16,6 +16,7 @@ const EMPTY_SECTIONS: ChatSections = {
 
 export interface LiveAnswer {
   assistantMessageId: string | null;
+  userMessageId: string | null;
   stage: "route" | "retrieval" | "web" | "compose" | "verify" | null;
   sections: ChatSections;
   citations: ChatCitation[];
@@ -52,9 +53,9 @@ export function chatStreamReducer(
   if (action.type === "messages") {
     return {
       ...state,
-      messages: action.append
-        ? uniqueMessages([...state.messages, ...action.items])
-        : action.items,
+      messages: uniqueMessages(
+        action.append ? [...state.messages, ...action.items] : action.items,
+      ),
       live: null,
       streaming: false,
     };
@@ -65,6 +66,7 @@ export function chatStreamReducer(
       ...state,
       live: {
         assistantMessageId: null,
+        userMessageId: null,
         stage: null,
         sections: { ...EMPTY_SECTIONS },
         citations: [],
@@ -105,6 +107,7 @@ function reduceStreamEvent(
       messages: user ? uniqueMessages([...state.messages, user]) : state.messages,
       live: {
         assistantMessageId: event.payload.assistant_message_id,
+        userMessageId: event.payload.user_message_id,
         stage: null,
         sections: { ...EMPTY_SECTIONS },
         citations: [],
@@ -171,9 +174,31 @@ function reduceStreamEvent(
 
 function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
   const byId = new Map(messages.map((message) => [message.id, message]));
-  return [...byId.values()].sort((left, right) =>
-    left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id),
-  );
+  const items = [...byId.values()];
+  const turnTimes = new Map<string, string>();
+  for (const message of items) {
+    const id = turnId(message);
+    const current = turnTimes.get(id) ?? "";
+    turnTimes.set(id, current > message.created_at ? current : message.created_at);
+  }
+  return items.sort((left, right) => {
+    const leftTurn = turnId(left);
+    const rightTurn = turnId(right);
+    const byTurn = (turnTimes.get(leftTurn) ?? left.created_at).localeCompare(
+      turnTimes.get(rightTurn) ?? right.created_at,
+    );
+    if (byTurn) return byTurn;
+    if (leftTurn === rightTurn && left.role !== right.role) {
+      return left.role === "user" ? -1 : 1;
+    }
+    return left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id);
+  });
+}
+
+function turnId(message: ChatMessage): string {
+  return message.role === "assistant" && message.reply_to_message_id
+    ? message.reply_to_message_id
+    : message.id;
 }
 
 function makeUserMessage(

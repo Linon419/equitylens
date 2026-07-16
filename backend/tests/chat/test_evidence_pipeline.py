@@ -12,6 +12,7 @@ from app.chat.evidence_pipeline import (
 )
 from app.chat.retrieval import ChunkCandidate, FilingRetrievalResult
 from app.chat.schemas import (
+    ApprovedEvidenceRecord,
     ChatReadiness,
     EvidenceCandidate,
     EvidenceGap,
@@ -65,6 +66,16 @@ class FakeWebSearch:
     async def search(self, request) -> WebSearchResult:
         self.calls.append(request)
         return self.result
+
+
+@dataclass
+class FakeMarketAnalysis:
+    record: ApprovedEvidenceRecord
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    async def collect(self, **kwargs) -> list[ApprovedEvidenceRecord]:
+        self.calls.append(kwargs)
+        return [self.record]
 
 
 def structured_pack() -> StructuredContextPack:
@@ -146,6 +157,27 @@ async def test_pipeline_combines_relevant_structured_filing_and_web_evidence() -
         artifact=StoredWebArtifact("chat-web/page.gz", "a" * 64, "b" * 64),
     )
     retriever = FakeRetriever(chunk)
+    market_candidate = EvidenceCandidate(
+        evidence_id="financial:yahoo:stock-liquidity:AAPL",
+        source_kind="financial",
+        source_id="stock-liquidity:AAPL",
+        title="AAPL Yahoo market analysis · stock-liquidity",
+        source_url="https://finance.yahoo.com/quote/AAPL",
+        source_anchor="stock-liquidity",
+        excerpt="AAPL average daily dollar volume was calculated from Yahoo data.",
+        published_at=None,
+        retrieved_at=NOW,
+        source_tier="trusted_secondary",
+        verification="supporting",
+        attributes={},
+    )
+    market = FakeMarketAnalysis(
+        ApprovedEvidenceRecord(
+            company_id=1,
+            candidate=market_candidate,
+            source_text=market_candidate.excerpt,
+        )
+    )
     web = FakeWebSearch(
         WebSearchResult(
             decision="agent_requested",
@@ -157,6 +189,7 @@ async def test_pipeline_combines_relevant_structured_filing_and_web_evidence() -
         FakeStructuredRepository(filing),
         retriever,
         web,
+        market,
         now=lambda: NOW,
     )
     question = "How does Apple's supply chain affect its business?"
@@ -169,6 +202,7 @@ async def test_pipeline_combines_relevant_structured_filing_and_web_evidence() -
         history=["user: Earlier question"],
         summary="Earlier summary",
         locale="en-US",
+        analysis_skills=["stock-liquidity"],
     )
     prepared = await pipeline.add_web(
         internal=internal,
@@ -182,13 +216,16 @@ async def test_pipeline_combines_relevant_structured_filing_and_web_evidence() -
 
     assert [record.candidate.source_kind for record in internal.records] == [
         "graph",
+        "financial",
         "filing",
     ]
     assert internal.evidence_gaps == ["SUPPLY_CHAIN_GRAPH_MISSING"]
     assert retriever.calls[0]["request"].summary == "Earlier summary"
+    assert market.calls[0]["skills"] == ["stock-liquidity"]
     assert web.calls[0].official_hosts == ("www.apple.com",)
     assert [record.candidate.source_kind for record in prepared.evidence.records] == [
         "graph",
+        "financial",
         "filing",
         "web",
     ]
