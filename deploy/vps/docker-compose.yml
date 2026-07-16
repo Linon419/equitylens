@@ -41,6 +41,8 @@ services:
         condition: service_healthy
     expose:
       - "8000"
+    ports:
+      - "127.0.0.1:${API_PORT:-18000}:8000"
 
   worker:
     <<: *backend
@@ -57,6 +59,7 @@ services:
 
   caddy:
     image: caddy:2.10-alpine
+    profiles: ["caddy"]
     environment:
       API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in deploy/vps/.env}
     ports:

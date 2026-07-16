@@ -162,6 +162,11 @@ Neon supplies PostgreSQL and Vercel Blob stores private research artifacts.
 This removes Python serverless dependency installation from page requests and
 keeps Agent dependencies loaded in long-lived containers.
 
+Set `REVERSE_PROXY_MODE=external` when the VPS already runs 1Panel/OpenResty or
+another HTTPS proxy. FastAPI is then published only on
+`127.0.0.1:${API_PORT:-18000}` for the host proxy. The `caddy` mode activates
+the Compose Caddy profile when the project owns ports 80 and 443.
+
 ```dotenv
 DEPLOYMENT_TARGET=docker
 OBJECT_STORAGE_PROVIDER=vercel_blob

@@ -13,20 +13,39 @@ fi
 
 cd "$ROOT_DIR"
 
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config >/dev/null
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build --pull
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
-
 API_DOMAIN=$(sed -n 's/^API_DOMAIN=//p' "$ENV_FILE" | tail -n 1)
+API_PORT=$(sed -n 's/^API_PORT=//p' "$ENV_FILE" | tail -n 1)
+REVERSE_PROXY_MODE=$(sed -n 's/^REVERSE_PROXY_MODE=//p' "$ENV_FILE" | tail -n 1)
 if [ -z "$API_DOMAIN" ]; then
   echo "API_DOMAIN is required." >&2
   exit 1
 fi
+API_PORT=${API_PORT:-18000}
+REVERSE_PROXY_MODE=${REVERSE_PROXY_MODE:-caddy}
+
+case "$REVERSE_PROXY_MODE" in
+  caddy)
+    PROFILE_ARGS="--profile caddy"
+    READINESS_URL="https://$API_DOMAIN/api/v1/health/ready"
+    ;;
+  external)
+    PROFILE_ARGS=""
+    READINESS_URL="http://127.0.0.1:$API_PORT/api/v1/health/ready"
+    ;;
+  *)
+    echo "REVERSE_PROXY_MODE must be caddy or external." >&2
+    exit 1
+    ;;
+esac
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" $PROFILE_ARGS config >/dev/null
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" $PROFILE_ARGS build --pull
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" $PROFILE_ARGS up -d --remove-orphans
 
 attempt=1
 while [ "$attempt" -le 30 ]; do
-  if curl --fail --silent --show-error "https://$API_DOMAIN/api/v1/health/ready" >/dev/null; then
-    echo "EquityLens API is ready at https://$API_DOMAIN"
+  if curl --fail --silent --show-error "$READINESS_URL" >/dev/null; then
+    echo "EquityLens API is ready at $READINESS_URL"
     exit 0
   fi
   sleep 2

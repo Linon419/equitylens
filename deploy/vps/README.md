@@ -36,6 +36,11 @@ Fill every value in `deploy/vps/.env`. Use the existing Neon `DATABASE_URL`,
 Vercel Blob token, Google client ID, OpenAI/DeepSeek credentials, and application
 secrets. `GUEST_SIGNING_SECRET` must match the value configured in Vercel.
 
+Use `REVERSE_PROXY_MODE=caddy` on a clean server where this Compose project owns
+ports 80 and 443. Use `REVERSE_PROXY_MODE=external` when 1Panel, Nginx, or
+another host proxy already owns HTTPS. The API binds only to
+`127.0.0.1:API_PORT`, with `18000` as the default.
+
 ## 3. Start the API and worker
 
 ```bash
@@ -43,8 +48,27 @@ chmod +x deploy/vps/deploy.sh
 ./deploy/vps/deploy.sh
 ```
 
-Caddy obtains and renews the TLS certificate automatically. Redis has no public
-port. FastAPI is reachable only through Caddy on ports 80 and 443.
+In `caddy` mode, Caddy obtains and renews the TLS certificate automatically. In
+`external` mode, configure the existing host proxy to forward the API domain to
+`http://127.0.0.1:18000`. Disable proxy buffering and use long read/send
+timeouts for research-chat SSE streams. Redis has no public port.
+
+Example Nginx/OpenResty location:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:18000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+}
+```
 
 Useful operations:
 
