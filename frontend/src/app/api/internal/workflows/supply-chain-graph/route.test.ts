@@ -16,8 +16,8 @@ function request(secret: string, idempotencyKey = "graph-job-123") {
     {
       method: "POST",
       headers: {
-        authorization: `Bearer ${secret}`,
         "content-type": "application/json",
+        "x-internal-job-secret": secret,
         "x-idempotency-key": idempotencyKey,
       },
       body: JSON.stringify({ job_id: "graph-job-123" }),
@@ -50,6 +50,26 @@ describe("POST supply-chain graph workflow trigger", () => {
 
     expect(response.status).toBe(401);
     expect(mockedStart).not.toHaveBeenCalled();
+  });
+
+  it("accepts the legacy bearer token", async () => {
+    const response = await POST(
+      new Request(
+        "http://localhost/api/internal/workflows/supply-chain-graph",
+        {
+          method: "POST",
+          headers: {
+            authorization: "Bearer internal-secret",
+            "content-type": "application/json",
+            "x-idempotency-key": "graph-job-123",
+          },
+          body: JSON.stringify({ job_id: "graph-job-123" }),
+        },
+      ),
+    );
+
+    expect(response.status).toBe(202);
+    expect(mockedStart).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a mismatched idempotency key", async () => {

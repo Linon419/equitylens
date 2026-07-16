@@ -12,8 +12,8 @@ function request(secret: string, idempotencyKey = "index-job-123") {
   return new Request("http://localhost/api/internal/workflows/filing-index", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${secret}`,
       "content-type": "application/json",
+      "x-internal-job-secret": secret,
       "x-idempotency-key": idempotencyKey,
     },
     body: JSON.stringify({ job_id: "index-job-123" }),

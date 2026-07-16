@@ -16,8 +16,8 @@ function request(secret: string, idempotencyKey = "job-123") {
     {
       method: "POST",
       headers: {
-        authorization: `Bearer ${secret}`,
         "content-type": "application/json",
+        "x-internal-job-secret": secret,
         "x-idempotency-key": idempotencyKey,
       },
       body: JSON.stringify({ job_id: "job-123" }),

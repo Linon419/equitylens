@@ -46,6 +46,7 @@ class VercelWorkflowBackend:
                 json={"job_id": job_id},
                 headers={
                     "Authorization": f"Bearer {self._internal_secret}",
+                    "x-internal-job-secret": self._internal_secret,
                     "x-idempotency-key": job_id,
                 },
             )

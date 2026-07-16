@@ -7,8 +7,13 @@ import { filingIndexWorkflow } from "@/workflows/filing-index";
 
 export async function POST(request: Request) {
   const secret = process.env.INTERNAL_JOB_SECRET?.trim();
+  const internalSecret = request.headers.get("x-internal-job-secret");
   const authorization = request.headers.get("authorization");
-  if (!secret || !validBearerToken(authorization, secret)) {
+  if (
+    !secret ||
+    (!validSecret(internalSecret, secret) &&
+      !validBearerToken(authorization, secret))
+  ) {
     return NextResponse.json(
       { code: "INTERNAL_JOB_AUTH_REQUIRED" },
       { status: 401 },
@@ -36,7 +41,12 @@ export async function POST(request: Request) {
 
 function validBearerToken(value: string | null, expected: string) {
   if (!value?.startsWith("Bearer ")) return false;
-  const supplied = Buffer.from(value.slice("Bearer ".length));
+  return validSecret(value.slice("Bearer ".length), expected);
+}
+
+function validSecret(value: string | null, expected: string) {
+  if (!value) return false;
+  const supplied = Buffer.from(value);
   const target = Buffer.from(expected);
   return supplied.length === target.length && timingSafeEqual(supplied, target);
 }

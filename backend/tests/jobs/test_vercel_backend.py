@@ -49,6 +49,7 @@ async def test_vercel_backend_satisfies_shared_contract() -> None:
 
     headers = transport.headers[0]
     assert headers["authorization"] == f"Bearer {'i' * 32}"
+    assert headers["x-internal-job-secret"] == "i" * 32
     assert headers["x-idempotency-key"] == "company_intelligence-123"
 
 
