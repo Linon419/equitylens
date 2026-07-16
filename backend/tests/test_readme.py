@@ -6,64 +6,42 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[2]
 README = ROOT / "README.md"
 DEPLOY_LINK = re.compile(
-    r"\[!\[Deploy (?P<label>API|Web) with Vercel\]"
+    r"\[!\[Deploy (?P<label>EquityLens) with Vercel\]"
     r"\(https://vercel.com/button\)\]"
     r"\((?P<url>https://vercel.com/new/clone\?[^)]+)\)"
 )
 LOCAL_LINK = re.compile(r"\[[^\]]+\]\((?!https?://|#)([^)]+)\)")
 
-EXPECTED_DEPLOYS = {
-    "API": {
-        "root-directory": "backend",
-        "project-name": "equitylens-api",
-        "env": {
-            "DATABASE_URL",
-            "SECRET_KEY_ACCESS_API",
-            "GOOGLE_CLIENT_ID",
-            "FRONTEND_URL",
-            "OPENAI_API_KEY",
-            "OPENAI_ORGANIZATION",
-            "OPENAI_BASE_URL",
-            "LLM_API_KEY",
-            "LLM_BASE_URL",
-            "LLM_STRUCTURED_OUTPUT_METHOD",
-            "TAVILY_API_KEY",
-            "CHAT_WEB_SEARCH_PROVIDER",
-            "CHAT_TAVILY_SEARCH_DEPTH",
-            "CHAT_TAVILY_MAX_RESULTS",
-            "FIRST_SUPERUSER",
-            "FIRST_SUPERUSER_PASSWORD",
-            "BLOB_READ_WRITE_TOKEN",
-            "MANAGED_PARSER_API_KEY",
-            "CORS_ORIGINS",
-            "DEPLOYMENT_TARGET",
-            "OBJECT_STORAGE_PROVIDER",
-            "JOB_BACKEND",
-            "DOCUMENT_PARSER",
-            "SEC_USER_AGENT",
-            "GUEST_SIGNING_SECRET",
-            "QUOTA_HASH_SECRET",
-            "INTERNAL_JOB_SECRET",
-            "WORKFLOW_TRIGGER_URL",
-            "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
-            "CHAT_INDEX_WORKFLOW_TRIGGER_URL",
-            "MARKET_DATA_PROVIDER",
-            "RESEARCH_MODEL",
-            "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE",
-        },
-    },
-    "Web": {
-        "root-directory": "frontend",
-        "project-name": "equitylens-web",
-        "env": {
-            "BACKEND_URL",
-            "FRONTEND_URL",
-            "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
-            "COOKIE_SECURE",
-            "GUEST_SIGNING_SECRET",
-            "INTERNAL_JOB_SECRET",
-        },
-    },
+EXPECTED_ENV = {
+    "DATABASE_URL",
+    "SECRET_KEY_ACCESS_API",
+    "GOOGLE_CLIENT_ID",
+    "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+    "OPENAI_API_KEY",
+    "OPENAI_ORGANIZATION",
+    "OPENAI_BASE_URL",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_STRUCTURED_OUTPUT_METHOD",
+    "TAVILY_API_KEY",
+    "CHAT_WEB_SEARCH_PROVIDER",
+    "CHAT_TAVILY_SEARCH_DEPTH",
+    "CHAT_TAVILY_MAX_RESULTS",
+    "FIRST_SUPERUSER",
+    "FIRST_SUPERUSER_PASSWORD",
+    "BLOB_READ_WRITE_TOKEN",
+    "SEC_USER_AGENT",
+    "GUEST_SIGNING_SECRET",
+    "QUOTA_HASH_SECRET",
+    "INTERNAL_JOB_SECRET",
+    "DEPLOYMENT_TARGET",
+    "OBJECT_STORAGE_PROVIDER",
+    "JOB_BACKEND",
+    "DOCUMENT_PARSER",
+    "COOKIE_SECURE",
+    "MARKET_DATA_PROVIDER",
+    "RESEARCH_MODEL",
+    "SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE",
 }
 
 
@@ -106,39 +84,43 @@ def test_readme_local_links_resolve() -> None:
     assert missing == []
 
 
-def test_vercel_buttons_target_each_monorepo_application() -> None:
+def test_vercel_button_targets_the_services_project() -> None:
     deploys = deploy_parameters()
 
-    assert set(deploys) == set(EXPECTED_DEPLOYS)
-    for label, expected in EXPECTED_DEPLOYS.items():
-        actual = deploys[label]
-        assert actual["repository-url"] == (
-            "https://github.com/Linon419/equitylens"
-        )
-        assert actual["root-directory"] == expected["root-directory"]
-        assert actual["project-name"] == expected["project-name"]
-        assert set(actual["env"].split(",")) == expected["env"]
-        assert actual["envLink"].endswith("deploy/vercel/README.md")
+    assert set(deploys) == {"EquityLens"}
+    actual = deploys["EquityLens"]
+    assert actual["repository-url"] == "https://github.com/Linon419/equitylens"
+    assert "root-directory" not in actual
+    assert actual["project-name"] == "equitylens"
+    assert set(actual["env"].split(",")) == EXPECTED_ENV
+    assert actual["envLink"].endswith("deploy/vercel/README.md")
 
 
-def test_api_button_defaults_only_public_profile_values() -> None:
-    defaults = json.loads(deploy_parameters()["API"]["envDefaults"])
+def test_services_button_defaults_only_public_profile_values() -> None:
+    defaults = json.loads(deploy_parameters()["EquityLens"]["envDefaults"])
 
     assert defaults == {
         "DEPLOYMENT_TARGET": "vercel",
         "OBJECT_STORAGE_PROVIDER": "vercel_blob",
         "JOB_BACKEND": "vercel_workflow",
         "DOCUMENT_PARSER": "managed",
+        "COOKIE_SECURE": "true",
+        "MARKET_DATA_PROVIDER": "yahoo",
+        "LLM_STRUCTURED_OUTPUT_METHOD": "json_schema",
+        "CHAT_WEB_SEARCH_PROVIDER": "tavily",
+        "CHAT_TAVILY_SEARCH_DEPTH": "basic",
+        "CHAT_TAVILY_MAX_RESULTS": "5",
+        "RESEARCH_MODEL": "gpt-5.6",
     }
 
 
-def test_supporting_docs_use_equitylens_project_names() -> None:
+def test_supporting_docs_describe_the_services_project() -> None:
     vercel = (ROOT / "deploy" / "vercel" / "README.md").read_text()
     frontend = (ROOT / "frontend" / "README.md").read_text()
 
-    assert "`equitylens-api`" in vercel
-    assert "`equitylens-web`" in vercel
-    assert "API Project first" in vercel
+    assert "one Vercel Project" in vercel
+    assert "Vercel Services" in vercel
+    assert "Service Binding" in vercel
     assert "# EquityLens Web" in frontend
     assert "../deploy/vercel/README.md" in frontend
 

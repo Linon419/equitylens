@@ -10,7 +10,7 @@ path.
 |---|---|---|---|
 | Deterministic local validation | TestClient + Next.js dev server | In-process fixture runner | Temporary SQLite |
 | Docker | FastAPI + Next.js containers | Redis queue and RQ worker | PostgreSQL |
-| Vercel | Separate FastAPI and Next.js Projects | Vercel Workflow calling idempotent API steps | Managed PostgreSQL |
+| Vercel | One Next.js + FastAPI Services Project | Vercel Workflow calling idempotent API steps | Managed PostgreSQL |
 
 Company intelligence uses `download`, `parse`, `analyze`, `verify`, and
 `localize`. Supply-chain research uses `collect`, `extract`, `resolve`,
@@ -118,7 +118,7 @@ limits.
 | Variable | Purpose |
 |---|---|
 | `BACKEND_URL` | Server-side FastAPI origin |
-| `FRONTEND_URL` | Same-origin mutation validation |
+| `FRONTEND_URL` | Optional explicit same-origin validation override |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google browser client ID |
 | `COOKIE_SECURE` | `true` for HTTPS deployments |
 
@@ -157,17 +157,18 @@ DEPLOYMENT_TARGET=vercel
 OBJECT_STORAGE_PROVIDER=vercel_blob
 JOB_BACKEND=vercel_workflow
 DOCUMENT_PARSER=managed
-WORKFLOW_TRIGGER_URL=https://web.example.com/api/internal/workflows/company-intelligence
-SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=https://web.example.com/api/internal/workflows/supply-chain-graph
-CHAT_INDEX_WORKFLOW_TRIGGER_URL=https://web.example.com/api/internal/workflows/filing-index
 BLOB_READ_WRITE_TOKEN=replace-with-private-store-token
 ```
 
-The API and web Projects use separate Vercel roots: `backend/` and `frontend/`.
-Deploy the API first, place its URL in the web Project's `BACKEND_URL`, then set
-the final web origin in API `CORS_ORIGINS` and `FRONTEND_URL`.
+The root `vercel.json` defines `web` and `api` Services. Vercel injects
+`BACKEND_URL` into the web Service and `WORKFLOW_SERVICE_URL` into the API
+Service through deployment-aware bindings. Public `/api/v1/*` traffic reaches
+FastAPI, while all remaining routes reach Next.js through the same origin.
+Existing deployments may continue to set `WORKFLOW_TRIGGER_URL`,
+`SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`, and `CHAT_INDEX_WORKFLOW_TRIGGER_URL` as
+explicit overrides for the three Workflow routes.
 
-Create the Vercel Blob store with private access and connect it to the API
+Create the Vercel Blob store with private access and connect it to the Services
 Project. `BLOB_READ_WRITE_TOKEN` stays server-side. The graph artifact adapter
 uses private writes and reads for every official-source object.
 

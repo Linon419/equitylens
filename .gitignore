@@ -186,3 +186,4 @@ cython_debug/
 
 # Local Git worktrees
 .worktrees/
+.vercel

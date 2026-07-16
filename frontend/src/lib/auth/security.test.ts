@@ -36,6 +36,22 @@ describe("auth security", () => {
     expect(isSameOrigin(crossOrigin)).toBe(false);
   });
 
+  it("uses the forwarded deployment origin when FRONTEND_URL is absent", () => {
+    vi.stubEnv("FRONTEND_URL", "");
+    const request = new NextRequest(
+      "http://internal-next-host:3000/api/auth/logout",
+      {
+        headers: {
+          origin: "https://equitylens-preview.vercel.app",
+          "x-forwarded-host": "equitylens-preview.vercel.app",
+          "x-forwarded-proto": "https",
+        },
+      },
+    );
+
+    expect(isSameOrigin(request)).toBe(true);
+  });
+
   it("compares complete CSRF values", () => {
     expect(isValidCsrf("token-value", "token-value")).toBe(true);
     expect(isValidCsrf("token-value", "different")).toBe(false);

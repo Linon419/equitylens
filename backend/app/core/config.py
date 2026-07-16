@@ -103,6 +103,7 @@ class Settings(BaseSettings):
     S3_SECRET_ACCESS_KEY: str | None = None
     BLOB_READ_WRITE_TOKEN: str | None = None
     MANAGED_PARSER_API_KEY: str | None = None
+    WORKFLOW_SERVICE_URL: str | None = None
     WORKFLOW_TRIGGER_URL: str | None = None
     SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL: str | None = None
 
@@ -178,6 +179,31 @@ class Settings(BaseSettings):
     @property
     def CHAT_MODEL(self) -> str:
         return self.CHAT_MODEL_OVERRIDE or self.RESEARCH_MODEL
+
+    @property
+    def COMPANY_WORKFLOW_TRIGGER_URL(self) -> str | None:
+        return self.WORKFLOW_TRIGGER_URL or self._workflow_service_endpoint(
+            "company-intelligence"
+        )
+
+    @property
+    def GRAPH_WORKFLOW_TRIGGER_URL(self) -> str | None:
+        return (
+            self.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL
+            or self._workflow_service_endpoint("supply-chain-graph")
+        )
+
+    @property
+    def FILING_INDEX_WORKFLOW_TRIGGER_URL(self) -> str | None:
+        return self.CHAT_INDEX_WORKFLOW_TRIGGER_URL or self._workflow_service_endpoint(
+            "filing-index"
+        )
+
+    def _workflow_service_endpoint(self, workflow: str) -> str | None:
+        if not self.WORKFLOW_SERVICE_URL:
+            return None
+        origin = self.WORKFLOW_SERVICE_URL.rstrip("/")
+        return f"{origin}/api/internal/workflows/{workflow}"
 
     @property
     def LLM_API_KEY_VALUE(self) -> str:
@@ -306,10 +332,6 @@ class Settings(BaseSettings):
             ),
             DeploymentTarget.VERCEL: (
                 "BLOB_READ_WRITE_TOKEN",
-                "MANAGED_PARSER_API_KEY",
-                "WORKFLOW_TRIGGER_URL",
-                "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
-                "CHAT_INDEX_WORKFLOW_TRIGGER_URL",
             ),
         }
         missing = [
@@ -321,6 +343,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"{self.DEPLOYMENT_TARGET.value} profile is missing: "
                 f"{', '.join(missing)}"
+            )
+        if self.DEPLOYMENT_TARGET == DeploymentTarget.VERCEL and any(
+            url is None
+            for url in (
+                self.COMPANY_WORKFLOW_TRIGGER_URL,
+                self.GRAPH_WORKFLOW_TRIGGER_URL,
+                self.FILING_INDEX_WORKFLOW_TRIGGER_URL,
+            )
+        ):
+            raise ValueError(
+                "vercel profile requires WORKFLOW_SERVICE_URL or explicit "
+                "workflow trigger URLs"
             )
 
         short_secrets = [

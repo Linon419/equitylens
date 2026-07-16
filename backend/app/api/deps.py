@@ -241,19 +241,22 @@ async def get_job_backend() -> AsyncIterator[JobBackend]:
         yield RQJobBackend(queue)
         return
     if settings.JOB_BACKEND.value == "vercel_workflow":
+        company_trigger_url = settings.COMPANY_WORKFLOW_TRIGGER_URL
+        graph_trigger_url = settings.GRAPH_WORKFLOW_TRIGGER_URL
+        filing_index_trigger_url = settings.FILING_INDEX_WORKFLOW_TRIGGER_URL
         if (
-            settings.WORKFLOW_TRIGGER_URL is None
-            or settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL is None
-            or settings.CHAT_INDEX_WORKFLOW_TRIGGER_URL is None
+            not company_trigger_url
+            or not graph_trigger_url
+            or not filing_index_trigger_url
         ):
             raise RuntimeError("Workflow trigger URLs are required")
         async with httpx.AsyncClient(timeout=15) as client:
             yield VercelWorkflowBackend(
                 client,
-                settings.WORKFLOW_TRIGGER_URL,
+                company_trigger_url,
                 settings.INTERNAL_JOB_SECRET,
-                supply_chain_trigger_url=(settings.SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL),
-                filing_index_trigger_url=(settings.CHAT_INDEX_WORKFLOW_TRIGGER_URL),
+                supply_chain_trigger_url=graph_trigger_url,
+                filing_index_trigger_url=filing_index_trigger_url,
             )
         return
     yield UnconfiguredJobBackend()

@@ -28,14 +28,7 @@ DOCKER_PROVIDERS = {
 
 VERCEL_PROVIDERS = {
     "BLOB_READ_WRITE_TOKEN": "test-blob-token",
-    "MANAGED_PARSER_API_KEY": "test-parser-key",
-    "WORKFLOW_TRIGGER_URL": "https://example.vercel.app/api/internal/workflows/company-intelligence",
-    "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL": (
-        "https://example.vercel.app/api/internal/workflows/supply-chain"
-    ),
-    "CHAT_INDEX_WORKFLOW_TRIGGER_URL": (
-        "https://example.vercel.app/api/internal/workflows/chat-index"
-    ),
+    "WORKFLOW_SERVICE_URL": "https://web-service.internal/",
 }
 
 
@@ -338,6 +331,15 @@ def test_vercel_profile_accepts_vercel_providers() -> None:
     )
 
     assert settings.DEPLOYMENT_TARGET == "vercel"
+    assert settings.COMPANY_WORKFLOW_TRIGGER_URL == (
+        "https://web-service.internal/api/internal/workflows/company-intelligence"
+    )
+    assert settings.GRAPH_WORKFLOW_TRIGGER_URL == (
+        "https://web-service.internal/api/internal/workflows/supply-chain-graph"
+    )
+    assert settings.FILING_INDEX_WORKFLOW_TRIGGER_URL == (
+        "https://web-service.internal/api/internal/workflows/filing-index"
+    )
 
 
 def test_profile_rejects_mixed_provider_configuration() -> None:
@@ -363,23 +365,35 @@ def test_profile_rejects_short_phase_2_secrets(field: str) -> None:
         Settings(**values)
 
 
-@pytest.mark.parametrize(
-    "field",
-    [
-        "WORKFLOW_TRIGGER_URL",
-        "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL",
-        "CHAT_INDEX_WORKFLOW_TRIGGER_URL",
-    ],
-)
-def test_vercel_profile_requires_workflow_trigger_url(field: str) -> None:
-    providers = {**VERCEL_PROVIDERS, field: None}
-
-    with pytest.raises(ValidationError, match=field):
+def test_vercel_profile_requires_a_workflow_service_or_explicit_urls() -> None:
+    with pytest.raises(ValidationError, match="WORKFLOW_SERVICE_URL"):
         Settings(
             **BASE,
-            **providers,
+            BLOB_READ_WRITE_TOKEN="test-blob-token",
             DEPLOYMENT_TARGET="vercel",
             OBJECT_STORAGE_PROVIDER="vercel_blob",
             JOB_BACKEND="vercel_workflow",
             DOCUMENT_PARSER="managed",
         )
+
+
+def test_vercel_profile_keeps_explicit_workflow_url_compatibility() -> None:
+    settings = Settings(
+        **BASE,
+        BLOB_READ_WRITE_TOKEN="test-blob-token",
+        WORKFLOW_TRIGGER_URL=(
+            "https://web.example/api/internal/workflows/company-intelligence"
+        ),
+        SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL=(
+            "https://web.example/api/internal/workflows/supply-chain-graph"
+        ),
+        CHAT_INDEX_WORKFLOW_TRIGGER_URL=(
+            "https://web.example/api/internal/workflows/filing-index"
+        ),
+        DEPLOYMENT_TARGET="vercel",
+        OBJECT_STORAGE_PROVIDER="vercel_blob",
+        JOB_BACKEND="vercel_workflow",
+        DOCUMENT_PARSER="managed",
+    )
+
+    assert settings.COMPANY_WORKFLOW_TRIGGER_URL == settings.WORKFLOW_TRIGGER_URL

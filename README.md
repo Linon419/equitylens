@@ -14,9 +14,10 @@ financial performance, market price, and valuation in one research workspace.
 ![GPT-5.6](https://img.shields.io/badge/GPT--5.6-ready-111827?logo=openai&logoColor=white)
 ![Languages](https://img.shields.io/badge/UI-English%20%7C%20简体中文-2563EB)
 
-| Deploy the API | Deploy the Web app |
-|---|---|
-| [![Deploy API with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=backend&project-name=equitylens-api&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CFRONTEND_URL%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2COPENAI_BASE_URL%2CLLM_API_KEY%2CLLM_BASE_URL%2CLLM_STRUCTURED_OUTPUT_METHOD%2CTAVILY_API_KEY%2CCHAT_WEB_SEARCH_PROVIDER%2CCHAT_TAVILY_SEARCH_DEPTH%2CCHAT_TAVILY_MAX_RESULTS%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CMANAGED_PARSER_API_KEY%2CCORS_ORIGINS%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CWORKFLOW_TRIGGER_URL%2CSUPPLY_CHAIN_WORKFLOW_TRIGGER_URL%2CCHAT_INDEX_WORKFLOW_TRIGGER_URL%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%7D&envDescription=Configure+the+EquityLens+API+deployment+profile+and+required+credentials.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) | [![Deploy Web with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&root-directory=frontend&project-name=equitylens-web&env=BACKEND_URL%2CFRONTEND_URL%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2CCOOKIE_SECURE%2CGUEST_SIGNING_SECRET%2CINTERNAL_JOB_SECRET&envDescription=Configure+the+FastAPI+origin%2C+public+web+origin%2C+Google+client+ID%2C+shared+signing+secrets%2C+and+secure+cookies.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md) |
+[![Deploy EquityLens with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens&project-name=equitylens&env=DATABASE_URL%2CSECRET_KEY_ACCESS_API%2CGOOGLE_CLIENT_ID%2CNEXT_PUBLIC_GOOGLE_CLIENT_ID%2COPENAI_API_KEY%2COPENAI_ORGANIZATION%2COPENAI_BASE_URL%2CLLM_API_KEY%2CLLM_BASE_URL%2CLLM_STRUCTURED_OUTPUT_METHOD%2CTAVILY_API_KEY%2CCHAT_WEB_SEARCH_PROVIDER%2CCHAT_TAVILY_SEARCH_DEPTH%2CCHAT_TAVILY_MAX_RESULTS%2CFIRST_SUPERUSER%2CFIRST_SUPERUSER_PASSWORD%2CBLOB_READ_WRITE_TOKEN%2CSEC_USER_AGENT%2CGUEST_SIGNING_SECRET%2CQUOTA_HASH_SECRET%2CINTERNAL_JOB_SECRET%2CDEPLOYMENT_TARGET%2COBJECT_STORAGE_PROVIDER%2CJOB_BACKEND%2CDOCUMENT_PARSER%2CCOOKIE_SECURE%2CMARKET_DATA_PROVIDER%2CRESEARCH_MODEL%2CSUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE&envDefaults=%7B%22DEPLOYMENT_TARGET%22%3A%22vercel%22%2C%22OBJECT_STORAGE_PROVIDER%22%3A%22vercel_blob%22%2C%22JOB_BACKEND%22%3A%22vercel_workflow%22%2C%22DOCUMENT_PARSER%22%3A%22managed%22%2C%22COOKIE_SECURE%22%3A%22true%22%2C%22MARKET_DATA_PROVIDER%22%3A%22yahoo%22%2C%22LLM_STRUCTURED_OUTPUT_METHOD%22%3A%22json_schema%22%2C%22CHAT_WEB_SEARCH_PROVIDER%22%3A%22tavily%22%2C%22CHAT_TAVILY_SEARCH_DEPTH%22%3A%22basic%22%2C%22CHAT_TAVILY_MAX_RESULTS%22%3A%225%22%2C%22RESEARCH_MODEL%22%3A%22gpt-5.6%22%7D&envDescription=Configure%20the%20shared%20EquityLens%20web%20and%20API%20deployment.&envLink=https%3A%2F%2Fgithub.com%2FLinon419%2Fequitylens%2Fblob%2Fmain%2Fdeploy%2Fvercel%2FREADME.md)
+
+One Vercel Project deploys the Next.js web app and FastAPI API together through
+[Vercel Services](https://vercel.com/docs/services).
 
 [Judge's path](#judges-quick-path) · [GPT-5.6](#gpt-56-integration) · [Setup](#quick-start) · [Sample data](#sample-data-and-reproducible-evaluation) · [Testing](#quality-gates) · [Codex](#how-codex-accelerated-development)
 
@@ -99,7 +100,7 @@ flowchart LR
     api --> db[("PostgreSQL + pgvector")]
     api --> storage["Document storage"]
     api --> jobs["Durable job record"]
-    jobs --> graph["Supply-chain graph Agent"]
+    jobs --> graphAgent["Supply-chain graph Agent"]
     api --> chat["Company research chat Agent"]
     jobs --> workflow["Vercel Workflow"]
     jobs --> worker["RQ worker"]
@@ -111,8 +112,8 @@ flowchart LR
     worker --> sec
     worker --> llm
     worker --> db
-    graph --> storage
-    graph --> llm
+    graphAgent --> storage
+    graphAgent --> llm
     chat --> db
     chat --> storage
     chat --> llm
@@ -124,7 +125,7 @@ The provider contracts keep deployment-specific infrastructure at the edges:
 
 | Profile | Web / API | Storage | Jobs | Document parsing |
 |---|---|---|---|---|
-| Vercel | Two Vercel Projects | PostgreSQL + private Vercel Blob evidence | Vercel Workflow | Managed profile |
+| Vercel | One Services Project | PostgreSQL + private Vercel Blob evidence | Vercel Workflow | Managed profile |
 | Docker | Next.js + FastAPI containers | PostgreSQL + private MinIO evidence bucket | Redis + RQ | Local parser |
 
 Graph generation uses AI for source planning, relationship extraction,
@@ -347,9 +348,10 @@ Research Agent deployment variables:
 | `SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE` | Optional graph-specific model; `RESEARCH_MODEL` remains the default |
 | `SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS` | Per-stage model timeout; default `180` |
 | `SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS` | Graph model output ceiling; default `16000` |
-| `WORKFLOW_TRIGGER_URL` | Company-intelligence Workflow trigger |
-| `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Supply-chain graph Workflow trigger |
-| `CHAT_INDEX_WORKFLOW_TRIGGER_URL` | Zero-quota latest-10-K index Workflow trigger |
+| `WORKFLOW_SERVICE_URL` | Vercel-generated web Service Binding used to derive all Workflow triggers |
+| `WORKFLOW_TRIGGER_URL` | Optional legacy company-intelligence trigger override |
+| `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL` | Optional legacy supply-chain graph trigger override |
+| `CHAT_INDEX_WORKFLOW_TRIGGER_URL` | Optional legacy filing-index trigger override |
 | `BLOB_READ_WRITE_TOKEN` | Private Vercel Blob access for official-source artifacts |
 | `S3_ENDPOINT_URL`, `S3_BUCKET` | MinIO or S3-compatible graph artifact storage |
 | `CHAT_WEB_ARTIFACT_PREFIX` | Private bounded web-evidence namespace; default `chat-web` |
@@ -380,21 +382,19 @@ environment so same-origin mutation checks remain valid behind a proxy.
 
 ### Vercel
 
-EquityLens uses two Vercel Projects connected to the repository:
+EquityLens uses one Vercel Project with two independently built Services:
 
-1. Deploy `backend/` with the **Deploy API** button.
-2. Copy the resulting API production URL.
-3. Deploy `frontend/` with the **Deploy Web** button and set `BACKEND_URL` to
-   the API URL.
-4. Point `WORKFLOW_TRIGGER_URL`, `SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL`, and
-   `CHAT_INDEX_WORKFLOW_TRIGGER_URL` at their Web Project Workflow routes.
-5. Set the API Project's `CORS_ORIGINS` to the Web production origin and
-   redeploy the API.
-6. Run the shared smoke check against both production origins.
+1. The `web` Service builds `frontend/` with Next.js.
+2. The `api` Service builds `backend/` with FastAPI.
+3. A Service Binding injects `BACKEND_URL` into the web runtime.
+4. A reverse binding injects `WORKFLOW_SERVICE_URL` into the API runtime.
+5. Public `/api/v1/*` requests route to FastAPI; all other requests route to
+   Next.js.
+6. Run the PostgreSQL migration and production smoke check after deployment.
 
-The API button requests the database, authentication, OpenAI, Blob, and parser
-credentials required by the Vercel profile. Deploy Button defaults contain only
-public profile values.
+The Deploy Button requests the shared database, authentication, OpenAI, Blob,
+and application secrets. Vercel injects both internal service URLs, so Preview
+and Production deployments require no manually copied project origins.
 
 Full environment reference: [`deploy/vercel/README.md`](deploy/vercel/README.md).
 The shared profile comparison and verification commands live in

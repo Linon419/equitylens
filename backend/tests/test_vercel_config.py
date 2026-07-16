@@ -11,9 +11,9 @@ def test_vercel_entrypoint_exports_fastapi_app() -> None:
 
 
 def test_vercel_bundle_excludes_tests() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     config = json.loads((root / "vercel.json").read_text())
-    function = config["functions"]["app/app.py"]
+    function = config["services"]["api"]["functions"]["app/app.py"]
 
     assert "tests/**" in function["excludeFiles"]
     assert "app/ingestion/**" in function["excludeFiles"]
@@ -23,14 +23,46 @@ def test_vercel_bundle_excludes_tests() -> None:
     assert function["maxDuration"] == 300
 
 
+def test_vercel_services_bind_web_and_api_in_one_project() -> None:
+    root = Path(__file__).resolve().parents[2]
+    config = json.loads((root / "vercel.json").read_text())
+
+    web = config["services"]["web"]
+    api = config["services"]["api"]
+    assert web["root"] == "frontend/"
+    assert web["framework"] == "nextjs"
+    assert web["bindings"] == [
+        {
+            "type": "service",
+            "service": "api",
+            "format": "url",
+            "env": "BACKEND_URL",
+        }
+    ]
+    assert api["root"] == "backend/"
+    assert api["framework"] == "fastapi"
+    assert api["entrypoint"] == "app.app:app"
+    assert api["bindings"] == [
+        {
+            "type": "service",
+            "service": "web",
+            "format": "url",
+            "env": "WORKFLOW_SERVICE_URL",
+        }
+    ]
+    assert config["rewrites"] == [
+        {"source": "/api/v1/(.*)", "destination": {"service": "api"}},
+        {"source": "/(.*)", "destination": {"service": "web"}},
+    ]
+
+
 def test_vercel_docs_include_workflow_wiring() -> None:
     root = Path(__file__).resolve().parents[2]
     guide = (root / "deploy" / "vercel" / "README.md").read_text()
 
     assert "INTERNAL_JOB_SECRET" in guide
-    assert "WORKFLOW_TRIGGER_URL" in guide
-    assert "SUPPLY_CHAIN_WORKFLOW_TRIGGER_URL" in guide
-    assert "CHAT_INDEX_WORKFLOW_TRIGGER_URL" in guide
+    assert "WORKFLOW_SERVICE_URL" in guide
+    assert "Service Binding" in guide
     assert "/api/internal/workflows/company-intelligence" in guide
     assert "/api/internal/workflows/supply-chain-graph" in guide
     assert "/api/internal/workflows/filing-index" in guide

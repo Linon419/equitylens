@@ -24,15 +24,44 @@ export function safeReturnPath(value: unknown, fallback: string): string {
 
 export function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
-  const frontendUrl = process.env.FRONTEND_URL;
-  if (!origin || !frontendUrl) {
+  if (!origin) {
     return false;
   }
   try {
-    return new URL(origin).origin === new URL(frontendUrl).origin;
+    const suppliedOrigin = new URL(origin).origin;
+    return expectedOrigins(request).some(
+      (expectedOrigin) => expectedOrigin === suppliedOrigin,
+    );
   } catch {
     return false;
   }
+}
+
+function expectedOrigins(request: NextRequest): string[] {
+  const origins = new Set<string>();
+  const configured = process.env.FRONTEND_URL?.trim();
+  if (configured) {
+    origins.add(new URL(configured).origin);
+  }
+
+  const host = firstHeaderValue(request.headers.get("x-forwarded-host"))
+    ?? firstHeaderValue(request.headers.get("host"));
+  if (host) {
+    const forwardedProtocol = firstHeaderValue(
+      request.headers.get("x-forwarded-proto"),
+    );
+    const protocol = forwardedProtocol === "http" || forwardedProtocol === "https"
+      ? forwardedProtocol
+      : request.nextUrl.protocol.replace(":", "");
+    origins.add(`${protocol}://${host}`);
+  }
+
+  origins.add(request.nextUrl.origin);
+  return [...origins];
+}
+
+function firstHeaderValue(value: string | null): string | null {
+  return value?.split(",", 1)[0]?.trim() || null;
 }
 
 export function isValidCsrf(
