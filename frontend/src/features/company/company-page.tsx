@@ -63,50 +63,59 @@ export function CompanyPage({
   useEffect(() => {
     const controller = new AbortController();
     const language = locale === "zh-CN" ? "zh" : "en";
-    void Promise.allSettled([
-      loadResource<Company>("company", `/api/research/companies/${symbol}`, controller.signal),
-      loadResource<MarketResponse>("market", `/api/research/companies/${symbol}/market`, controller.signal),
-      loadResource<FinancialsResponse>("financials", `/api/research/companies/${symbol}/financials`, controller.signal),
-      loadResource<IntelligenceResponse>(
-        "intelligence",
-        `/api/research/companies/${symbol}/intelligence?locale=${language}`,
-        controller.signal,
-      ),
-      loadResource<SupplyChainGraphResponse>(
-        "supplyChainGraph",
-        `/api/research/companies/${symbol}/supply-chain-graph?locale=${language}&evidence=verified%2Cpotential`,
-        controller.signal,
-      ),
-      loadResource<QuotaStatus>("quota", "/api/research/agent-quota", controller.signal),
-    ]).then(([company, market, financials, intelligence, supplyChainGraph, quota]) => {
+    void loadResource<Company>(
+      "company",
+      `/api/research/companies/${symbol}`,
+      controller.signal,
+    ).then((company) => {
       if (controller.signal.aborted) return;
-      const notFound =
-        company.status === "rejected" &&
-        company.reason instanceof ResearchResponseError &&
-        company.reason.status === 404;
-      const intelligenceMissing = rejectedWithCode(intelligence, "INTELLIGENCE_NOT_FOUND");
-      const graphMissing = rejectedWithStatus(supplyChainGraph, 404);
-      const unavailable = [market, financials, intelligence, supplyChainGraph, quota]
-        .map((result, index) => {
-          const resource = ["market", "financials", "intelligence", "supplyChainGraph", "quota"][index];
-          const expectedEmptyState =
-            (resource === "intelligence" && intelligenceMissing)
-            || (resource === "supplyChainGraph" && graphMissing);
-          return result.status === "rejected" && !expectedEmptyState
-            ? resource
-            : null;
-        })
-        .filter((value): value is string => value !== null);
+      setResources((current) => ({ ...current, loading: false, company }));
+
+      void Promise.allSettled([
+        loadResource<MarketResponse>("market", `/api/research/companies/${symbol}/market`, controller.signal),
+        loadResource<FinancialsResponse>("financials", `/api/research/companies/${symbol}/financials`, controller.signal),
+        loadResource<IntelligenceResponse>(
+          "intelligence",
+          `/api/research/companies/${symbol}/intelligence?locale=${language}`,
+          controller.signal,
+        ),
+        loadResource<SupplyChainGraphResponse>(
+          "supplyChainGraph",
+          `/api/research/companies/${symbol}/supply-chain-graph?locale=${language}&evidence=verified%2Cpotential`,
+          controller.signal,
+        ),
+        loadResource<QuotaStatus>("quota", "/api/research/agent-quota", controller.signal),
+      ]).then(([market, financials, intelligence, supplyChainGraph, quota]) => {
+        if (controller.signal.aborted) return;
+        const intelligenceMissing = rejectedWithCode(intelligence, "INTELLIGENCE_NOT_FOUND");
+        const graphMissing = rejectedWithStatus(supplyChainGraph, 404);
+        const unavailable = [market, financials, intelligence, supplyChainGraph, quota]
+          .map((result, index) => {
+            const resource = ["market", "financials", "intelligence", "supplyChainGraph", "quota"][index];
+            const expectedEmptyState =
+              (resource === "intelligence" && intelligenceMissing)
+              || (resource === "supplyChainGraph" && graphMissing);
+            return result.status === "rejected" && !expectedEmptyState
+              ? resource
+              : null;
+          })
+          .filter((value): value is string => value !== null);
+        setResources((current) => ({
+          ...current,
+          market: fulfilled(market),
+          financials: fulfilled(financials),
+          intelligence: fulfilled(intelligence),
+          supplyChainGraph: fulfilled(supplyChainGraph),
+          quota: fulfilled(quota),
+          unavailable,
+        }));
+      });
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) return;
       setResources({
         loading: false,
-        notFound,
-        company: fulfilled(company),
-        market: fulfilled(market),
-        financials: fulfilled(financials),
-        intelligence: fulfilled(intelligence),
-        supplyChainGraph: fulfilled(supplyChainGraph),
-        quota: fulfilled(quota),
-        unavailable,
+        notFound: error instanceof ResearchResponseError && error.status === 404,
+        unavailable: [],
       });
     });
     return () => controller.abort();

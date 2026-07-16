@@ -11,6 +11,8 @@ from app.models.company_model import Company
 from app.models.market_model import MarketSnapshot
 from app.providers.market import MarketDataProvider, QuoteSnapshot
 
+PROFILE_FETCH_TIMEOUT_SECONDS = 5
+
 
 @dataclass(frozen=True)
 class MarketResult:
@@ -68,7 +70,7 @@ async def refresh_company_profile(
         return company
 
     try:
-        async with asyncio.timeout(15):
+        async with asyncio.timeout(PROFILE_FETCH_TIMEOUT_SECONDS):
             profile = await provider.get_company_profile(company.symbol)
     except Exception:
         return company
