@@ -51,11 +51,6 @@ export function AppShell({
           <BrandMark />
           <span>EquityLens</span>
         </a>
-        {user ? (
-          <nav aria-label={copy.settings}>
-            <a href={`/${locale}/settings`}>{copy.settings}</a>
-          </nav>
-        ) : null}
         <div className="app-header__account">
           {user?.avatar_url ? (
             <Image
@@ -71,6 +66,14 @@ export function AppShell({
             <span className="app-header__name">
               {user.full_name ?? user.email}
             </span>
+          ) : null}
+          {user ? (
+            <a
+              className="app-header__settings"
+              href={`/${locale}/settings`}
+            >
+              {copy.settings}
+            </a>
           ) : null}
           <LanguageSwitcher
             authenticated={Boolean(user)}

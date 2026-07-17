@@ -80,7 +80,9 @@ describe("AppShell", () => {
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/en-US"));
     expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Settings" })).toBeVisible();
+    const settings = screen.getByRole("link", { name: "Settings" });
+    expect(settings).toBeVisible();
+    expect(settings.closest(".app-header__account")).toBeInTheDocument();
   });
 
   it("renders guest navigation, sign-in, and language controls", () => {
