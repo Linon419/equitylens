@@ -124,7 +124,7 @@ The provider contracts keep deployment-specific infrastructure at the edges:
 
 | Profile | Web / API | Storage | Jobs | Document parsing |
 |---|---|---|---|---|
-| Vercel + VPS | Next.js on Vercel; API on Sydney VPS | Neon PostgreSQL + private Vercel Blob | Redis + RQ on VPS | Managed profile |
+| Vercel + VPS | Next.js on Vercel; API on Sydney VPS | VPS PostgreSQL / pgvector + private Vercel Blob | Redis + RQ on VPS | Managed profile |
 | Docker | Next.js + FastAPI containers | PostgreSQL + private MinIO evidence bucket | Redis + RQ | Local parser |
 
 Graph generation uses AI for source planning, relationship extraction,
@@ -382,9 +382,10 @@ environment so same-origin mutation checks remain valid behind a proxy.
 EquityLens uses a hybrid production profile:
 
 1. Vercel builds only the `web` Service from `frontend/`.
-2. A Sydney VPS runs FastAPI, the RQ worker, Redis, and Caddy HTTPS.
+2. A Sydney VPS runs PostgreSQL / pgvector, FastAPI, the RQ worker, Redis, and Caddy HTTPS.
 3. The Vercel BFF calls the VPS through the server-only `BACKEND_URL`.
-4. Neon PostgreSQL and private Vercel Blob remain managed services.
+4. PostgreSQL uses a private Docker volume; verified daily dumps are retained
+   locally for seven days and in private Vercel Blob for 30 days.
 5. API and Agent containers remain warm between visits, removing Python
    serverless cold starts from ordinary company-page traffic.
 6. Run Alembic through the VPS migration container before health checks.

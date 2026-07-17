@@ -10,7 +10,7 @@ validation path.
 |---|---|---|---|
 | Deterministic local validation | TestClient + Next.js dev server | In-process fixture runner | Temporary SQLite |
 | Docker | FastAPI + Next.js containers | Redis queue and RQ worker | PostgreSQL |
-| Vercel + VPS | Next.js on Vercel; FastAPI on a long-lived VPS | Redis and RQ worker on the VPS | Managed PostgreSQL |
+| Vercel + VPS | Next.js on Vercel; FastAPI on a long-lived VPS | Redis and RQ worker on the VPS | VPS PostgreSQL / pgvector |
 
 Company intelligence uses `download`, `parse`, `analyze`, `verify`, and
 `localize`. Supply-chain research uses `collect`, `extract`, `resolve`,
@@ -157,10 +157,11 @@ the VPS API. The BFF preserves same-origin browser traffic, guest assertions,
 authentication cookies, and SSE streaming while making server-to-server calls
 to the VPS.
 
-The VPS profile in `deploy/vps/` runs FastAPI, an RQ worker, Redis, and Caddy.
-Neon supplies PostgreSQL and Vercel Blob stores private research artifacts.
-This removes Python serverless dependency installation from page requests and
-keeps Agent dependencies loaded in long-lived containers.
+The VPS profile in `deploy/vps/` runs PostgreSQL / pgvector, FastAPI, an RQ
+worker, Redis, and Caddy. Vercel Blob stores private research artifacts and
+offsite database backups. This removes cross-region database calls and Python
+serverless dependency installation from page requests while keeping Agent
+dependencies loaded in long-lived containers.
 
 Set `REVERSE_PROXY_MODE=external` when the VPS already runs 1Panel/OpenResty or
 another HTTPS proxy. FastAPI is then published only on
@@ -172,6 +173,10 @@ DEPLOYMENT_TARGET=vps
 OBJECT_STORAGE_PROVIDER=vercel_blob
 JOB_BACKEND=rq
 REDIS_URL=redis://redis:6379/0
+POSTGRES_DB=equitylens
+POSTGRES_USER=equitylens
+POSTGRES_PASSWORD=replace-with-64-character-database-password
+DATABASE_URL=postgresql://equitylens:replace-with-64-character-database-password@postgres:5432/equitylens
 DOCUMENT_PARSER=managed
 BLOB_READ_WRITE_TOKEN=replace-with-private-store-token
 ```
@@ -185,6 +190,10 @@ Sydney VPS.
 Create the Vercel Blob store with private access and connect it to the Services
 Project. `BLOB_READ_WRITE_TOKEN` stays server-side. The graph artifact adapter
 uses private writes and reads for every official-source object.
+
+The host runs `deploy/vps/backup-postgres.sh` daily. Each custom-format dump is
+validated with `pg_restore --list`, retained locally for seven days, and
+uploaded to the private `database-backups/` prefix for 30-day offsite retention.
 
 ## Durable research artifacts
 

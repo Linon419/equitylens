@@ -1,8 +1,8 @@
 # Sydney VPS deployment
 
-This profile runs the FastAPI API, RQ worker, Redis, and HTTPS proxy on a
-long-lived VPS. The Next.js frontend remains on Vercel. Neon PostgreSQL and
-Vercel Blob remain managed services.
+This profile runs PostgreSQL with pgvector, the FastAPI API, RQ worker, Redis,
+and HTTPS proxy on a long-lived VPS. The Next.js frontend and private offsite
+database backups remain on Vercel.
 
 ## 1. Prepare DNS and the server
 
@@ -34,9 +34,10 @@ cp deploy/vps/.env.example deploy/vps/.env
 chmod 600 deploy/vps/.env
 ```
 
-Fill every value in `deploy/vps/.env`. Use the existing Neon `DATABASE_URL`,
-Vercel Blob token, Google client ID, OpenAI/DeepSeek credentials, and application
-secrets. `GUEST_SIGNING_SECRET` must match the value configured in Vercel.
+Fill every value in `deploy/vps/.env`. Generate a dedicated database password,
+use the Vercel Blob token, Google client ID, OpenAI/DeepSeek credentials, and
+application secrets. `DATABASE_URL` should use the internal `postgres` hostname,
+and `GUEST_SIGNING_SECRET` must match the value configured in Vercel.
 
 Use `REVERSE_PROXY_MODE=caddy` on a clean server where this Compose project owns
 ports 80 and 443. Use `REVERSE_PROXY_MODE=external` when 1Panel, Nginx, or
@@ -53,7 +54,8 @@ chmod +x deploy/vps/deploy.sh
 In `caddy` mode, Caddy obtains and renews the TLS certificate automatically. In
 `external` mode, configure the existing host proxy to forward the API domain to
 `http://127.0.0.1:18000`. Disable proxy buffering and use long read/send
-timeouts for research-chat SSE streams. Redis has no public port.
+timeouts for research-chat SSE streams. PostgreSQL and Redis have no public
+ports.
 
 Example Nginx/OpenResty location:
 
@@ -80,7 +82,25 @@ docker compose --env-file deploy/vps/.env -f deploy/vps/docker-compose.yml logs 
 docker compose --env-file deploy/vps/.env -f deploy/vps/docker-compose.yml restart api worker
 ```
 
-## 4. Connect Vercel
+## 4. Back up PostgreSQL
+
+Run a verified local dump and upload it to the configured private Vercel Blob
+store:
+
+```bash
+chmod +x deploy/vps/backup-postgres.sh
+sudo deploy/vps/backup-postgres.sh
+```
+
+Local dumps are retained for seven days under
+`/var/backups/equitylens/postgres`. Private offsite dumps are retained for 30
+days under `database-backups/`. Schedule the script daily with root's crontab:
+
+```cron
+20 3 * * * /opt/equitylens/deploy/vps/backup-postgres.sh >> /var/log/equitylens-backup.log 2>&1
+```
+
+## 5. Connect Vercel
 
 Set these Production and Preview values in the Vercel web project:
 
@@ -94,7 +114,7 @@ COOKIE_SECURE=true
 Redeploy the Vercel frontend. Browser requests remain same-origin through the
 Next.js BFF; the BFF calls the VPS over HTTPS.
 
-## 5. Verify
+## 6. Verify
 
 ```bash
 curl https://api.example.com/api/v1/health/live

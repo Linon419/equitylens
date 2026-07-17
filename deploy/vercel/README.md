@@ -11,7 +11,7 @@ Browser
   -> Vercel Next.js + same-origin BFF
   -> https://api.example.com
   -> Caddy -> FastAPI -> Redis/RQ
-  -> Neon PostgreSQL + Vercel Blob
+  -> VPS PostgreSQL / pgvector + private Vercel Blob
 ```
 
 The root [`vercel.json`](../../vercel.json) builds `frontend/` as the `web`
