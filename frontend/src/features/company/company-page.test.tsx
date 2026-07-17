@@ -35,6 +35,40 @@ describe("CompanyPage", () => {
     expect(screen.getByText(companyPageCopy.en.loading)).toBeVisible();
   });
 
+  it("renders server-prefetched company data without requesting it again", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(fetchFixture);
+
+    render(
+      <CompanyPage
+        copy={companyPageCopy.en}
+        initialCompany={companyFixture}
+        locale="en-US"
+        symbol="AAPL"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Apple Inc." })).toBeVisible();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).endsWith("/companies/AAPL")),
+    ).toBe(false);
+  });
+
+  it("starts secondary requests while primary company data is pending", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    render(<CompanyPage copy={companyPageCopy.en} locale="en-US" symbol="AAPL" />);
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([url]) => String(url));
+      expect(urls).toContain("/api/research/companies/AAPL/market");
+      expect(urls).toContain("/api/research/companies/AAPL/financials");
+    });
+    expect(screen.getByText(companyPageCopy.en.loading)).toBeVisible();
+  });
+
   it("loads independent company resources and marks stale market data", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(fetchFixture);

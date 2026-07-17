@@ -42,17 +42,20 @@ type Resources = {
 
 export function CompanyPage({
   copy,
+  initialCompany,
   locale,
   symbol,
 }: {
   copy: CompanyPageCopy;
+  initialCompany?: Company;
   locale: Locale;
   symbol: string;
 }) {
   const { user } = useSession();
   const [resources, setResources] = useState<Resources>({
-    loading: true,
+    loading: initialCompany === undefined,
     notFound: false,
+    company: initialCompany,
     unavailable: [],
   });
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
@@ -63,63 +66,30 @@ export function CompanyPage({
   useEffect(() => {
     const controller = new AbortController();
     const language = locale === "zh-CN" ? "zh" : "en";
-    void loadResource<Company>(
-      "company",
-      `/api/research/companies/${symbol}`,
-      controller.signal,
-    ).then((company) => {
-      if (controller.signal.aborted) return;
-      setResources((current) => ({ ...current, loading: false, company }));
-
-      void Promise.allSettled([
-        loadResource<MarketResponse>("market", `/api/research/companies/${symbol}/market`, controller.signal),
-        loadResource<FinancialsResponse>("financials", `/api/research/companies/${symbol}/financials`, controller.signal),
-        loadResource<IntelligenceResponse>(
-          "intelligence",
-          `/api/research/companies/${symbol}/intelligence?locale=${language}`,
-          controller.signal,
-        ),
-        loadResource<SupplyChainGraphResponse>(
-          "supplyChainGraph",
-          `/api/research/companies/${symbol}/supply-chain-graph?locale=${language}&evidence=verified%2Cpotential`,
-          controller.signal,
-        ),
-        loadResource<QuotaStatus>("quota", "/api/research/agent-quota", controller.signal),
-      ]).then(([market, financials, intelligence, supplyChainGraph, quota]) => {
+    if (initialCompany === undefined) {
+      void loadResource<Company>(
+        "company",
+        `/api/research/companies/${symbol}`,
+        controller.signal,
+      ).then((company) => {
         if (controller.signal.aborted) return;
-        const intelligenceMissing = rejectedWithCode(intelligence, "INTELLIGENCE_NOT_FOUND");
-        const graphMissing = rejectedWithStatus(supplyChainGraph, 404);
-        const unavailable = [market, financials, intelligence, supplyChainGraph, quota]
-          .map((result, index) => {
-            const resource = ["market", "financials", "intelligence", "supplyChainGraph", "quota"][index];
-            const expectedEmptyState =
-              (resource === "intelligence" && intelligenceMissing)
-              || (resource === "supplyChainGraph" && graphMissing);
-            return result.status === "rejected" && !expectedEmptyState
-              ? resource
-              : null;
-          })
-          .filter((value): value is string => value !== null);
+        setResources((current) => ({ ...current, loading: false, company }));
+      }).catch((error: unknown) => {
+        if (controller.signal.aborted) return;
         setResources((current) => ({
           ...current,
-          market: fulfilled(market),
-          financials: fulfilled(financials),
-          intelligence: fulfilled(intelligence),
-          supplyChainGraph: fulfilled(supplyChainGraph),
-          quota: fulfilled(quota),
-          unavailable,
+          loading: false,
+          notFound: error instanceof ResearchResponseError && error.status === 404,
         }));
       });
-    }).catch((error: unknown) => {
+    }
+
+    void loadSecondaryResources(symbol, language, controller.signal).then((secondary) => {
       if (controller.signal.aborted) return;
-      setResources({
-        loading: false,
-        notFound: error instanceof ResearchResponseError && error.status === 404,
-        unavailable: [],
-      });
+      setResources((current) => ({ ...current, ...secondary }));
     });
     return () => controller.abort();
-  }, [locale, symbol]);
+  }, [initialCompany, locale, symbol]);
 
   const handleCompleted = useCallback(
     (intelligence: IntelligenceResponse, quota: QuotaStatus) => {
@@ -430,6 +400,48 @@ function abortableDelay(milliseconds: number, signal: AbortSignal) {
 
 function fulfilled<T>(result: PromiseSettledResult<T>): T | undefined {
   return result.status === "fulfilled" ? result.value : undefined;
+}
+
+async function loadSecondaryResources(
+  symbol: string,
+  language: "en" | "zh",
+  signal: AbortSignal,
+): Promise<Partial<Resources>> {
+  const results = await Promise.allSettled([
+    loadResource<MarketResponse>("market", `/api/research/companies/${symbol}/market`, signal),
+    loadResource<FinancialsResponse>("financials", `/api/research/companies/${symbol}/financials`, signal),
+    loadResource<IntelligenceResponse>(
+      "intelligence",
+      `/api/research/companies/${symbol}/intelligence?locale=${language}`,
+      signal,
+    ),
+    loadResource<SupplyChainGraphResponse>(
+      "supplyChainGraph",
+      `/api/research/companies/${symbol}/supply-chain-graph?locale=${language}&evidence=verified%2Cpotential`,
+      signal,
+    ),
+    loadResource<QuotaStatus>("quota", "/api/research/agent-quota", signal),
+  ]);
+  const [market, financials, intelligence, supplyChainGraph, quota] = results;
+  const intelligenceMissing = rejectedWithCode(intelligence, "INTELLIGENCE_NOT_FOUND");
+  const graphMissing = rejectedWithStatus(supplyChainGraph, 404);
+  const unavailable = results
+    .map((result, index) => {
+      const resource = ["market", "financials", "intelligence", "supplyChainGraph", "quota"][index];
+      const expectedEmptyState =
+        (resource === "intelligence" && intelligenceMissing)
+        || (resource === "supplyChainGraph" && graphMissing);
+      return result.status === "rejected" && !expectedEmptyState ? resource : null;
+    })
+    .filter((value): value is string => value !== null);
+  return {
+    market: fulfilled(market),
+    financials: fulfilled(financials),
+    intelligence: fulfilled(intelligence),
+    supplyChainGraph: fulfilled(supplyChainGraph),
+    quota: fulfilled(quota),
+    unavailable,
+  };
 }
 
 function rejectedWithStatus<T>(result: PromiseSettledResult<T>, status: number) {
