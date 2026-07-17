@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlmodel import Session, func, select
@@ -50,12 +50,14 @@ def publish_command(
     snapshot_id,
     graph: AcceptedGraph,
     localization: GraphLocalization,
+    *,
+    now: datetime = NOW,
 ) -> PublishGraphCommand:
     return PublishGraphCommand(
         snapshot_id=snapshot_id,
         graph=graph,
         localization=localization,
-        now=NOW,
+        now=now,
     )
 
 
@@ -302,3 +304,38 @@ def test_insufficient_evidence_snapshot_is_public_terminal_state(
 
     assert snapshot.status == "insufficient_evidence"
     assert repository.latest_public(company.id).id == snapshot.id
+
+
+def test_completed_snapshot_remains_current_after_weaker_refresh(
+    session: Session,
+    company: Company,
+    source_documents: list[OfficialSourceDocument],
+    accepted_graph: AcceptedGraph,
+    graph_localization: GraphLocalization,
+) -> None:
+    repository = SqlSupplyChainGraphRepository(session)
+    completed = repository.create_working_snapshot(
+        working_command(company, source_documents)
+    )
+    repository.publish(
+        publish_command(completed.id, accepted_graph, graph_localization)
+    )
+    weaker = repository.create_working_snapshot(
+        working_command(company, source_documents, fingerprint="b" * 64)
+    )
+    insufficient = accepted_graph.model_copy(
+        update={"status": "insufficient_evidence"}
+    )
+    repository.publish(
+        publish_command(
+            weaker.id,
+            insufficient,
+            graph_localization,
+            now=NOW + timedelta(minutes=5),
+        )
+    )
+
+    current = repository.latest_public(company.id)
+
+    assert current is not None
+    assert current.id == completed.id

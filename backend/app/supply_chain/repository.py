@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
+from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -94,6 +95,10 @@ class SqlSupplyChainGraphRepository:
                 SupplyChainGraphSnapshot.status.in_(_PUBLIC_STATUSES),
             )
             .order_by(
+                case(
+                    (SupplyChainGraphSnapshot.status == "completed", 0),
+                    else_=1,
+                ),
                 SupplyChainGraphSnapshot.completed_at.desc(),
                 SupplyChainGraphSnapshot.generated_at.desc(),
             )
