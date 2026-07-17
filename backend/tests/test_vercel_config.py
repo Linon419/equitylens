@@ -10,6 +10,7 @@ def test_vercel_deploys_only_the_web_service() -> None:
     assert set(config["services"]) == {"web"}
     assert web["root"] == "frontend/"
     assert web["framework"] == "nextjs"
+    assert config["regions"] == ["syd1"]
     assert "bindings" not in web
     assert config["rewrites"] == [
         {"source": "/(.*)", "destination": {"service": "web"}},

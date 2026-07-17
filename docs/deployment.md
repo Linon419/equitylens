@@ -179,6 +179,8 @@ BLOB_READ_WRITE_TOKEN=replace-with-private-store-token
 The root `vercel.json` defines only the `web` Service. Configure
 `BACKEND_URL=https://api.example.com` in Vercel. Configure the VPS with the
 matching `FRONTEND_URL`, `CORS_ORIGINS`, and `GUEST_SIGNING_SECRET` values.
+Vercel Server Functions run in `syd1` so SSR and BFF traffic stay close to the
+Sydney VPS.
 
 Create the Vercel Blob store with private access and connect it to the Services
 Project. `BLOB_READ_WRITE_TOKEN` stays server-side. The graph artifact adapter

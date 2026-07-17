@@ -15,8 +15,9 @@ Browser
 ```
 
 The root [`vercel.json`](../../vercel.json) builds `frontend/` as the `web`
-Service. Browser requests remain same-origin. The server-side BFF calls the VPS
-through `BACKEND_URL` and forwards authentication cookies, signed guest
+Service and runs its Server Functions in Vercel's Sydney `syd1` region, next to
+the VPS API. Browser requests remain same-origin. The server-side BFF calls the
+VPS through `BACKEND_URL` and forwards authentication cookies, signed guest
 assertions, response status, and streaming bodies.
 
 ## 1. Deploy the VPS first
