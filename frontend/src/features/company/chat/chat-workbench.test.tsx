@@ -20,6 +20,72 @@ describe("ChatWorkbench", () => {
     vi.restoreAllMocks();
   });
 
+  it("describes refresh bootstrap as conversation loading", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    render(
+      <ChatWorkbench
+        authenticated={false}
+        copy={companyPageCopy.zh.chat}
+        locale="zh-CN"
+        onClose={vi.fn()}
+        open
+        symbol="SNDK"
+      />,
+    );
+
+    expect(screen.getByText(companyPageCopy.zh.chat.loadingHistory)).toBeVisible();
+    expect(screen.queryByText(companyPageCopy.zh.chat.sending)).toBeNull();
+  });
+
+  it("keeps conversation bootstrap independent from session and auxiliary requests", async () => {
+    let conversationRequests = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path.includes("chat-readiness") || path.endsWith("/chat-quota")) {
+        return new Promise<Response>(() => undefined);
+      }
+      if (path.endsWith("/conversations") && method === "GET") {
+        conversationRequests += 1;
+        return Response.json([conversation()]);
+      }
+      if (path.includes("/messages") && method === "GET") {
+        return Response.json({
+          items: [historicalMessage(UUIDS.user, "Restored research")],
+          next_cursor: null,
+        });
+      }
+      throw new Error(`Unexpected request: ${method} ${path}`);
+    });
+
+    const view = render(
+      <ChatWorkbench
+        authenticated={false}
+        copy={companyPageCopy.en.chat}
+        locale="en-US"
+        onClose={vi.fn()}
+        open
+        symbol="AAPL"
+      />,
+    );
+
+    expect(await screen.findByText("Restored research")).toBeVisible();
+    view.rerender(
+      <ChatWorkbench
+        authenticated
+        copy={companyPageCopy.en.chat}
+        locale="en-US"
+        onClose={vi.fn()}
+        open
+        symbol="AAPL"
+      />,
+    );
+    await waitFor(() => expect(conversationRequests).toBe(1));
+  });
+
   it("creates the guest conversation and renders validated sections as they arrive", async () => {
     const user = userEvent.setup();
     let finish!: () => void;

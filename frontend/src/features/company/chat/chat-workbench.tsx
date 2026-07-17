@@ -35,7 +35,7 @@ export function ChatWorkbench({
   pendingContext?: SelectedChatContext | null;
   symbol: string;
 }) {
-  const chat = useCompanyChat({ authenticated, locale, open, symbol });
+  const chat = useCompanyChat({ locale, open, symbol });
   const addContext = chat.addContext;
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -180,7 +180,7 @@ export function ChatWorkbench({
       <div className="chat-workbench__messages">
         <div className="chat-thread" role="log">
         {chat.loading && chat.messages.length === 0 ? (
-          <p className="chat-workbench__empty">{copy.sending}</p>
+          <p className="chat-workbench__empty">{copy.loadingHistory}</p>
         ) : null}
         {chat.nextCursor ? (
           <button className="chat-workbench__more" type="button" onClick={() => void chat.loadMore()}>

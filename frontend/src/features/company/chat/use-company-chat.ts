@@ -24,12 +24,10 @@ import {
 import { chatStreamReducer, INITIAL_STREAM } from "./chat-state";
 
 export function useCompanyChat({
-  authenticated,
   locale,
   open,
   symbol,
 }: {
-  authenticated: boolean;
   locale: ChatLocale;
   open: boolean;
   symbol: string;
@@ -40,7 +38,7 @@ export function useCompanyChat({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<ChatReadiness | null>(null);
   const [contexts, setContexts] = useState<SelectedChatContext[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open);
   const streamController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -52,7 +50,8 @@ export function useCompanyChat({
     void Promise.resolve().then(async () => {
       if (controller.signal.aborted) return;
       setLoading(true);
-      await bootstrap(controller.signal);
+      void loadAuxiliary(controller.signal);
+      await bootstrapHistory(controller.signal);
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => {
@@ -60,32 +59,23 @@ export function useCompanyChat({
       streamController.current?.abort();
     };
 
-    async function bootstrap(signal: AbortSignal) {
+    async function bootstrapHistory(signal: AbortSignal) {
       try {
-        const [initialConversations, quota, ready] = await Promise.all([
-          getJson<ChatConversation[]>(
-            `/api/research/companies/${symbol}/conversations`,
-            signal,
-          ),
-          getJson<ChatQuotaStatus>("/api/research/chat-quota", signal),
-          getJson<ChatReadiness>(
-            `/api/research/companies/${symbol}/chat-readiness?locale=${locale}`,
-            signal,
-          ),
-        ]);
+        const initialConversations = await getJson<ChatConversation[]>(
+          `/api/research/companies/${symbol}/conversations`,
+          signal,
+        );
         let available = initialConversations;
         if (available.length === 0) {
           available = [await createRemoteConversation(symbol, locale, signal)];
         }
         const stored = localStorage.getItem(storageKey(symbol));
         const selected = available.find((item) => item.id === stored) ?? available[0];
-        const page = await getMessagePage(selected.id, null, signal);
         setConversations(available);
         setSelectedId(selected.id);
-        setNextCursor(page.next_cursor);
-        setReadiness(ready);
         localStorage.setItem(storageKey(symbol), selected.id);
-        dispatch({ type: "quota", quota });
+        const page = await getMessagePage(selected.id, null, signal);
+        setNextCursor(page.next_cursor);
         dispatch({ type: "messages", items: page.items });
       } catch (error) {
         if (!isAbort(error)) {
@@ -93,7 +83,24 @@ export function useCompanyChat({
         }
       }
     }
-  }, [authenticated, locale, open, symbol]);
+
+    async function loadAuxiliary(signal: AbortSignal) {
+      const [quotaResult, readinessResult] = await Promise.allSettled([
+        getJson<ChatQuotaStatus>("/api/research/chat-quota", signal),
+        getJson<ChatReadiness>(
+          `/api/research/companies/${symbol}/chat-readiness?locale=${locale}`,
+          signal,
+        ),
+      ]);
+      if (signal.aborted) return;
+      if (quotaResult.status === "fulfilled") {
+        dispatch({ type: "quota", quota: quotaResult.value });
+      }
+      if (readinessResult.status === "fulfilled") {
+        setReadiness(readinessResult.value);
+      }
+    }
+  }, [locale, open, symbol]);
 
   const selectConversation = useCallback(async (id: string) => {
     streamController.current?.abort();
