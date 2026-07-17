@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 
@@ -31,6 +32,7 @@ ERROR_CODES = {
     "verifying": "INTELLIGENCE_VERIFICATION_FAILED",
     "localizing": "INTELLIGENCE_LOCALIZATION_FAILED",
 }
+logger = logging.getLogger(__name__)
 
 
 class CompanyIntelligencePipeline:
@@ -138,6 +140,14 @@ class CompanyIntelligencePipeline:
         try:
             await operation(job)
         except Exception as error:
+            logger.exception(
+                "Company intelligence pipeline step failed",
+                extra={
+                    "job_id": str(job_id),
+                    "pipeline_step": target,
+                    "error_type": type(error).__name__,
+                },
+            )
             self._fail(job_id, target, error)
             raise PipelineStepError(
                 self._error_code(target, error),

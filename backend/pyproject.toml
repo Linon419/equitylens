@@ -43,9 +43,7 @@ dev = [
   "ruff>=0.12,<1",
 ]
 worker = [
-  "pymupdf>=1.26,<2",
   "pypdf>=5,<7",
-  "unstructured[pdf]>=0.18,<1",
 ]
 
 [tool.uv]

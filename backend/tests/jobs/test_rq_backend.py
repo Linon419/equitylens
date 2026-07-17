@@ -58,7 +58,7 @@ async def test_rq_backend_enqueues_stable_task_and_job_id() -> None:
     assert payload == {"job_id": "job-123"}
     assert job_id == "company-intelligence-job-123"
     assert re.fullmatch(r"[A-Za-z0-9_-]+", job_id)
-    assert options["job_timeout"] == 600
+    assert options["job_timeout"] == 1_800
     assert options["result_ttl"] == 86400
     assert options["failure_ttl"] == 604800
     assert submission.job_id == "company-intelligence-job-123"

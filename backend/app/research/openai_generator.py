@@ -1,8 +1,10 @@
+import json
 from typing import Any, TypeVar
 
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from app.research.output_normalizer import normalize_json_result
 from app.research.prompts import (
     DRAFT_SYSTEM_PROMPT,
     LOCALIZE_SYSTEM_PROMPT,
@@ -64,11 +66,67 @@ class OpenAIIntelligenceGenerator:
         system_prompt: str,
         payload: str,
     ) -> StructuredResult:
+        provider_schema: type[StructuredResult] | dict[str, Any] = schema
+        if self._structured_output_method == "json_mode":
+            provider_schema = schema.model_json_schema()
         structured = self._model.with_structured_output(
-            schema,
+            provider_schema,
             method=self._structured_output_method,
         )
-        result: Any = await structured.ainvoke(
-            [("system", system_prompt), ("human", payload)]
+        messages = [
+            ("system", self._structured_prompt(schema, system_prompt)),
+            ("human", payload),
+        ]
+        for attempt in range(2):
+            result: Any = await structured.ainvoke(messages)
+            if self._structured_output_method == "json_mode":
+                result = normalize_json_result(schema, result, payload)
+            try:
+                return schema.model_validate(result)
+            except ValidationError as error:
+                if (
+                    self._structured_output_method != "json_mode"
+                    or attempt == 1
+                ):
+                    raise
+                messages.extend(self._repair_messages(result, error))
+        raise RuntimeError("structured output validation exhausted")
+
+    @staticmethod
+    def _repair_messages(
+        result: Any,
+        error: ValidationError,
+    ) -> list[tuple[str, str]]:
+        validation_errors = json.dumps(
+            error.errors(include_input=False, include_url=False),
+            ensure_ascii=False,
+            separators=(",", ":"),
         )
-        return schema.model_validate(result)
+        return [
+            ("assistant", json.dumps(result, ensure_ascii=False)),
+            (
+                "human",
+                "Correct the JSON so it matches the required schema and the "
+                "supplied evidence. Return only the complete corrected JSON. "
+                f"Validation errors: {validation_errors}",
+            ),
+        ]
+
+    def _structured_prompt(
+        self,
+        schema: type[StructuredResult],
+        system_prompt: str,
+    ) -> str:
+        if self._structured_output_method != "json_mode":
+            return system_prompt
+        provider_schema = json.dumps(
+            schema.model_json_schema(),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return (
+            f"{system_prompt}\n"
+            "Return only valid JSON matching this JSON Schema. "
+            "Include every required property and no additional properties.\n"
+            f"JSON Schema: {provider_schema}"
+        )

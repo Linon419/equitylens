@@ -53,8 +53,12 @@ def parse_research_sections(
 
 
 def _remove_untrusted_nodes(soup: BeautifulSoup) -> None:
-    for tag in soup.find_all(["script", "style", "noscript", "ix:hidden"]):
+    for tag in reversed(
+        soup.find_all(["script", "style", "noscript", "ix:hidden"])
+    ):
         tag.decompose()
+
+    hidden_tags: list[Tag] = []
     for tag in soup.find_all(True):
         style = str(tag.get("style", "")).replace(" ", "").lower()
         if (
@@ -62,7 +66,10 @@ def _remove_untrusted_nodes(soup: BeautifulSoup) -> None:
             or "display:none" in style
             or "visibility:hidden" in style
         ):
-            tag.decompose()
+            hidden_tags.append(tag)
+
+    for tag in reversed(hidden_tags):
+        tag.decompose()
 
 
 def _matches_section(tag: Tag) -> bool:

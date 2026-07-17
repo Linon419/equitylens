@@ -123,6 +123,12 @@ def test_worker_image_packages_the_graph_runtime_and_s3_client() -> None:
     assert "COPY app ./app" in dockerfile
     assert "SupplyChainGraphPipeline" in tasks
     assert "run_supply_chain_graph" in tasks
+    worker_dependencies = pyproject["dependency-groups"]["worker"]
+    assert any(dependency.startswith("pypdf") for dependency in worker_dependencies)
+    assert all(
+        not dependency.startswith(("pymupdf", "torch", "unstructured"))
+        for dependency in worker_dependencies
+    )
 
 
 def test_docker_worker_and_proxy_guidance_support_research_chat() -> None:

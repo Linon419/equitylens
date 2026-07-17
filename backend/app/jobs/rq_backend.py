@@ -9,6 +9,7 @@ RQ_TASKS = {
     "supply_chain_graph": "app.jobs.tasks.run_supply_chain_graph",
     "filing_index": "app.jobs.tasks.run_filing_index",
 }
+JOB_TIMEOUT_SECONDS = 1_800
 
 
 class RQJobBackend:
@@ -41,7 +42,7 @@ class RQJobBackend:
                 task_name,
                 kwargs={"job_id": str(payload["job_id"])},
                 job_id=provider_job_id,
-                job_timeout=600,
+                job_timeout=JOB_TIMEOUT_SECONDS,
                 result_ttl=86_400,
                 failure_ttl=604_800,
             )

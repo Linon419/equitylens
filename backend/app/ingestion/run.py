@@ -13,8 +13,7 @@ from langchain.embeddings import CacheBackedEmbeddings
 from langchain.schema import Document
 from langchain.text_splitter import TokenTextSplitter
 from langchain.vectorstores.pgvector import PGVector
-from langchain_community.document_loaders import UnstructuredFileLoader
-from unstructured.cleaners.core import clean_extra_whitespace
+from langchain_community.document_loaders import PyPDFLoader
 from utils.embedding_models import get_embedding_model
 
 from app.core.config import logger
@@ -152,11 +151,7 @@ class PDFExtractionPipeline:
                 logger.debug(f"Loading {file_name} from {file_path}")
                 try:
                     # loader: Any = self.pdf_loader(file_path)  # type: ignore
-                    loader = UnstructuredFileLoader(
-                        file_path=file_path,
-                        strategy="hi_res",
-                        post_processors=[clean_extra_whitespace],
-                    )
+                    loader = PyPDFLoader(file_path=file_path)
 
                     file_docs = loader.load()
                     documents.extend(file_docs)
