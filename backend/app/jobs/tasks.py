@@ -6,11 +6,12 @@ from uuid import UUID
 
 import httpx
 from rq import Retry
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 
 from app.chat.indexing import FilingIndexService, LangChainEmbeddingProvider
 from app.core.ai_clients import create_chat_model, create_embedding_model
 from app.core.config import settings
+from app.core.database import create_database_engine
 from app.filings.sec_client import SecClient
 from app.jobs._filing_index import FilingIndexJobPipeline
 from app.jobs.errors import PipelineStepError
@@ -51,7 +52,7 @@ from app.supply_chain.repository import (
 from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
 from app.supply_chain.validator import validate_for_publication
 
-engine = create_engine(settings.SYNC_DATABASE_URI)
+engine = create_database_engine(settings.SYNC_DATABASE_URI)
 
 
 def run_company_intelligence(job_id: str) -> Retry | None:

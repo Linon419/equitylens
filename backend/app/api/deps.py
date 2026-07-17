@@ -8,7 +8,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from openai import AsyncOpenAI
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 
 from app.auth.contracts import GoogleVerifier
 from app.auth.errors import AuthError
@@ -54,6 +54,7 @@ from app.core.ai_clients import (
     create_responses_client,
 )
 from app.core.config import settings
+from app.core.database import create_database_engine
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
 from app.filings.sec_client import SecClient
@@ -105,7 +106,7 @@ from app.supply_chain.service import SupplyChainGraphService
 from app.supply_chain.source_policy import PinnedDnsTransport, PinningHostResolver
 from app.supply_chain.validator import validate_for_publication
 
-engine = create_engine(settings.SYNC_DATABASE_URI)
+engine = create_database_engine(settings.SYNC_DATABASE_URI)
 bearer = HTTPBearer(auto_error=False)
 
 
