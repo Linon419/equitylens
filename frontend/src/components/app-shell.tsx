@@ -40,7 +40,7 @@ export function AppShell({
     }
   }
 
-  if (loading) {
+  if (loading && variant === "default") {
     return <main className="session-loading">{copy.loading}</main>;
   }
 
@@ -77,7 +77,13 @@ export function AppShell({
             locale={locale}
             label={languageLabel}
           />
-          {user ? (
+          {loading ? (
+            <span
+              aria-label={copy.loading}
+              className="app-header__session-placeholder"
+              role="status"
+            />
+          ) : user ? (
             <button type="button" onClick={signOut}>
               {copy.signOut}
             </button>

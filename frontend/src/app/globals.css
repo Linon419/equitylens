@@ -594,6 +594,19 @@ a {
   object-fit: cover;
 }
 
+.app-header__session-placeholder {
+  animation: session-pulse 1.2s ease-in-out infinite alternate;
+  background: rgba(244, 241, 231, 0.15);
+  border: 1px solid rgba(244, 241, 231, 0.35);
+  display: block;
+  height: 2.35rem;
+  width: 4.75rem;
+}
+
+@keyframes session-pulse {
+  to { opacity: 0.45; }
+}
+
 .app-header button {
   background: var(--signal);
   border: 1px solid var(--ink);
@@ -1172,6 +1185,7 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .app-header__session-placeholder { animation: none; }
   .reveal { animation: none; }
   .button { transition: none; }
 }

@@ -45,6 +45,7 @@ describe("AppShell", () => {
     cleanup();
     vi.restoreAllMocks();
     replace.mockReset();
+    session.loading = false;
     session.user = {
       id: 1,
       email: "investor@example.com",
@@ -110,5 +111,31 @@ describe("AppShell", () => {
     );
     expect(screen.getByText("guest language")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
+  });
+
+  it("shows public research content while the optional session loads", () => {
+    session.loading = true;
+    session.user = null;
+
+    render(
+      <AppShell
+        copy={{
+          dashboard: "Dashboard",
+          settings: "Settings",
+          signOut: "Sign out",
+          signIn: "Sign in",
+          loading: "Loading session",
+        }}
+        languageLabel="Language"
+        locale="en-US"
+        variant="research"
+      >
+        <p>company research</p>
+      </AppShell>,
+    );
+
+    expect(screen.getByText("company research")).toBeVisible();
+    expect(screen.getByRole("status", { name: "Loading session" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 });
