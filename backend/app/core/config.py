@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
         case_sensitive=True,
     )
@@ -118,7 +119,7 @@ class Settings(BaseSettings):
     SUPPLY_CHAIN_GRAPH_MODEL_OVERRIDE: str | None = None
     SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION: str = "supply-chain-graph.v1"
     SUPPLY_CHAIN_GRAPH_PROMPT_VERSION: str = (
-        "supply-chain-graph.2026-07-16-source-coverage-v3"
+        "supply-chain-graph.2026-07-17-source-grounding-v4"
     )
     SUPPLY_CHAIN_GRAPH_MIN_NODES: int = 12
     SUPPLY_CHAIN_GRAPH_MAX_NODES: int = 40

@@ -191,7 +191,7 @@ def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
     assert settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION == "supply-chain-graph.v1"
     assert (
         settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION
-        == "supply-chain-graph.2026-07-16-source-coverage-v3"
+        == "supply-chain-graph.2026-07-17-source-grounding-v4"
     )
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_NODES == 40
     assert settings.SUPPLY_CHAIN_GRAPH_MIN_NODES == 12
@@ -200,6 +200,19 @@ def test_supply_chain_graph_defaults_follow_research_model(monkeypatch) -> None:
     assert settings.SUPPLY_CHAIN_GRAPH_EVIDENCE_TOKEN_BUDGET == 100_000
     assert settings.SUPPLY_CHAIN_GRAPH_STAGE_TIMEOUT_SECONDS == 180
     assert settings.SUPPLY_CHAIN_GRAPH_MAX_OUTPUT_TOKENS == 16_000
+
+
+def test_blank_supply_chain_versions_use_defaults(monkeypatch) -> None:
+    monkeypatch.setenv("SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION", "")
+    monkeypatch.setenv("SUPPLY_CHAIN_GRAPH_PROMPT_VERSION", "")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.SUPPLY_CHAIN_GRAPH_SCHEMA_VERSION == "supply-chain-graph.v1"
+    assert (
+        settings.SUPPLY_CHAIN_GRAPH_PROMPT_VERSION
+        == "supply-chain-graph.2026-07-17-source-grounding-v4"
+    )
 
 
 def test_supply_chain_graph_model_override_takes_precedence(monkeypatch) -> None:

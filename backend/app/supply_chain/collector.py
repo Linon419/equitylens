@@ -986,10 +986,13 @@ def extract_official_text(
         ["script", "style", "noscript", "nav", "svg", "template", "ix:hidden"]
     ):
         tag.decompose()
+    block_tags = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "tr", "li", "div"]
     lines: list[str] = []
-    for element in soup.find_all(
-        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "tr", "li", "a"]
-    ):
+    for element in soup.find_all([*block_tags, "a"]):
+        if element.name == "div" and element.find(block_tags) is not None:
+            continue
+        if element.name == "a" and element.find_parent(block_tags) is not None:
+            continue
         value = " ".join(element.get_text(" ", strip=True).split())
         if value and (not lines or value != lines[-1]):
             lines.append(value)

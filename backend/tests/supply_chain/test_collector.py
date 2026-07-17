@@ -1254,6 +1254,19 @@ def test_html_extraction_preserves_headings_and_table_rows() -> None:
     assert "Noise" not in text
 
 
+def test_html_extraction_preserves_sec_div_text() -> None:
+    text = extract_official_text(
+        b"<html><div><span>Substantially all of our flash-based memory </span>"
+        b"<span>is obtained from our joint ventures with Kioxia.</span></div></html>",
+        content_type="text/html",
+    )
+
+    assert " ".join(text.split()) == (
+        "Substantially all of our flash-based memory is obtained from our joint "
+        "ventures with Kioxia."
+    )
+
+
 @pytest.mark.anyio
 async def test_pdf_uses_injected_parser_and_model_text_is_capped() -> None:
     payload = submissions()

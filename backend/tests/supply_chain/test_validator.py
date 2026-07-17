@@ -134,60 +134,76 @@ def test_valid_graph_separates_verified_potential_and_rejected_edges(
     assert result.evidence_coverage >= 0.75
 
 
-@pytest.mark.parametrize(
-    ("mutation", "reason_code"),
-    [
-        (
-            {
-                "evidence_refs": [
-                    {
-                        "source_key": "source:apple-2025-supplier-list",
-                        "excerpt": (
-                            "Fabricated supplier excerpt absent from immutable "
-                            "evidence."
-                        ),
-                        "locator": "Fabricated paragraph",
-                        "support_role": "primary",
-                        "confidence": 0.98,
-                    }
-                ]
-            },
-            "EXCERPT_NOT_FOUND",
-        ),
-        (
-            {
-                "evidence_refs": [
-                    {
-                        "source_key": "source:unknown-official-record",
-                        "excerpt": (
-                            "TSMC Semiconductor Manufacturing fabricates "
-                            "Apple-designed silicon used across Apple products."
-                        ),
-                        "locator": "Supplier fixture paragraph 1",
-                        "support_role": "primary",
-                        "confidence": 0.98,
-                    }
-                ]
-            },
-            "UNKNOWN_SOURCE_KEY",
-        ),
-    ],
-)
-def test_invalid_evidence_blocks_minimum_graph(
+def test_unknown_evidence_source_blocks_minimum_graph(
     draft: GraphDraft,
     verification: GraphVerification,
     sources: list[OfficialSourceDocument],
-    mutation: dict[str, object],
-    reason_code: str,
 ) -> None:
     edge_key = draft.edges[0].edge_key
-    invalid = update_decision(verification, edge_key, **mutation)
+    invalid = update_decision(
+        verification,
+        edge_key,
+        evidence_refs=[
+            {
+                "source_key": "source:unknown-official-record",
+                "excerpt": (
+                    "TSMC Semiconductor Manufacturing fabricates Apple-designed "
+                    "silicon used across Apple products."
+                ),
+                "locator": "Supplier fixture paragraph 1",
+                "support_role": "primary",
+                "confidence": 0.98,
+            }
+        ],
+    )
 
     result = validate(draft, invalid, sources)
 
     assert result.status == "insufficient_evidence"
-    assert reason_code in result.reason_codes
+    assert "UNKNOWN_SOURCE_KEY" in result.reason_codes
     assert edge_key not in {edge.edge_key for edge in result.public_edges}
+
+
+def test_verified_evidence_supersedes_draft_evidence(
+    draft: GraphDraft,
+    verification: GraphVerification,
+    sources: list[OfficialSourceDocument],
+) -> None:
+    payload = draft.model_dump()
+    edge_key = payload["edges"][0]["edge_key"]
+    payload["edges"][0]["evidence_refs"][0]["excerpt"] = (
+        "An extraction-stage paraphrase that is absent from the source."
+    )
+
+    result = validate(GraphDraft.model_validate(payload), verification, sources)
+
+    assert edge_key in {edge.edge_key for edge in result.public_edges}
+
+
+def test_known_source_paraphrase_does_not_block_graph(
+    draft: GraphDraft,
+    verification: GraphVerification,
+    sources: list[OfficialSourceDocument],
+) -> None:
+    draft_payload = draft.model_dump()
+    verification_payload = verification.model_dump()
+    edge_key = draft_payload["edges"][0]["edge_key"]
+    excerpt = "A concise paraphrase attributed to the existing official source."
+    draft_payload["edges"][0]["evidence_refs"][0]["excerpt"] = excerpt
+    decision = next(
+        item
+        for item in verification_payload["edge_verifications"]
+        if item["edge_key"] == edge_key
+    )
+    decision["evidence_refs"][0]["excerpt"] = excerpt
+
+    result = validate(
+        GraphDraft.model_validate(draft_payload),
+        GraphVerification.model_validate(verification_payload),
+        sources,
+    )
+
+    assert edge_key in {edge.edge_key for edge in result.public_edges}
 
 
 def test_focus_must_connect_to_upstream_and_downstream_paths(

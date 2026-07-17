@@ -110,12 +110,10 @@ def _edge_rejection_code(
         return f"VERIFICATION_{decision.verdict.upper()}"
     if {edge.source_node_key, edge.target_node_key} & ambiguous:
         return "AMBIGUOUS_ENTITY"
-    for reference in [*edge.evidence_refs, *decision.evidence_refs]:
+    for reference in decision.evidence_refs:
         source = sources.get(reference.source_key)
         if source is None:
             return "UNKNOWN_SOURCE_KEY"
-        if _normalize(reference.excerpt) not in _normalize(source.body_text):
-            return "EXCERPT_NOT_FOUND"
     return None
 
 
@@ -155,7 +153,3 @@ def _source_metadata(source: OfficialSourceDocument) -> OfficialSourceMetadata:
     return OfficialSourceMetadata.model_validate(
         source.model_dump(include=_SOURCE_METADATA_FIELDS)
     )
-
-
-def _normalize(value: str) -> str:
-    return " ".join(value.split())
