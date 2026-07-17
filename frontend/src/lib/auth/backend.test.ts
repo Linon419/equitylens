@@ -47,4 +47,30 @@ describe("authenticated backend requests", () => {
     expect(result.response.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("refreshes when the access cookie expired in the browser", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+          token_type: "bearer",
+          access_expires_in: 900,
+          refresh_expires_in: 2_592_000,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ id: 1, email: "a@example.com" }),
+      );
+    const request = new NextRequest("https://example.com/api/auth/me", {
+      headers: { cookie: "equitylens_refresh=old-refresh" },
+    });
+
+    const result = await authenticatedBackendRequest(request, "/auth/me");
+
+    expect(result.response.status).toBe(200);
+    expect(result.rotatedTokens?.refresh_token).toBe("new-refresh");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

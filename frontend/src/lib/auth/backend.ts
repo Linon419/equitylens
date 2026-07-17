@@ -54,13 +54,11 @@ export async function authenticatedBackendRequest(
   init: RequestInit = {},
 ): Promise<BackendResult> {
   const accessToken = request.cookies.get(accessCookieName)?.value;
-  if (!accessToken) {
-    return { response: authRequiredResponse() };
-  }
-
-  const first = await backendRequest(path, withBearer(init, accessToken));
-  if (first.status !== 401) {
-    return { response: first };
+  if (accessToken) {
+    const first = await backendRequest(path, withBearer(init, accessToken));
+    if (first.status !== 401) {
+      return { response: first };
+    }
   }
 
   const refresh = await refreshFromRequest(request);
