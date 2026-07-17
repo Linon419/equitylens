@@ -37,7 +37,24 @@ export function useSupplyChainResearch({
   const [pending, setPending] = useState(false);
   const [requestError, setRequestError] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
+  const [syncedInitialGraph, setSyncedInitialGraph] = useState(initialGraph);
+  const [syncedInitialQuota, setSyncedInitialQuota] = useState(initialQuota);
   const language = locale === "zh-CN" ? "zh" : "en";
+
+  if (initialGraph !== syncedInitialGraph) {
+    setSyncedInitialGraph(initialGraph);
+    setGraph(initialGraph);
+    setJob(initialGraph?.refresh_job ?? null);
+    setPollMode(initialGraph?.refresh_job ? "job" : null);
+    setRequestError(false);
+    setLimitReached(false);
+    if (initialGraph) setQuota(initialGraph.quota);
+  }
+
+  if (initialQuota !== syncedInitialQuota) {
+    setSyncedInitialQuota(initialQuota);
+    if (initialQuota) setQuota(initialQuota);
+  }
 
   const updateQuota = useCallback((nextQuota: QuotaStatus) => {
     setQuota(nextQuota);

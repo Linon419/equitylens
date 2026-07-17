@@ -128,6 +128,24 @@ describe("SupplyChainGraph", () => {
     expect(screen.getAllByText("供应").length).toBeGreaterThan(0);
   });
 
+  it("shows a cached graph that arrives after the component mounts", () => {
+    const view = renderGraph({ graph: null });
+
+    expect(screen.getByRole("button", { name: "Generate graph" })).toBeVisible();
+
+    view.rerender(
+      <SupplyChainGraph
+        copy={companyPageCopy.en.graph}
+        graph={supplyChainGraphCachedFixture}
+        locale="en-US"
+        symbol="AAPL"
+      />,
+    );
+
+    expect(screen.getByText(supplyChainGraphCachedFixture.snapshot.thesis)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Refresh graph" })).toBeVisible();
+  });
+
   it("shows an insufficient-evidence research result", () => {
     renderGraph({ graph: supplyChainGraphInsufficientFixture });
 
