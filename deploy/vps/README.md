@@ -11,7 +11,9 @@ address. On Ubuntu, install Docker and allow only SSH, HTTP, and HTTPS:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl git ufw
+sudo apt-get install -y ca-certificates chrony curl git ufw
+sudo systemctl enable --now chrony
+chronyc waitsync 10 0.1
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker "$USER"
 sudo ufw allow OpenSSH
