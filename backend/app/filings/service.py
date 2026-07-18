@@ -4,12 +4,12 @@ from sqlmodel import Session, select
 
 from app.core.errors import DomainError
 from app.filings.artifacts import compress_filing
-from app.filings.mapper import latest_10k
+from app.filings.mapper import latest_10k, latest_annual_filing
 from app.filings.parser import parse_research_sections
 from app.filings.schemas import StoredFiling
 from app.models.company_model import Company
 from app.models.research_model import Filing, FilingArtifact, FilingSection
-from app.providers.sec import SecDataProvider
+from app.providers.sec import FilingReference, SecDataProvider
 
 
 async def download_latest_10k(
@@ -23,6 +23,46 @@ async def download_latest_10k(
     current_time = now or datetime.now(UTC)
     submissions = await provider.get_submissions(company.cik)
     reference = latest_10k(company.cik, submissions)
+    return await _download_filing(
+        session,
+        company,
+        provider,
+        reference=reference,
+        now=current_time,
+        max_bytes=max_bytes,
+    )
+
+
+async def download_latest_annual_filing(
+    session: Session,
+    company: Company,
+    provider: SecDataProvider,
+    *,
+    now: datetime | None = None,
+    max_bytes: int = 15 * 1024 * 1024,
+) -> StoredFiling:
+    current_time = now or datetime.now(UTC)
+    submissions = await provider.get_submissions(company.cik)
+    reference = latest_annual_filing(company.cik, submissions)
+    return await _download_filing(
+        session,
+        company,
+        provider,
+        reference=reference,
+        now=current_time,
+        max_bytes=max_bytes,
+    )
+
+
+async def _download_filing(
+    session: Session,
+    company: Company,
+    provider: SecDataProvider,
+    *,
+    reference: FilingReference,
+    now: datetime,
+    max_bytes: int,
+) -> StoredFiling:
     existing = _find_filing(session, company, reference.accession_number)
     if existing is not None:
         stored = _load_complete_filing(session, existing)
@@ -44,10 +84,10 @@ async def download_latest_10k(
             report_date=date.fromisoformat(reference.report_date),
             primary_document=reference.primary_document,
             source_url=reference.source_url,
-            retrieved_at=current_time,
+            retrieved_at=now,
         )
         filing.content_hash = compressed.sha256
-        filing.retrieved_at = current_time
+        filing.retrieved_at = now
         session.add(filing)
         session.flush()
 

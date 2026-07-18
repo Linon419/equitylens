@@ -5,11 +5,13 @@ from typing import Any
 from uuid import UUID
 
 import tiktoken
+from sqlalchemy import case
 from sqlmodel import Session, select
 
 from app.chat.chunker import SectionChunk, TokenCodec, chunk_section
 from app.chat.contracts import EmbeddingProvider
 from app.core.errors import DomainError
+from app.filings.mapper import ANNUAL_FILING_FORMS
 from app.models.chat_model import FilingChunk
 from app.models.research_model import Filing, FilingSection
 
@@ -79,7 +81,7 @@ class FilingIndexService:
         self._now = now
 
     async def index_latest(self, *, company_id: int) -> FilingIndexResult:
-        filing = self._latest_10k(company_id)
+        filing = self._latest_annual_filing(company_id)
         sections = list(
             self._session.exec(
                 select(FilingSection)
@@ -102,11 +104,18 @@ class FilingIndexService:
         await self._replace_changed(filing, changed)
         return self._result(filing, indexed=len(changed), reused=reusable)
 
-    def _latest_10k(self, company_id: int) -> Filing:
+    def _latest_annual_filing(self, company_id: int) -> Filing:
         filing = self._session.exec(
             select(Filing)
-            .where(Filing.company_id == company_id, Filing.form == "10-K")
-            .order_by(Filing.filed_at.desc(), Filing.id.desc())
+            .where(
+                Filing.company_id == company_id,
+                Filing.form.in_(ANNUAL_FILING_FORMS),
+            )
+            .order_by(
+                Filing.filed_at.desc(),
+                case((Filing.form == "10-K", 1), else_=0).desc(),
+                Filing.id.desc(),
+            )
         ).first()
         if filing is None:
             raise DomainError("FILING_NOT_FOUND", 404)

@@ -7,12 +7,37 @@ from app.providers.sec import FilingReference
 ARCHIVE_URL = (
     "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{document}"
 )
+ANNUAL_FILING_FORMS = frozenset({"10-K", "20-F"})
 
 
 def latest_10k(cik: str, payload: dict[str, Any]) -> FilingReference:
+    return _latest_filing(
+        cik,
+        payload,
+        forms=frozenset({"10-K"}),
+        missing_code="TEN_K_NOT_FOUND",
+    )
+
+
+def latest_annual_filing(cik: str, payload: dict[str, Any]) -> FilingReference:
+    return _latest_filing(
+        cik,
+        payload,
+        forms=ANNUAL_FILING_FORMS,
+        missing_code="ANNUAL_FILING_NOT_FOUND",
+    )
+
+
+def _latest_filing(
+    cik: str,
+    payload: dict[str, Any],
+    *,
+    forms: frozenset[str],
+    missing_code: str,
+) -> FilingReference:
     recent = payload.get("filings", {}).get("recent", {})
     if not isinstance(recent, dict):
-        raise DomainError("TEN_K_NOT_FOUND", 404)
+        raise DomainError(missing_code, 404)
 
     columns = {
         name: recent.get(name, [])
@@ -30,14 +55,17 @@ def latest_10k(cik: str, payload: dict[str, Any]) -> FilingReference:
     references = []
     for values in zip(*columns.values(), strict=False):
         row = dict(zip(columns, values, strict=True))
-        if row["form"] != "10-K":
+        if row["form"] not in forms:
             continue
         reference = _to_reference(cik, row)
         if reference is not None:
             references.append(reference)
     if not references:
-        raise DomainError("TEN_K_NOT_FOUND", 404)
-    return max(references, key=lambda filing: filing.filed_at)
+        raise DomainError(missing_code, 404)
+    return max(
+        references,
+        key=lambda filing: (filing.filed_at, filing.form == "10-K"),
+    )
 
 
 def _to_reference(
@@ -53,11 +81,12 @@ def _to_reference(
             tzinfo=UTC
         )
         report_date = str(row["reportDate"])
+        form = str(row["form"])
     except (KeyError, TypeError, ValueError):
         return None
     return FilingReference(
         accession_number=accession_number,
-        form="10-K",
+        form=form,
         filed_at=filed_at,
         report_date=report_date,
         primary_document=primary_document,

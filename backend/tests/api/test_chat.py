@@ -8,7 +8,7 @@ import pytest
 from fastapi import Header
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.api.deps import (
     get_agent_principal,
@@ -33,6 +33,7 @@ from app.main import create_app
 from app.models.company_model import Company
 from app.models.research_model import Filing, FilingSection
 from app.models.user_model import User
+from app.providers.sec import FilingContent
 from app.quota.identity import RequestPrincipal
 
 NOW = datetime(2026, 7, 15, 12, tzinfo=UTC)
@@ -126,6 +127,31 @@ class FakeSecProvider:
     async def resolve_company(self, symbol: str):
         raise AssertionError(f"unexpected company lookup: {symbol}")
 
+    async def get_submissions(self, cik: str) -> dict:
+        assert cik == "0001577552"
+        return {
+            "filings": {
+                "recent": {
+                    "accessionNumber": ["0001193125-26-231755"],
+                    "filingDate": ["2026-05-20"],
+                    "reportDate": ["2026-03-31"],
+                    "form": ["20-F"],
+                    "primaryDocument": ["baba-20260331.htm"],
+                }
+            }
+        }
+
+    async def download_filing(self, filing) -> FilingContent:
+        return FilingContent(
+            body=(
+                b"<html><p>D. Risk Factors</p><p>Commerce regulation risk.</p>"
+                b"<p>ITEM 4. INFORMATION ON THE COMPANY</p>"
+                b"<p>Alibaba operates commerce and cloud platforms.</p></html>"
+            ),
+            content_type="text/html",
+            source_url=filing.source_url,
+        )
+
 
 @dataclass
 class ChatApiHarness:
@@ -165,6 +191,12 @@ def chat_api() -> Generator[ChatApiHarness, None, None]:
         session.add_all(
             [
                 company,
+                Company(
+                    id=2,
+                    symbol="BABA",
+                    cik="0001577552",
+                    name="Alibaba Group Holding Limited",
+                ),
                 User(id=7, email="investor@example.com"),
                 filing,
             ]
@@ -296,6 +328,28 @@ def test_readiness_and_zero_quota_index_sync(chat_api) -> None:
     assert chat_api.context.calls[0]["locale"] == "zh-CN"
     assert indexed.status_code == 202
     assert indexed.json()["status"] == "accepted"
+    assert chat_api.jobs.calls[0]["job_type"] == "filing_index"
+
+
+def test_index_sync_downloads_20_f_when_filing_is_missing(chat_api) -> None:
+    indexed = chat_api.client.post("/api/v1/companies/BABA/chat-index/sync")
+
+    assert indexed.status_code == 202
+    assert indexed.json()["status"] == "accepted"
+    with Session(chat_api.engine) as session:
+        filing = session.exec(
+            select(Filing).where(Filing.company_id == 2)
+        ).one()
+        sections = list(
+            session.exec(
+                select(FilingSection).where(FilingSection.filing_id == filing.id)
+            ).all()
+        )
+    assert filing.form == "20-F"
+    assert [section.heading for section in sections] == [
+        "D. Risk Factors",
+        "ITEM 4. INFORMATION ON THE COMPANY",
+    ]
     assert chat_api.jobs.calls[0]["job_type"] == "filing_index"
 
 

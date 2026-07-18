@@ -47,3 +47,23 @@ def test_parser_removes_nested_hidden_nodes_without_invalidating_iteration() -> 
     assert len(sections) == 1
     assert "Visible storage products" in sections[0].text
     assert "invent business lines" not in sections[0].text
+
+
+def test_parser_extracts_20_f_risk_and_business_sections() -> None:
+    html = b"""
+    <p id="item_3">ITEM 3. KEY INFORMATION</p>
+    <p>D. Risk Factors</p>
+    <p>Variable-interest-entity regulation may affect operations.</p>
+    <p id="item_4">ITEM 4. INFORM ATION ON THE COMPANY</p>
+    <p>Cloud and commerce platforms serve customers worldwide.</p>
+    <p>ITEM 4A. UNRESOLVED STAFF COMMENTS</p>
+    """
+
+    sections = parse_research_sections(html)
+
+    assert [section.heading for section in sections] == [
+        "D. Risk Factors",
+        "ITEM 4. INFORM ATION ON THE COMPANY",
+    ]
+    assert "regulation" in sections[0].text
+    assert "commerce platforms" in sections[1].text

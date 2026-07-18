@@ -135,7 +135,8 @@ permits two accepted graph jobs per UTC day when devoted to graph research;
 company intelligence uses the same pool. Active jobs and cached snapshots reuse
 the existing result at zero quota cost.
 
-Citation-backed company research chat combines the latest indexed 10-K,
+Citation-backed company research chat combines the latest indexed annual filing
+(`10-K` for domestic issuers or `20-F` for foreign private issuers),
 structured company context, and bounded Agent-selected web evidence. Hybrid
 full-text and vector retrieval keeps filing citations grounded in exact
 excerpts, and the answer streams through the same-origin BFF. Guests receive

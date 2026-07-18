@@ -35,6 +35,7 @@ from app.chat.structured_repository import SqlStructuredContextRepository
 from app.companies.service import get_or_create_company
 from app.core.config import settings
 from app.core.errors import DomainError
+from app.filings.service import download_latest_annual_filing
 from app.jobs._filing_index import (
     FilingIndexSynchronizationServices,
     synchronize_filing_index,
@@ -84,7 +85,14 @@ async def synchronize_chat_index(
         raise DomainError("COMPANY_NOT_FOUND", 404)
     filing = SqlStructuredContextRepository(session).latest_filing(company.id)
     if filing is None:
-        raise DomainError("FILING_NOT_FOUND", 404)
+        filing = (
+            await download_latest_annual_filing(
+                session,
+                company,
+                sec_provider,
+                max_bytes=settings.MAX_FILING_BYTES,
+            )
+        ).filing
     result = await synchronize_filing_index(
         session,
         company=company,

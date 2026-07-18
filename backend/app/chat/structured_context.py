@@ -139,11 +139,11 @@ class StructuredContextService:
                 analysis_job,
                 "company_analysis",
             ),
-            filing_text=_resource(filing_ready, analysis_job, "company_analysis"),
+            filing_text=_resource(filing_ready, index_job, "filing_index"),
             filing_index=_resource(
                 index_ready,
                 index_job,
-                "filing_index" if filing_ready else "company_analysis",
+                "filing_index",
             ),
             supply_chain_graph=_resource(
                 graph is not None,

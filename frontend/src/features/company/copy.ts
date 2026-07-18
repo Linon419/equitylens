@@ -163,13 +163,13 @@ export const companyPageCopy = {
       readiness: {
         title: "Evidence readiness",
         zeroQuota: "Filing preparation uses zero chat or Agent quota.",
-        prepareIndex: "Prepare 10-K for chat",
+        prepareIndex: "Prepare annual filing for chat",
         startAnalysis: "Start company analysis",
         generateGraph: "Generate supply-chain graph",
         resources: {
           intelligence: "Structured intelligence",
-          filingText: "Latest 10-K text",
-          filingIndex: "10-K search index",
+          filingText: "Latest annual filing text",
+          filingIndex: "Annual filing search index",
           graph: "Supply-chain graph",
           web: "Current web evidence",
         },
@@ -407,13 +407,13 @@ export const companyPageCopy = {
       readiness: {
         title: "证据准备状态",
         zeroQuota: "财报索引准备不消耗对话或 Agent 额度。",
-        prepareIndex: "为对话准备 10-K",
+        prepareIndex: "为对话准备年度报告",
         startAnalysis: "开始公司分析",
         generateGraph: "生成产业链图谱",
         resources: {
           intelligence: "结构化公司研究",
-          filingText: "最新 10-K 正文",
-          filingIndex: "10-K 检索索引",
+          filingText: "最新年度报告正文",
+          filingIndex: "年度报告检索索引",
           graph: "产业链图谱",
           web: "最新网页证据",
         },

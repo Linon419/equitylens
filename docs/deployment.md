@@ -210,7 +210,9 @@ references. Schema and prompt version changes create distinct cache identities.
 Alembic revision `20260714_0005` creates the chat conversation, message,
 citation, quota, filing-chunk, and web-source tables. PostgreSQL applies a GIN
 full-text index and pgvector HNSW index to filing chunks. Re-indexing replaces a
-filing's chunk set idempotently.
+filing's chunk set idempotently. Chat indexing selects the latest supported SEC
+annual filing (`10-K` or `20-F`) and downloads it on demand when the filing is
+not already stored.
 
 Agent-selected web evidence is compressed and content-addressed beneath the
 private `chat-web/` object-storage prefix. Public citations expose the source

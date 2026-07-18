@@ -202,7 +202,7 @@ def _filing_record(company, filing: Filing, chunk, retrieved_at: datetime):
         evidence_id=f"filing:{chunk.id}",
         source_kind="filing",
         source_id=str(chunk.id),
-        title=f"{company.symbol} 10-K · {chunk.heading}",
+        title=f"{company.symbol} {filing.form} · {chunk.heading}",
         source_url=chunk.source_url,
         source_anchor=chunk.source_anchor,
         excerpt=excerpt,
@@ -212,6 +212,7 @@ def _filing_record(company, filing: Filing, chunk, retrieved_at: datetime):
         verification="verified",
         attributes={
             "filing_id": str(filing.id),
+            "filing_form": filing.form,
             "fiscal_period": filing.fiscal_period,
         },
     )
@@ -276,7 +277,7 @@ def _principal_scope(principal: RequestPrincipal) -> str:
 def _filing_question(question: str) -> bool:
     return (
         re.search(
-            r"\b(10-k|filing|revenue|margin|cash flow|income|balance sheet)\b|"
+            r"\b(10-k|20-f|filing|revenue|margin|cash flow|income|balance sheet)\b|"
             r"财报|营收|利润|毛利率|现金流|资产负债",
             question,
             re.IGNORECASE,
@@ -292,8 +293,8 @@ def _gap_is_relevant(resource: str, question: str) -> bool:
             r"\b(revenue|margin|profit|cash flow|eps)\b|营收|利润|现金流|毛利率"
         ),
         "intelligence": r"\b(business|segment|product|strategy)\b|业务|产品|战略",
-        "filing_text": r"\b(10-k|filing|annual report)\b|财报|年报",
-        "filing_index": r"\b(10-k|filing|annual report)\b|财报|年报",
+        "filing_text": r"\b(10-k|20-f|filing|annual report)\b|财报|年报",
+        "filing_index": r"\b(10-k|20-f|filing|annual report)\b|财报|年报",
         "supply_chain_graph": (
             r"\b(supply chain|supplier|customer|upstream|downstream)\b|"
             r"产业链|供应商|客户|上游|下游"

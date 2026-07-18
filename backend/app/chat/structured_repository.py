@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import case, or_
 from sqlmodel import Session, select
 
+from app.filings.mapper import ANNUAL_FILING_FORMS
 from app.financials.mapper import METRIC_ORDER
 from app.models.chat_model import FilingChunk
 from app.models.job_model import IngestionJob
@@ -115,8 +116,15 @@ class SqlStructuredContextRepository:
     def latest_filing(self, company_id: int) -> Filing | None:
         return self._session.exec(
             select(Filing)
-            .where(Filing.company_id == company_id, Filing.form == "10-K")
-            .order_by(Filing.filed_at.desc(), Filing.id.desc())
+            .where(
+                Filing.company_id == company_id,
+                Filing.form.in_(ANNUAL_FILING_FORMS),
+            )
+            .order_by(
+                Filing.filed_at.desc(),
+                case((Filing.form == "10-K", 1), else_=0).desc(),
+                Filing.id.desc(),
+            )
         ).first()
 
     def filing_is_indexed(self, filing_id: UUID) -> bool:

@@ -98,6 +98,48 @@ async def test_latest_market_and_four_year_financial_window_are_resolved(
 
 
 @pytest.mark.asyncio
+async def test_newer_20_f_drives_filing_readiness(
+    chat_session: Session,
+    seeded_context: SeededContext,
+) -> None:
+    del seeded_context
+    filing = Filing(
+        company_id=1,
+        accession_number="0001577552-26-000001",
+        form="20-F",
+        fiscal_period="FY2026",
+        filed_at=date(2026, 5, 20),
+        report_date=date(2026, 3, 31),
+        primary_document="baba-20260331.htm",
+        source_url="https://www.sec.gov/Archives/baba-20260331.htm",
+    )
+    chat_session.add(filing)
+    chat_session.flush()
+    chat_session.add(
+        FilingSection(
+            filing_id=filing.id,
+            heading="Item 4. Information on the Company",
+            source_anchor="item-4",
+            ordinal=0,
+            text="Commerce and cloud platforms serve customers worldwide.",
+        )
+    )
+    chat_session.commit()
+    company = chat_session.get(Company, 1)
+    assert company is not None
+
+    pack = await StructuredContextService(chat_session, now=NOW).resolve(
+        company=company,
+        selections=[],
+        locale="en-US",
+    )
+
+    assert pack.readiness.filing_text.state == "ready"
+    assert pack.readiness.filing_index.state == "missing"
+    assert pack.readiness.filing_index.action == "filing_index"
+
+
+@pytest.mark.asyncio
 async def test_business_claim_uses_persisted_localization_and_excerpt(
     chat_session: Session,
     seeded_context: SeededContext,
@@ -218,8 +260,8 @@ async def test_missing_resources_return_actions_and_evidence_gaps(
     )
 
     assert pack.readiness.intelligence.action == "company_analysis"
-    assert pack.readiness.filing_text.action == "company_analysis"
-    assert pack.readiness.filing_index.action == "company_analysis"
+    assert pack.readiness.filing_text.action == "filing_index"
+    assert pack.readiness.filing_index.action == "filing_index"
     assert pack.readiness.supply_chain_graph.action == "supply_chain_graph"
     assert pack.readiness.web_recency.state == "missing"
     assert {gap.resource for gap in pack.gaps} >= {

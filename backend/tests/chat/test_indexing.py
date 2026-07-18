@@ -35,11 +35,12 @@ def add_filing(
     accession: str,
     filed_at: date,
     sections: list[tuple[str, str]],
+    form: str = "10-K",
 ) -> Filing:
     filing = Filing(
         company_id=1,
         accession_number=accession,
-        form="10-K",
+        form=form,
         fiscal_period="FY2025",
         filed_at=filed_at,
         report_date=filed_at,
@@ -123,6 +124,29 @@ async def test_indexing_is_idempotent_and_uses_latest_10k(chat_session) -> None:
     assert second_ids == first_ids
     assert len(embeddings.batches) == 1
     assert all(row.embedding_model == embeddings.model_id for row in first_rows)
+
+
+@pytest.mark.asyncio
+async def test_indexing_uses_a_newer_20_f(chat_session) -> None:
+    add_filing(
+        chat_session,
+        accession="0001577552-25-000001",
+        filed_at=date(2025, 6, 26),
+        sections=[("Older annual report", token_text(8))],
+    )
+    latest = add_filing(
+        chat_session,
+        accession="0001577552-26-000001",
+        filed_at=date(2026, 5, 20),
+        form="20-F",
+        sections=[("Item 4. Information on the Company", token_text(12))],
+    )
+
+    result = await service(chat_session, FakeEmbeddingProvider()).index_latest(
+        company_id=1,
+    )
+
+    assert result.filing_id == latest.id
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import UTC, datetime
 
 import httpx
@@ -7,7 +8,7 @@ from sqlmodel import Session, select
 from app.core.errors import DomainError
 from app.filings.mapper import latest_10k
 from app.filings.sec_client import SecClient
-from app.filings.service import download_latest_10k
+from app.filings.service import download_latest_10k, download_latest_annual_filing
 from app.models.company_model import Company
 from app.models.research_model import FilingArtifact, FilingSection
 from app.providers.sec import FilingContent
@@ -87,6 +88,29 @@ async def test_download_latest_10k_rejects_non_html_content(
         )
 
     assert error.value.code == "FILING_CONTENT_INVALID"
+
+
+@pytest.mark.asyncio
+async def test_download_latest_annual_filing_persists_20_f(
+    filing_session: Session,
+    filing_company: Company,
+    submissions: dict,
+    filing_html: bytes,
+) -> None:
+    foreign_issuer = deepcopy(submissions)
+    recent = foreign_issuer["filings"]["recent"]
+    latest_index = recent["accessionNumber"].index("0000320193-25-000079")
+    recent["form"][latest_index] = "20-F"
+    provider = FilingProvider(foreign_issuer, filing_html)
+
+    stored = await download_latest_annual_filing(
+        filing_session,
+        filing_company,
+        provider,
+    )
+
+    assert stored.filing.form == "20-F"
+    assert stored.sections
 
 
 def test_fixture_reference_is_current(submissions: dict) -> None:

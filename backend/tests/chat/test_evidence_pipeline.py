@@ -128,7 +128,7 @@ async def test_pipeline_combines_relevant_structured_filing_and_web_evidence() -
     filing = Filing(
         company_id=1,
         accession_number="0000320193-25-000079",
-        form="10-K",
+        form="20-F",
         fiscal_period="FY2025",
         filed_at=date(2025, 10, 31),
         report_date=date(2025, 9, 27),
@@ -220,6 +220,7 @@ async def test_pipeline_combines_relevant_structured_filing_and_web_evidence() -
         "filing",
     ]
     assert internal.evidence_gaps == ["SUPPLY_CHAIN_GRAPH_MISSING"]
+    assert internal.records[-1].candidate.title.startswith("AAPL 20-F")
     assert retriever.calls[0]["request"].summary == "Earlier summary"
     assert market.calls[0]["skills"] == ["stock-liquidity"]
     assert web.calls[0].official_hosts == ("www.apple.com",)

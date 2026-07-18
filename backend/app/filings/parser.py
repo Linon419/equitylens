@@ -8,6 +8,8 @@ from app.filings.schemas import ParsedSection
 SECTION_PATTERNS = (
     r"^item\s+1[\.:\-\s]+business$",
     r"^item\s+1a[\.:\-\s]+risk factors$",
+    r"^d[\.:\-\s]+risk factors$",
+    r"^item\s+4[\.:\-\s]+inform\s*ation on the company$",
     r"net sales.*products.*services",
     r"segment information",
     r"major customers?",
