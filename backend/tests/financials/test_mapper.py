@@ -83,6 +83,23 @@ def test_mapper_supports_non_calendar_fiscal_year() -> None:
     assert revenue.annual[0].end_date.isoformat() == "2025-06-30"
 
 
+def test_mapper_supports_20_f_annual_filings(company_facts: dict) -> None:
+    foreign_issuer = deepcopy(company_facts)
+    for concept in foreign_issuer["facts"]["us-gaap"].values():
+        for fact in concept["units"]["USD"]:
+            if fact.get("fp") == "FY":
+                fact["form"] = "20-F"
+
+    revenue = map_company_facts(foreign_issuer)["revenue"]
+
+    assert [point.period_key for point in revenue.annual] == [
+        "FY2022",
+        "FY2023",
+        "FY2024",
+        "FY2025",
+    ]
+
+
 def test_mapper_marks_ttm_unavailable_when_comparable_ytd_is_missing(
     company_facts: dict,
 ) -> None:

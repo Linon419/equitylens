@@ -20,6 +20,7 @@ TAGS = {
     ),
 }
 METRIC_ORDER = (*TAGS, "free_cash_flow")
+ANNUAL_FORMS = {"10-K", "20-F"}
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,11 @@ def _select_annual(
     candidates: dict[tuple[str, date], MappedPoint] = {}
     for fact in facts:
         point = _to_point(fact, metric_key, tag, source_url)
-        if point is None or fact.get("form") != "10-K" or fact.get("fp") != "FY":
+        if (
+            point is None
+            or fact.get("form") not in ANNUAL_FORMS
+            or fact.get("fp") != "FY"
+        ):
             continue
         if point.start_date is None:
             continue
