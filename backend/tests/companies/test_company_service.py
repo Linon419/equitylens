@@ -21,6 +21,8 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
 class FakeMarketProvider:
+    provider_name = "yahoo"
+
     async def search_symbols(self, query: str) -> list[SymbolMatch]:
         assert query == "apple"
         return [SymbolMatch(symbol="aapl", name="Apple Inc.", exchange="NMS")]

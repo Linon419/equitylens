@@ -32,6 +32,7 @@ class DocumentParserName(StrEnum):
 
 
 class MarketDataProviderName(StrEnum):
+    SYNTHETIC = "synthetic"
     YAHOO = "yahoo"
 
 

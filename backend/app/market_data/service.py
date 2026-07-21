@@ -7,6 +7,7 @@ from typing import Literal
 from sqlmodel import Session, select
 
 from app.core.errors import DomainError
+from app.market_data.synthetic import PROVIDER_NAME as SYNTHETIC_PROVIDER_NAME
 from app.models.company_model import Company
 from app.models.market_model import MarketSnapshot
 from app.providers.market import MarketDataProvider, QuoteSnapshot
@@ -33,7 +34,11 @@ async def get_market_snapshot(
     ttl_seconds: int = 900,
 ) -> MarketResult:
     current_time = now or datetime.now(UTC)
-    latest = _latest_snapshot(session, company)
+    latest = _latest_snapshot(
+        session,
+        company,
+        getattr(provider, "provider_name", None),
+    )
     if latest is not None and _is_fresh(
         latest.fetched_at,
         current_time,
@@ -62,10 +67,13 @@ async def refresh_company_profile(
     ttl_seconds: int = 7 * 24 * 60 * 60,
 ) -> Company:
     current_time = now or datetime.now(UTC)
-    if company.profile_fetched_at is not None and _is_fresh(
-        company.profile_fetched_at,
-        current_time,
-        ttl_seconds,
+    synthetic_profile = (
+        getattr(provider, "provider_name", None) == SYNTHETIC_PROVIDER_NAME
+    )
+    if (
+        not synthetic_profile
+        and company.profile_fetched_at is not None
+        and _is_fresh(company.profile_fetched_at, current_time, ttl_seconds)
     ):
         return company
 
@@ -92,12 +100,14 @@ async def refresh_company_profile(
 def _latest_snapshot(
     session: Session,
     company: Company,
+    provider_name: str | None = None,
 ) -> MarketSnapshot | None:
-    return session.exec(
-        select(MarketSnapshot)
-        .where(MarketSnapshot.company_id == company.id)
-        .order_by(MarketSnapshot.fetched_at.desc())
-    ).first()
+    statement = select(MarketSnapshot).where(
+        MarketSnapshot.company_id == company.id
+    )
+    if provider_name is not None:
+        statement = statement.where(MarketSnapshot.provider == provider_name)
+    return session.exec(statement.order_by(MarketSnapshot.fetched_at.desc())).first()
 
 
 def _persist_snapshot(

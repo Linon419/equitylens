@@ -7,6 +7,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.errors import DomainError
 from app.market_data.service import get_market_snapshot, refresh_company_profile
+from app.market_data.synthetic import SyntheticMarketDataProvider
 from app.models.company_model import Company
 from app.providers.market import CompanyProfile, QuoteSnapshot
 
@@ -14,6 +15,8 @@ NOW = datetime(2026, 7, 13, 12, tzinfo=UTC)
 
 
 class FakeMarketProvider:
+    provider_name = "yahoo"
+
     def __init__(self) -> None:
         self.quote_calls = 0
         self.profile_calls = 0
@@ -110,6 +113,22 @@ async def test_initial_quote_failure_has_stable_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_quote_cache_is_scoped_to_the_selected_provider() -> None:
+    with build_session() as session:
+        company = add_company(session)
+        await get_market_snapshot(session, company, FakeMarketProvider(), now=NOW)
+
+        result = await get_market_snapshot(
+            session,
+            company,
+            SyntheticMarketDataProvider(),
+            now=NOW + timedelta(minutes=5),
+        )
+
+    assert result.snapshot.provider == "synthetic-evaluation-v1"
+
+
+@pytest.mark.asyncio
 async def test_company_profile_has_an_independent_seven_day_ttl() -> None:
     provider = FakeMarketProvider()
     with build_session() as session:
@@ -150,3 +169,25 @@ async def test_profile_failure_preserves_the_last_valid_profile() -> None:
 
     assert fallback.sector == "Technology"
     assert fallback.profile_fetched_at == NOW
+
+
+@pytest.mark.asyncio
+async def test_synthetic_profile_replaces_a_fresh_external_profile() -> None:
+    with build_session() as session:
+        company = add_company(session)
+        external = await refresh_company_profile(
+            session,
+            company,
+            FakeMarketProvider(),
+            now=NOW,
+        )
+
+        synthetic = await refresh_company_profile(
+            session,
+            external,
+            SyntheticMarketDataProvider(),
+            now=NOW + timedelta(minutes=5),
+        )
+
+    assert "synthetic evaluation" in (synthetic.description or "").lower()
+    assert synthetic.profile_fetched_at == NOW + timedelta(minutes=5)

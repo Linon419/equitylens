@@ -38,6 +38,8 @@ class QuoteSnapshot:
 
 
 class MarketDataProvider(Protocol):
+    provider_name: str
+
     async def search_symbols(self, query: str) -> list[SymbolMatch]: ...
 
     async def get_quote(self, symbol: str) -> QuoteSnapshot: ...

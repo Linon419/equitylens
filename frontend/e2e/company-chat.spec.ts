@@ -40,6 +40,7 @@ test("filing question completes with internal evidence and no web citation", asy
   await ask(dialog, "What were Apple's FY2025 revenue and gross margin?", "Send question");
 
   await expect(dialog.getByText("Evidence coverage: complete")).toBeVisible();
+  await dialog.getByText("Cited sources", { exact: true }).click();
   await expect(dialog.getByRole("link", { name: /AAPL Revenue/ })).toBeVisible();
   await expect(dialog.getByRole("link", { name: /FTC competition update/ })).toHaveCount(0);
 });
@@ -48,10 +49,11 @@ test("current-event question includes web tier and date metadata", async ({ page
   const dialog = await openChat(page, "en-US");
   await ask(dialog, "What is Apple's current regulatory risk?", "Send question");
 
+  await dialog.getByText("Cited sources", { exact: true }).click();
   const source = dialog.getByRole("link", { name: /FTC competition update/ });
   await expect(source).toBeVisible();
   const citation = source.locator("xpath=ancestor::li");
-  await expect(citation).toContainText("primary");
+  await expect(citation).toContainText("Primary source");
   await expect(citation).toContainText("2026-07-14");
 });
 
@@ -157,8 +159,6 @@ test("mobile chat supports keyboard citations and restores launcher focus", asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/en-US/companies/AAPL");
   const dialog = page.getByRole("dialog", { name: "Ask EquityLens" });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Close research chat" }).click();
   await expect(dialog).toBeHidden();
   const launcher = page.getByRole("button", { name: "Ask EquityLens", exact: true });
   await launcher.focus();
@@ -168,6 +168,7 @@ test("mobile chat supports keyboard citations and restores launcher focus", asyn
   expect(box?.height).toBeLessThanOrEqual(779);
   await expect(dialog.getByRole("textbox", { name: "Research question" })).toBeEnabled();
   await ask(dialog, "What was Apple's FY2025 revenue?", "Send question");
+  await dialog.getByText("Cited sources", { exact: true }).click();
   const citation = dialog.getByRole("link", { name: /AAPL Revenue/ });
   await citation.focus();
   await expect(citation).toBeFocused();
@@ -189,7 +190,9 @@ async function openChatOnCurrentPage(page: Page, locale: "en-US" | "zh-CN") {
   }
   await expect(dialog).toBeVisible();
   const question = locale === "zh-CN" ? "投研问题" : "Research question";
-  await expect(dialog.getByRole("textbox", { name: question })).toBeEnabled();
+  await expect(dialog.getByRole("textbox", { name: question })).toBeEnabled({
+    timeout: 10_000,
+  });
   return dialog;
 }
 

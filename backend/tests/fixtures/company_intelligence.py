@@ -52,6 +52,8 @@ COMPANY_NAMES = {
 
 @dataclass
 class DeterministicMarketProvider:
+    provider_name = "yahoo"
+
     searches: list[str] = field(default_factory=list)
 
     async def search_symbols(self, query: str) -> list[SymbolMatch]:

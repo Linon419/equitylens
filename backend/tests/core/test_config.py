@@ -39,6 +39,7 @@ def isolate_local_model_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
         "LLM_API_KEY",
         "LLM_BASE_URL",
         "LLM_STRUCTURED_OUTPUT_METHOD",
+        "MARKET_DATA_PROVIDER",
         "RESEARCH_MODEL",
         "SUPPLY_CHAIN_GRAPH_MIN_NODES",
         "SUPPLY_CHAIN_GRAPH_SOURCE_BYTES",
@@ -83,6 +84,17 @@ def test_docker_profile_accepts_docker_providers() -> None:
     assert settings.LLM_API_KEY_VALUE == "test"
     assert settings.LLM_BASE_URL_VALUE is None
     assert settings.LLM_ORGANIZATION == "test"
+
+
+def test_synthetic_market_data_profile_is_selectable() -> None:
+    settings = Settings(
+        _env_file=None,
+        **BASE,
+        **DOCKER_PROVIDERS,
+        MARKET_DATA_PROVIDER="synthetic",
+    )
+
+    assert settings.MARKET_DATA_PROVIDER == "synthetic"
 
 
 def test_vps_profile_accepts_managed_storage_and_rq() -> None:

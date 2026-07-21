@@ -32,6 +32,8 @@ from app.providers.sec import CompanyReference
 
 @dataclass
 class FakeMarketProvider:
+    provider_name = "yahoo"
+
     queries: list[str] = field(default_factory=list)
     quote_calls: int = 0
     profile_calls: int = 0

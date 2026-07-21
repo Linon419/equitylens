@@ -21,6 +21,7 @@ describe("CompanyPage", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("renders the company dossier shell while primary data is pending", () => {
@@ -103,6 +104,30 @@ describe("CompanyPage", () => {
     expect(screen.queryByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeNull();
     await user.click(screen.getByRole("button", { name: companyPageCopy.en.header.ask }));
     expect(screen.getByRole("dialog", { name: companyPageCopy.en.chat.title })).toBeVisible();
+  });
+
+  it("starts with the research chat closed on a mobile viewport", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: false,
+      media: "(min-width: 1101px)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    vi.spyOn(globalThis, "fetch").mockImplementation(fetchFixture);
+
+    render(
+      <CompanyPage copy={companyPageCopy.en} locale="en-US" symbol="AAPL" />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Apple Inc." })).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: companyPageCopy.en.chat.title }),
+    ).toBeNull();
+    expect(screen.getByRole("heading", { name: "AI supply-chain graph" })).toBeVisible();
   });
 
   it("renders a dedicated company-not-found state", async () => {

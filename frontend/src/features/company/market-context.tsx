@@ -48,7 +48,7 @@ export function MarketContext({
         <div className="company-market__time">
           {data.freshness === "stale" ? <strong>{copy.stale}</strong> : null}
           <span>{copy.observed}: {formatDateTime(data.observed_at, locale)}</span>
-          <small>{copy.provider}</small>
+          <small>{copy.provider}: {data.provider}</small>
         </div>
       </header>
       <div className="market-cards">

@@ -49,7 +49,7 @@ and six connected questions:
 |---|---|---|
 | See the product | Start the Docker profile and open `/en-US/dashboard` | Bilingual company search, financials, valuation, graph, and research chat |
 | Exercise the full research flow | Search `AAPL`, run company analysis, generate the graph, then ask a filing question | Durable jobs, official-source excerpts, citations, and persisted conversation state |
-| Evaluate without provider credentials | Run the deterministic integration journey below | Real routes and persistence with checked-in SEC, Yahoo, graph, and chat fixtures |
+| Evaluate without provider credentials | Use `MARKET_DATA_PROVIDER=synthetic` or run the deterministic integration journey below | Real routes and persistence with fabricated market values plus checked-in SEC, graph, and chat fixtures |
 | Review engineering quality | Run the backend and frontend quality gates | Lint, unit, integration, coverage, type, build, and browser-test results |
 
 The live path fetches company and market data on demand. The deterministic path
@@ -309,7 +309,7 @@ API calls.
 | Fixture group | Included evidence | Location |
 |---|---|---|
 | SEC | Company ticker universe, submissions, and Company Facts | [`backend/tests/fixtures/sec`](backend/tests/fixtures/sec) |
-| Yahoo | Company search and quote payloads | [`backend/tests/fixtures/yahoo`](backend/tests/fixtures/yahoo) |
+| Market mapper | Fabricated Yahoo-shaped search and quote payloads | [`backend/tests/fixtures/yahoo`](backend/tests/fixtures/yahoo) |
 | Company research | Draft intelligence and verification verdicts | [`backend/tests/fixtures/research`](backend/tests/fixtures/research) |
 | Supply chain | Official-source records, draft graph, and verification results | [`backend/tests/fixtures/supply_chain`](backend/tests/fixtures/supply_chain) |
 | Research chat | Filing evidence, expected answers, and RAG evaluation cases | [`backend/tests/fixtures/chat`](backend/tests/fixtures/chat) |
@@ -473,13 +473,24 @@ preserve key assumptions and implementation sequences for later review.
 
 ## Data-source boundaries
 
+The complete source-by-source policy is recorded in
+[`DATA_SOURCES.md`](DATA_SOURCES.md).
+
 - SEC EDGAR supplies company identity, 10-K source documents, and XBRL Company
   Facts. Set `SEC_USER_AGENT` to an application name and monitored contact email,
   and respect the SEC's published automated-access policy.
-- Yahoo data enters through a replaceable `MarketDataProvider` adapter for local
-  research and evaluation. Public or commercial launch requires a separate
-  data-license review. See the [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
+- `MARKET_DATA_PROVIDER=synthetic` is the judge-safe profile. It serves
+  deterministic fabricated quotes from repository code, labels every snapshot
+  `synthetic-evaluation-v1`, and disables direct Yahoo market-analysis
+  collection in research chat.
+- `MARKET_DATA_PROVIDER=yahoo` enables the replaceable Yahoo / `yfinance`
+  adapter for local research. Any public or commercial deployment using this
+  profile requires its own data-license review against the
+  [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
   and [Yahoo Developer Network Guidelines](https://legal.yahoo.com/us/en/yahoo/guidelines/ydn/index.html).
+- Agent-selected web evidence is fetched through the configured OpenAI or Tavily
+  provider and preserves the original page URL, bounded excerpt, retrieval time,
+  and source classification.
 - Company conclusions come from automated model output and retain citations to
   the underlying SEC filing excerpt.
 
@@ -519,6 +530,12 @@ Issues and pull requests are welcome during the Phase 2 beta.
   Deploy Button defaults.
 - Report sensitive findings privately to the repository owner before opening a
   public issue.
+
+## License
+
+EquityLens is distributed under the [MIT License](LICENSE). Retained upstream
+copyright and license texts are listed in
+[Third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Acknowledgements
 

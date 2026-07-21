@@ -224,8 +224,15 @@ citations are deleted after seven days by the lifecycle cleanup path.
 SEC EDGAR requests must carry `SEC_USER_AGENT` with an application name and
 contact address. Keep request volume within the [SEC automated-access policy](https://www.sec.gov/about/webmaster-frequently-asked-questions).
 
-The Yahoo adapter supplies compact research-use quote and company-profile data.
-Commercial or public distribution requires a data-license review against the
+Set `MARKET_DATA_PROVIDER=synthetic` for hackathon judging and other
+credential-free evaluation environments. This profile makes zero external
+market-data requests, serves deterministic fabricated values labeled
+`synthetic-evaluation-v1`, and leaves Yahoo market-analysis chat evidence
+unavailable. SEC filing and Company Facts retrieval continues through EDGAR.
+
+Set `MARKET_DATA_PROVIDER=yahoo` to enable the Yahoo adapter for compact local
+research-use quote and company-profile data. Any commercial or public
+distribution using this profile requires a data-license review against the
 [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
 and [Yahoo Developer Network Guidelines](https://legal.yahoo.com/us/en/yahoo/guidelines/ydn/index.html).
 

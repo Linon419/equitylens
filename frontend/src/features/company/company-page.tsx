@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from "react";
 
 import { useSession } from "@/components/session-provider";
 import { AnalysisControl } from "./analysis-control";
@@ -27,6 +33,8 @@ import {
 } from "@/lib/research/types";
 
 export { companyPageCopy };
+
+const DESKTOP_CHAT_QUERY = "(min-width: 1101px)";
 
 type Resources = {
   loading: boolean;
@@ -59,7 +67,13 @@ export function CompanyPage({
     unavailable: [],
   });
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
-  const [chatOpen, setChatOpen] = useState(true);
+  const desktopChatDefault = useSyncExternalStore(
+    subscribeToDesktopChat,
+    getDesktopChatSnapshot,
+    () => false,
+  );
+  const [chatOverride, setChatOverride] = useState<boolean | null>(null);
+  const chatOpen = chatOverride ?? desktopChatDefault;
   const [pendingChatContext, setPendingChatContext] =
     useState<SelectedChatContext | null>(null);
 
@@ -115,12 +129,12 @@ export function CompanyPage({
 
   const handleAskContext = useCallback((context: SelectedChatContext) => {
     setPendingChatContext(context);
-    setChatOpen(true);
+    setChatOverride(true);
   }, []);
 
   const handleReadinessNavigate = useCallback(
     (action: "company_analysis" | "supply_chain_graph") => {
-      setChatOpen(false);
+      setChatOverride(false);
       const selector = action === "company_analysis"
         ? ".analysis-control"
         : ".supply-chain-section";
@@ -159,7 +173,7 @@ export function CompanyPage({
       <CompanyHeader
         company={resources.company}
         copy={copy.header}
-        onOpenChat={() => setChatOpen(true)}
+        onOpenChat={() => setChatOverride(true)}
       />
       {resources.unavailable.length > 0 ? (
         <p className="company-page__partial">{copy.partialLoad}</p>
@@ -252,7 +266,7 @@ export function CompanyPage({
         authenticated={Boolean(user)}
         copy={copy.chat}
         locale={locale}
-        onClose={() => setChatOpen(false)}
+        onClose={() => setChatOverride(false)}
         onContextConsumed={() => setPendingChatContext(null)}
         onReadinessNavigate={handleReadinessNavigate}
         open={chatOpen}
@@ -261,6 +275,18 @@ export function CompanyPage({
       />
     </main>
   );
+}
+
+function subscribeToDesktopChat(onChange: () => void) {
+  if (typeof window.matchMedia !== "function") return () => undefined;
+  const query = window.matchMedia(DESKTOP_CHAT_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function getDesktopChatSnapshot() {
+  return typeof window.matchMedia !== "function"
+    || window.matchMedia(DESKTOP_CHAT_QUERY).matches;
 }
 
 function CompanyLoadingShell({

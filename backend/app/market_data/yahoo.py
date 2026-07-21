@@ -29,6 +29,8 @@ def map_search_results(
 
 
 class YahooMarketDataProvider:
+    provider_name = "yahoo"
+
     async def search_symbols(self, query: str) -> list[SymbolMatch]:
         rows = await asyncio.to_thread(
             lambda: yf.Search(query, max_results=8, news_count=0).quotes

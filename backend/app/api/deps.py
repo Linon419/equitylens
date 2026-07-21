@@ -53,7 +53,7 @@ from app.core.ai_clients import (
     create_embedding_model,
     create_responses_client,
 )
-from app.core.config import settings
+from app.core.config import MarketDataProviderName, settings
 from app.core.database import create_database_engine
 from app.core.errors import DomainError
 from app.core.security import decode_access_token
@@ -67,6 +67,7 @@ from app.jobs.service import (
     UnconfiguredJobBackend,
 )
 from app.jobs.vercel_backend import VercelWorkflowBackend
+from app.market_data.synthetic import SyntheticMarketDataProvider
 from app.market_data.yahoo import YahooMarketDataProvider
 from app.models.auth_model import AuthSession
 from app.models.company_model import Company
@@ -127,6 +128,8 @@ TokenDep = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
 
 
 def get_market_data_provider() -> MarketDataProvider:
+    if settings.MARKET_DATA_PROVIDER == MarketDataProviderName.SYNTHETIC:
+        return SyntheticMarketDataProvider()
     return YahooMarketDataProvider()
 
 
@@ -781,11 +784,14 @@ def get_chat_evidence_pipeline(
     retriever: ChatRetrieverDep,
     web_search: ChatWebSearchServiceDep,
 ) -> CompanyResearchEvidencePipeline:
+    market_analysis = None
+    if settings.MARKET_DATA_PROVIDER == MarketDataProviderName.YAHOO:
+        market_analysis = YahooMarketAnalysisProvider()
     return CompanyResearchEvidencePipeline(
         SqlStructuredContextRepository(session),
         retriever,
         web_search,
-        YahooMarketAnalysisProvider(),
+        market_analysis,
     )
 
 

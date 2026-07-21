@@ -192,7 +192,7 @@ export const companyPageCopy = {
       forwardPe: "Forward P/E",
       stale: "Stale market data",
       observed: "Market observed",
-      provider: "Research-use quote via Yahoo",
+      provider: "Data source",
     },
     financials: {
       eyebrow: "SEC Company Facts",
@@ -436,7 +436,7 @@ export const companyPageCopy = {
       forwardPe: "预期市盈率",
       stale: "行情数据已过期",
       observed: "行情时间",
-      provider: "Yahoo 研究用途行情",
+      provider: "数据来源",
     },
     financials: {
       eyebrow: "SEC Company Facts",
