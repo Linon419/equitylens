@@ -23,6 +23,10 @@ and the RQ Agent worker.
 
 </div>
 
+![EquityLens supply-chain graph and company research Agent](docs/assets/equitylens-overview.png)
+
+<p align="center"><em>Evidence-backed supply-chain mapping alongside a cited company research Agent.</em></p>
+
 > [!IMPORTANT]
 > **Phase 2 Beta.** Public company search, compact valuation context, four-year
 > SEC financials, automated 10-K analysis, an AI-generated supply-chain graph,
